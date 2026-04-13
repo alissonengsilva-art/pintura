@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card form-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Cadastro fixo</span>
+            <h3>{{ entity_config.title }}</h3>
+        </div>
+        <a class="button-secondary" href="/cadastros/{{ entity }}">Voltar</a>
+    </div>
+
+    {% if error_message %}
+    <div class="alert-error">{{ error_message }}</div>
+    {% endif %}
+
+    <form method="post" class="form-grid">
+        {% for field in entity_config.fields %}
+        <div class="form-field {% if field.input_type == 'textarea' %}form-field-full{% endif %}">
+            {% if field.input_type == 'checkbox' %}
+                <label class="checkbox-field">
+                    <input type="checkbox" name="{{ field.name }}" {% if record and (record[field.name] if record is mapping else record|attr(field.name)) %}checked{% endif %}>
+                    <span>{{ field.label }}</span>
+                </label>
+            {% else %}
+                <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
+                {% set field_value = record[field.name] if record is mapping else (record|attr(field.name) if record else '') %}
+                {% if field.input_type == 'textarea' %}
+                <textarea id="{{ field.name }}" name="{{ field.name }}" rows="{{ field.rows or 3 }}" placeholder="{{ field.placeholder }}" {% if field.required %}required{% endif %}>{{ field_value or '' }}</textarea>
+                {% else %}
+                <input id="{{ field.name }}" type="{{ field.input_type }}" name="{{ field.name }}" value="{{ field_value or '' }}" placeholder="{{ field.placeholder }}" {% if field.required %}required{% endif %}>
+                {% endif %}
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="form-actions form-field-full">
+            <button class="button-primary" type="submit">Salvar</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

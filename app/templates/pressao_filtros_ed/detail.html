@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">Detalhe do lançamento</span>
+            <h3>Pressão dos Filtros ED · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</h3>
+            <p>Visualização consolidada do lançamento com status, observações e destaque dos filtros em alarme.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/pressao-filtros-ed/historico">Voltar ao histórico</a>
+            {% if lancamento.status == 'rascunho' %}
+            <a class="button-primary" href="/pressao-filtros-ed/lancamentos/{{ lancamento.id }}/editar">Continuar edição</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid ed-summary-grid pressure-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>Turno {{ lancamento.turno }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Responsável</span>
+        <strong>{{ lancamento.responsavel_nome }}</strong>
+        <p>{{ status_badges.get(lancamento.status, lancamento.status) }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Preenchidos</span>
+        <strong>{{ progress_summary.preenchidos }} / {{ progress_summary.total }}</strong>
+        <p>{{ progress_summary.percentual }}% do total de filtros.</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Em alarme</span>
+        <strong>{{ progress_summary.em_alarme }}</strong>
+        <p>Valores acima de 1 bar identificados.</p>
+    </article>
+</section>
+
+{% if lancamento.observacoes_gerais %}
+<section class="panel-card">
+    <span class="page-kicker">Observações gerais</span>
+    <p>{{ lancamento.observacoes_gerais }}</p>
+</section>
+{% endif %}
+
+<section class="panel-card pressure-filters-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Filtros registrados</span>
+            <h3>Leituras do lançamento</h3>
+        </div>
+        <div class="ed-count-chip emphasis">{{ lancamento.total_filtros_em_alarme }} em alarme</div>
+    </div>
+
+    <div class="pressure-filters-grid">
+        {% for row in filter_rows %}
+        <article class="pressure-filter-tile readonly {% if row.em_alarme %}alarm{% endif %}">
+            <div class="pressure-filter-header">
+                <div>
+                    <span class="page-kicker">Filtro {{ row.filtro_numero }}</span>
+                    <h4>Filtro {{ row.filtro_numero }}</h4>
+                </div>
+                <span class="evaluation-badge evaluation-{{ 'out' if row.em_alarme else 'neutral' }}">{% if row.em_alarme %}⚠ Em alarme{% else %}Normal{% endif %}</span>
+            </div>
+            <div class="pressure-value-display">{{ row.valor_pressao if row.valor_pressao != '' else '-' }} bar</div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="section-header-inline">
+    <div>
+        <span class="page-kicker">CRUD server-side</span>
+        <h3>{{ entity_config.title }}</h3>
+    </div>
+    <a class="button-primary" href="/cadastros/{{ entity }}/novo">Novo registro</a>
+</section>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    {% for field in entity_config.list_fields %}
+                    <th>{{ column_labels[field] }}</th>
+                    {% endfor %}
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    {% for field in entity_config.list_fields %}
+                    <td>
+                        {% set value = record|attr(field) %}
+                        {% if value is sameas true %}
+                            Sim
+                        {% elif value is sameas false %}
+                            Não
+                        {% else %}
+                            {{ value or '-' }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="actions-cell">
+                        <a class="button-secondary small" href="/cadastros/{{ entity }}/{{ record.id }}/editar">Editar</a>
+                        <form action="/cadastros/{{ entity }}/{{ record.id }}/excluir" method="post" onsubmit="return confirm('Excluir este registro?');">
+                            <button type="submit" class="button-danger small">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ entity_config.list_fields|length + 1 }}" class="empty-state">Nenhum registro encontrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

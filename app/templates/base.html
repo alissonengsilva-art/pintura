@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} | PINTURA</title>
+    <link rel="stylesheet" href="{{ request.url_for('static', path='css/main.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div>
+                <div class="brand-block">
+                    <span class="brand-kicker">Fábrica · Galpão · Processos</span>
+                    <h1>PINTURA</h1>
+                    <p>Painel operacional com rastreabilidade preparada para evolução.</p>
+                </div>
+
+                <nav class="nav-group">
+                    <h2>Seções operacionais</h2>
+                    <ul>
+                        {% for item in nav_sections %}
+                        <li>
+                            <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
+                                <span>{{ item.title }}</span>
+                                <small>{{ item.status }}</small>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+
+                <nav class="nav-group nav-group-secondary">
+                    <h2>ADMINISTRADOR</h2>
+                    <ul>
+                        <li>
+                            <a href="/cadastros" class="{% if active_path == '/cadastros' %}active{% endif %}">
+                                <span>Visão geral</span>
+                                <small>base administrativa</small>
+                            </a>
+                        </li>
+                        {% for item in cadastro_links %}
+                        <li>
+                            <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
+                                <span>{{ item.title }}</span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="topbar">
+                <div>
+                    <span class="page-kicker">Base inicial · Server-side</span>
+                    <h2>{{ page_title }}</h2>
+                    <p>{{ page_description }}</p>
+                </div>
+                <a class="topbar-action" href="/dashboard">Voltar ao dashboard</a>
+            </header>
+
+            <section class="content-area">
+                {% block content %}{% endblock %}
+            </section>
+        </main>
+    </div>
+</body>
+</html>

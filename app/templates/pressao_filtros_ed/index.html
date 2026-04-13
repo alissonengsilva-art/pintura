@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">Módulo operacional real</span>
+            <h3>Pressão dos Filtros ED</h3>
+            <p>Registre a pressão dos 24 filtros da ED com leitura rápida, rascunho, conclusão e detecção automática de alarme acima de 1 bar.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/pressao-filtros-ed">Novo lançamento</a>
+            <a class="button-primary" href="/pressao-filtros-ed/historico">Histórico</a>
+        </div>
+    </div>
+    <div class="ed-kpi-strip">
+        <div class="ed-kpi-card">
+            <span class="summary-label">Total de filtros</span>
+            <strong>{{ progress_summary.total }}</strong>
+            <p>Base operacional fixa do módulo.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Preenchidos</span>
+            <strong>{{ progress_summary.preenchidos }} / {{ progress_summary.total }}</strong>
+            <p>Filtros com valor de pressão informado.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Em alarme</span>
+            <strong>{{ progress_summary.em_alarme }}</strong>
+            <p>Valores acima de 1 bar.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Progresso</span>
+            <strong>{{ progress_summary.percentual }}%</strong>
+            <progress class="progress-track" max="100" value="{{ progress_summary.percentual }}">{{ progress_summary.percentual }}%</progress>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+{% if info_message %}
+<div class="alert-info">{{ info_message }}</div>
+{% endif %}
+{% if existing_context %}
+<section class="panel-card context-status-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Status do contexto</span>
+            <h3>{{ existing_context.message }}</h3>
+        </div>
+        <span class="status-badge status-{{ existing_context.status }}">{{ existing_context.label }}</span>
+    </div>
+    <p>Já há um lançamento registrado para a combinação de data e turno selecionada.</p>
+    <div class="hero-actions">
+        <a class="button-primary" href="{{ existing_context.action_url }}">{{ existing_context.action_label }}</a>
+    </div>
+</section>
+{% endif %}
+
+<form method="post" class="content-area">
+    <section class="panel-card ed-context-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Bloco 1 · Contexto do lançamento</span>
+                <h3>Contexto operacional</h3>
+            </div>
+            {% if lancamento and lancamento.id %}
+            <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
+            {% endif %}
+        </div>
+
+        <input type="hidden" name="lancamento_id" value="{{ lancamento.id if lancamento and lancamento.id else '' }}">
+
+        <div class="form-grid pressure-context-grid">
+            <div class="form-field">
+                <label for="data_referencia">Data</label>
+                <input id="data_referencia" type="date" name="data_referencia" value="{{ context_values.data_referencia }}" required>
+            </div>
+            <div class="form-field">
+                <label for="turno">Turno</label>
+                <select id="turno" name="turno" required>
+                    <option value="">Selecione</option>
+                    {% for turno in turno_options %}
+                    {% set turno_valor = turno.codigo or turno.nome %}
+                    <option value="{{ turno_valor }}" {% if context_values.turno == turno_valor %}selected{% endif %}>{{ turno.nome }}{% if turno.codigo %} · {{ turno.codigo }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="responsavel_nome">Responsável</label>
+                <input id="responsavel_nome" name="responsavel_nome" list="responsaveis-list" value="{{ context_values.responsavel_nome }}" placeholder="Informe ou selecione o responsável" required>
+                <datalist id="responsaveis-list">
+                    {% for responsavel in responsavel_options %}
+                    <option value="{{ responsavel.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field form-field-full">
+                <label for="observacoes_gerais">Observações gerais</label>
+                <textarea id="observacoes_gerais" name="observacoes_gerais" rows="3" placeholder="Observações gerais do lançamento, se necessário.">{{ context_values.observacoes_gerais }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="button-secondary" type="submit" formaction="/pressao-filtros-ed/carregar">Carregar formulário</button>
+            {% if filter_rows %}
+            <button class="button-primary" type="submit" formaction="/pressao-filtros-ed/salvar" name="submit_action" value="rascunho">Salvar rascunho</button>
+            <button class="button-primary" type="submit" formaction="/pressao-filtros-ed/salvar" name="submit_action" value="concluido">Concluir lançamento</button>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if filter_rows %}
+    <section class="panel-card pressure-filters-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Bloco 2 · Leituras dos filtros</span>
+                <h3>Filtros 1 a 24</h3>
+            </div>
+            <div class="hero-actions">
+                <div class="ed-count-chip">{{ progress_summary.preenchidos }} preenchidos</div>
+                <div class="ed-count-chip emphasis">{{ progress_summary.em_alarme }} em alarme</div>
+            </div>
+        </div>
+
+        <div class="pressure-filters-grid">
+            {% for row in filter_rows %}
+            <article class="pressure-filter-tile {% if row.em_alarme %}alarm{% endif %}">
+                <div class="pressure-filter-header">
+                    <div>
+                        <span class="page-kicker">Filtro {{ row.filtro_numero }}</span>
+                        <h4>Filtro {{ row.filtro_numero }}</h4>
+                    </div>
+                    <span class="evaluation-badge evaluation-{{ 'out' if row.em_alarme else 'neutral' }}">{% if row.em_alarme %}⚠ Em alarme{% else %}Normal{% endif %}</span>
+                </div>
+                <div class="form-field">
+                    <label for="filtro_{{ row.filtro_numero }}">Valor (bar)</label>
+                    <input id="filtro_{{ row.filtro_numero }}" type="text" inputmode="decimal" name="filtro_{{ row.filtro_numero }}" value="{{ row.valor_pressao }}" placeholder="Ex.: 0,85">
+                </div>
+                <p class="pressure-filter-help">Alarme automático quando o valor estiver acima de 1,0 bar.</p>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</form>
+{% endblock %}

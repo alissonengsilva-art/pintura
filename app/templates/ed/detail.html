@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">Detalhe do lançamento</span>
+            <h3>ED · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</h3>
+            <p>Visualização do lançamento operacional com rastreabilidade de contexto e dos itens preenchidos.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/ed/historico">Voltar ao histórico</a>
+            {% if lancamento.status == 'rascunho' %}
+            <a class="button-primary" href="/ed/lancamentos/{{ lancamento.id }}/editar">Continuar edição</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid cards-grid ed-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>{{ lancamento.tipo_dia|replace('sabado', 'sábado')|replace('domingo', 'domingo')|replace('normal', 'normal')|replace('parada', 'parada') }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Contexto</span>
+        <strong>{{ lancamento.setor }}</strong>
+        <p>Turno {{ lancamento.turno }} · {{ lancamento.responsavel_nome }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Status</span>
+        <strong>{{ status_badges.get(lancamento.status, lancamento.status) }}</strong>
+        <p>{{ item_rows|length }} itens registrados neste lançamento.</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Progresso</span>
+        <strong>{{ progress_summary.preenchidos }} / {{ progress_summary.total }}</strong>
+        <p>{{ progress_summary.percentual }}% dos itens com valor informado.</p>
+    </article>
+</section>
+
+{% if lancamento.observacoes_gerais %}
+<section class="panel-card">
+    <span class="page-kicker">Observações gerais</span>
+    <p>{{ lancamento.observacoes_gerais }}</p>
+</section>
+{% endif %}
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table">
+            <thead>
+                <tr>
+                    <th>Operação / Equipamento</th>
+                    <th>Descrição</th>
+                    <th>Parâmetro</th>
+                    <th>Turno</th>
+                    <th>Nr da coleta</th>
+                    <th>Valor informado</th>
+                    <th>Observação</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in item_rows %}
+                <tr class="{% if row.is_out %}row-outlier{% elif loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ row.item.operacao_equipamento }}</td>
+                    <td>{{ row.item.descricao_controle }}</td>
+                    <td><span class="parameter-chip">{{ row.item.parametro or '-' }}</span></td>
+                    <td>{{ row.item.turno_padrao or '-' }}</td>
+                    <td>{{ row.item.numero_coleta or '-' }}</td>
+                    <td class="value-column"><strong>{{ row.valor_informado or '-' }}</strong></td>
+                    <td>{{ row.observacao_item or '-' }}</td>
+                    <td><span class="evaluation-badge evaluation-{{ row.avaliacao.status }}">{% if row.is_out %}⚠ {% endif %}{{ 'Fora do padrão' if row.is_out else row.avaliacao.label }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

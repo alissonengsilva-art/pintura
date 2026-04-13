@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-grid panel-grid-2">
+    <article class="panel-card section-intro-card">
+        <div class="status-chip">{{ section.status }}</div>
+        <h3>{{ section.title }}</h3>
+        <p>{{ section.description }}</p>
+        <div class="section-meta-grid">
+            <div>
+                <span class="metric-label">Escopo atual</span>
+                <strong>Estrutura inicial</strong>
+            </div>
+            <div>
+                <span class="metric-label">Próxima fase</span>
+                <strong>Formulários + histórico</strong>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel-card placeholder-card">
+        <span class="placeholder-kicker">Formulário futuro</span>
+        <h4>Área reservada para preenchimento estruturado</h4>
+        <p>Este espaço receberá o formulário operacional, validações e regras de coleta específicas da seção.</p>
+    </article>
+
+    <article class="panel-card placeholder-card">
+        <span class="placeholder-kicker">Histórico futuro</span>
+        <h4>Área reservada para consultas e rastreabilidade</h4>
+        <p>O histórico consolidado, filtros e navegação temporal serão implementados na próxima etapa.</p>
+    </article>
+</section>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">Detalhe do lançamento</span>
+            <h3>Temperatura Forno ED · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</h3>
+            <p>Visualização consolidada do lançamento com status, observações e destaque das zonas fora da faixa.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/temperatura-forno-ed/historico">Voltar ao histórico</a>
+            {% if lancamento.status == 'rascunho' %}
+            <a class="button-primary" href="/temperatura-forno-ed/lancamentos/{{ lancamento.id }}/editar">Continuar edição</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid ed-summary-grid pressure-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>Lançamento térmico do forno.</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Responsável</span>
+        <strong>{{ lancamento.responsavel_nome }}</strong>
+        <p>{{ status_badges.get(lancamento.status, lancamento.status) }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Preenchidas</span>
+        <strong>{{ progress_summary.preenchidos }} / {{ progress_summary.total }}</strong>
+        <p>{{ progress_summary.percentual }}% das zonas com leitura.</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Fora do padrão</span>
+        <strong>{{ lancamento.total_zonas_fora_padrao }}</strong>
+        <p>Zonas com temperatura fora da faixa válida.</p>
+    </article>
+</section>
+
+{% if lancamento.observacoes_gerais %}
+<section class="panel-card">
+    <span class="page-kicker">Observações gerais</span>
+    <p>{{ lancamento.observacoes_gerais }}</p>
+</section>
+{% endif %}
+
+<section class="panel-card temperature-zones-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Zonas registradas</span>
+            <h3>Leituras do lançamento</h3>
+        </div>
+        <div class="ed-count-chip emphasis">{{ lancamento.total_zonas_fora_padrao }} fora do padrão</div>
+    </div>
+
+    <div class="temperature-zones-grid">
+        {% for row in zone_rows %}
+        <article class="temperature-zone-tile readonly {% if row.is_out %}outlier{% elif row.status == 'ok' %}within-range{% endif %}">
+            <div class="temperature-zone-header">
+                <div>
+                    <span class="page-kicker">Zona {{ row.zona_numero }}</span>
+                    <h4>Zona {{ row.zona_numero }}</h4>
+                </div>
+                <span class="evaluation-badge evaluation-{{ row.status }}">{{ row.status_label }}</span>
+            </div>
+            <p class="temperature-zone-range">Faixa válida: {{ row.faixa_texto }}</p>
+            <div class="pressure-value-display temperature-value-display">{{ row.valor_temperatura if row.valor_temperatura != '' else '-' }} °C</div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

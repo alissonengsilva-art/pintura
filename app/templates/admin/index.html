@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-grid cards-grid">
+    {% for entity in entities %}
+    <article class="panel-card section-card">
+        <div class="card-topline">
+            <h4>{{ entity.title }}</h4>
+            <span class="status-chip subtle">CRUD inicial</span>
+        </div>
+        <p>Cadastro base preparado para listagem, criação, edição e exclusão server-side.</p>
+        <a class="card-link" href="/cadastros/{{ entity.key }}">Abrir cadastro</a>
+    </article>
+    {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">Histórico operacional</span>
+            <h3>Histórico · Temperatura Forno ED</h3>
+            <p>Consulte os lançamentos térmicos por período, status e ocorrências fora do padrão.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/temperatura-forno-ed">Novo lançamento</a>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+
+<form method="get" class="panel-card ed-context-card">
+    <div class="form-grid temperature-context-grid history-temperature-grid">
+        <div class="form-field">
+            <label for="data_inicial">Data inicial</label>
+            <input id="data_inicial" type="date" name="data_inicial" value="{{ filters.data_inicial }}">
+        </div>
+        <div class="form-field">
+            <label for="data_final">Data final</label>
+            <input id="data_final" type="date" name="data_final" value="{{ filters.data_final }}">
+        </div>
+        <div class="form-field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="">Todos</option>
+                {% for key, label in status_badges.items() %}
+                <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label class="checkbox-field pressure-checkbox-field">
+                <input type="checkbox" name="somente_fora_padrao" value="true" {% if filters.somente_fora_padrao %}checked{% endif %}>
+                <span>Somente com desvio</span>
+            </label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="button-primary">Filtrar</button>
+    </div>
+</form>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table compact-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                    <th>Zonas preenchidas</th>
+                    <th>Fora do padrão</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                <tr class="{% if row.quantidade_fora_padrao > 0 %}row-outlier{% elif loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ row.lancamento.data_referencia.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ row.lancamento.responsavel_nome }}</td>
+                    <td><span class="status-badge status-{{ row.lancamento.status }}">{{ status_badges.get(row.lancamento.status, row.lancamento.status) }}</span></td>
+                    <td>{{ row.quantidade_zonas }}</td>
+                    <td><span class="evaluation-badge evaluation-{{ 'out' if row.quantidade_fora_padrao > 0 else 'neutral' }}">{{ row.quantidade_fora_padrao }}</span></td>
+                    <td class="actions-cell">
+                        <a class="button-secondary small" href="/temperatura-forno-ed/lancamentos/{{ row.lancamento.id }}">Visualizar</a>
+                        {% if row.lancamento.status == 'rascunho' %}
+                        <a class="button-primary small" href="/temperatura-forno-ed/lancamentos/{{ row.lancamento.id }}/editar">Continuar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
