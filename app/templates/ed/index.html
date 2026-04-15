@@ -4,8 +4,6 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <span class="page-kicker">Seção operacional real</span>
-            <h3>ED</h3>
             <p>Selecione o contexto do lançamento, carregue os itens compatíveis e registre o preenchimento operacional.</p>
         </div>
         <div class="hero-actions">
@@ -58,8 +56,7 @@
     <section class="panel-card ed-context-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 1 · Contexto do lançamento</span>
-                <h3>Filtro operacional</h3>
+                <span class="page-kicker">Filtro operacional</span>
             </div>
             {% if lancamento and lancamento.id %}
             <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
@@ -127,8 +124,7 @@
     <section class="panel-card ed-items-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 2 · Grade operacional</span>
-                <h3>Itens aplicáveis da ED</h3>
+                <span class="page-kicker">Grade operacional</span>
             </div>
             <div class="hero-actions">
                 <div class="ed-count-chip">{{ progress_summary.preenchidos }} / {{ progress_summary.total }} itens preenchidos</div>

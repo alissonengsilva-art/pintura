@@ -4,8 +4,7 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <span class="page-kicker">Detalhe do lançamento</span>
-            <h3>ED · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</h3>
+            <span class="page-kicker">{{ lancamento.data_referencia.strftime('%d/%m/%Y') }} · {{ lancamento.setor }} · Turno {{ lancamento.turno }}</span>
             <p>Visualização do lançamento operacional com rastreabilidade de contexto e dos itens preenchidos.</p>
         </div>
         <div class="hero-actions">

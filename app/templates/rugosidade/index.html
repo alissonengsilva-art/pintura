@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Controle matricial por data e sequência com medição dos modelos fixos e detecção automática de valores acima de 14 µin.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/rugosidade">Novo lançamento</a>
+            <a class="button-primary" href="/rugosidade/historico">Histórico</a>
+        </div>
+    </div>
+    <div class="ed-kpi-strip rugosidade-kpi-strip">
+        <div class="ed-kpi-card">
+            <span class="summary-label">Total de modelos</span>
+            <strong>{{ summary.total_modelos }}</strong>
+            <p>Base fixa da matriz técnica.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Preenchidos</span>
+            <strong>{{ summary.preenchidos }}</strong>
+            <p>Medições já informadas na coleta.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Fora do padrão</span>
+            <strong>{{ summary.fora_padrao }}</strong>
+            <p>Modelos acima do limite de 14 µin.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">% preenchido</span>
+            <strong>{{ summary.percentual_preenchido }}%</strong>
+            <progress class="progress-track" max="100" value="{{ summary.percentual_preenchido }}">{{ summary.percentual_preenchido }}%</progress>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+{% if info_message %}
+<div class="alert-info">{{ info_message }}</div>
+{% endif %}
+{% if existing_context %}
+<section class="panel-card context-status-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Status do contexto</span>
+            <h3>{{ existing_context.message }}</h3>
+        </div>
+        <span class="status-badge status-{{ existing_context.status }}">{{ existing_context.label }}</span>
+    </div>
+    <p>Já existe um lançamento para a combinação de data e sequência informada.</p>
+    <div class="hero-actions">
+        <a class="button-primary" href="{{ existing_context.action_url }}">{{ existing_context.action_label }}</a>
+    </div>
+</section>
+{% endif %}
+
+<form method="post" class="content-area">
+    <section class="panel-card ed-context-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Contexto do lançamento</span>
+            </div>
+            {% if lancamento and lancamento.id %}
+            <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
+            {% endif %}
+        </div>
+
+        <input type="hidden" name="lancamento_id" value="{{ lancamento.id if lancamento and lancamento.id else '' }}">
+
+        <div class="form-grid rugosidade-context-grid">
+            <div class="form-field">
+                <label for="data_referencia">Data</label>
+                <input id="data_referencia" type="date" name="data_referencia" value="{{ context_values.data_referencia }}" required>
+            </div>
+            <div class="form-field">
+                <label for="sequencia">Sequência</label>
+                <input id="sequencia" name="sequencia" value="{{ context_values.sequencia }}" placeholder="Ex.: 1ª coleta" required>
+            </div>
+            <div class="form-field">
+                <label for="responsavel_nome">Responsável</label>
+                <input id="responsavel_nome" name="responsavel_nome" list="responsaveis-list" value="{{ context_values.responsavel_nome }}" placeholder="Informe ou selecione o responsável" required>
+                <datalist id="responsaveis-list">
+                    {% for responsavel in responsavel_options %}
+                    <option value="{{ responsavel.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field form-field-full">
+                <label for="observacoes_gerais">Observações gerais</label>
+                <textarea id="observacoes_gerais" name="observacoes_gerais" rows="3" placeholder="Observações da coleta de rugosidade.">{{ context_values.observacoes_gerais }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="button-secondary" type="submit" formaction="/rugosidade/carregar">Carregar matriz</button>
+            {% if matrix_rows %}
+            <button class="button-primary" type="submit" formaction="/rugosidade/salvar" name="submit_action" value="rascunho">Salvar rascunho</button>
+            <button class="button-primary" type="submit" formaction="/rugosidade/salvar" name="submit_action" value="concluido">Concluir lançamento</button>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if matrix_rows %}
+    <section class="panel-card rugosidade-matrix-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Matriz de medições</span>
+            </div>
+            <div class="hero-actions">
+                <div class="ed-count-chip">{{ summary.preenchidos }} preenchidos</div>
+                <div class="ed-count-chip emphasis repproved">{{ summary.fora_padrao }} fora do padrão</div>
+            </div>
+        </div>
+
+        <div class="table-wrapper operational-table-wrapper rugosidade-table-wrapper">
+            <table class="operational-table rugosidade-matrix-table">
+                <thead>
+                    <tr>
+                        <th>Modelo</th>
+                        <th>Limite</th>
+                        <th>Valor medido</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matrix_rows %}
+                    <tr class="{% if row.fora_padrao %}row-outlier{% elif row.dentro_padrao %}rugosidade-row-ok{% elif loop.index is even %}row-zebra{% endif %}">
+                        <td><strong>{{ row.modelo_codigo }}</strong></td>
+                        <td>≤ {{ row.limite_referencia }} µin</td>
+                        <td class="value-column">
+                            <input type="text" inputmode="decimal" name="modelo_{{ row.modelo_codigo }}" value="{{ row.valor_rugosidade }}" placeholder="Ex.: 13.5">
+                        </td>
+                        <td>
+                            <span class="evaluation-badge evaluation-{% if row.dentro_padrao %}ok{% elif row.fora_padrao %}out{% else %}neutral{% endif %}">{{ row.status_label }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</form>
+{% endblock %}

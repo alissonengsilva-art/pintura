@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Consulte os lotes de anomalias visuais por data, turno e modelo para análise posterior.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/aspecto">Novo registro</a>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+
+<form method="get" class="panel-card ed-context-card">
+    <div class="form-grid aspecto-context-grid history-aspecto-grid">
+        <div class="form-field">
+            <label for="data_referencia">Data</label>
+            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia }}">
+        </div>
+        <div class="form-field">
+            <label for="turno">Turno</label>
+            <select id="turno" name="turno">
+                <option value="">Todos</option>
+                {% for turno in turno_options %}
+                {% set turno_valor = turno.codigo or turno.nome %}
+                <option value="{{ turno_valor }}" {% if filters.turno == turno_valor %}selected{% endif %}>{{ turno.nome }}{% if turno.codigo %} · {{ turno.codigo }}{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="modelo">Modelo</label>
+            <input id="modelo" name="modelo" list="modelos-list" value="{{ filters.modelo }}" placeholder="Todos os modelos">
+            <datalist id="modelos-list">
+                {% for modelo in modelo_options %}
+                <option value="{{ modelo.nome }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="button-primary">Filtrar</button>
+    </div>
+</form>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table compact-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Turno</th>
+                    <th>Modelo</th>
+                    <th>Responsável</th>
+                    <th>Registros</th>
+                    <th>Qtd total</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in history %}
+                <tr class="{% if loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ lancamento.turno }}</td>
+                    <td>{{ lancamento.modelo }}</td>
+                    <td>{{ lancamento.responsavel_nome }}</td>
+                    <td>{{ lancamento.total_registros }}</td>
+                    <td>{{ lancamento.total_quantidade }}</td>
+                    <td class="actions-cell">
+                        <a class="button-secondary small" href="/aspecto/{{ lancamento.id }}">Visualizar</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="empty-state">Nenhum lote encontrado com os filtros atuais.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

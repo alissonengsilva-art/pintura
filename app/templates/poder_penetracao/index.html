@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Controle semanal do ensaio de poder de penetração com cálculo automático de aprovação em 30 pontos.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/poder-penetracao">Novo lançamento</a>
+            <a class="button-primary" href="/poder-penetracao/historico">Histórico</a>
+        </div>
+    </div>
+    <div class="ed-kpi-strip poder-kpi-strip">
+        <div class="ed-kpi-card">
+            <span class="summary-label">Total de pontos</span>
+            <strong>{{ progress_summary.total }}</strong>
+            <p>Base semanal fixa do ensaio.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Aprovados</span>
+            <strong>{{ progress_summary.aprovados }}</strong>
+            <p>Pontos com valor maior ou igual a 7.9.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Reprovados</span>
+            <strong>{{ progress_summary.reprovados }}</strong>
+            <p>Pontos abaixo da referência.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">% aprovação</span>
+            <strong>{{ progress_summary.percentual_aprovacao }}%</strong>
+            <progress class="progress-track" max="100" value="{{ progress_summary.percentual_aprovacao }}">{{ progress_summary.percentual_aprovacao }}%</progress>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+{% if info_message %}
+<div class="alert-info">{{ info_message }}</div>
+{% endif %}
+{% if existing_context %}
+<section class="panel-card context-status-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Status do contexto</span>
+            <h3>{{ existing_context.message }}</h3>
+        </div>
+        <span class="status-badge status-{{ existing_context.status }}">{{ existing_context.label }}</span>
+    </div>
+    <p>Já há um ensaio salvo para a semana, modelo e CIS informados.</p>
+    <div class="hero-actions">
+        <a class="button-primary" href="{{ existing_context.action_url }}">{{ existing_context.action_label }}</a>
+    </div>
+</section>
+{% endif %}
+
+<form method="post" class="content-area">
+    <section class="panel-card ed-context-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Contexto semanal</span>
+            </div>
+            {% if lancamento and lancamento.id %}
+            <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
+            {% endif %}
+        </div>
+
+        <input type="hidden" name="lancamento_id" value="{{ lancamento.id if lancamento and lancamento.id else '' }}">
+
+        <div class="form-grid poder-context-grid">
+            <div class="form-field">
+                <label for="data_referencia">Data</label>
+                <input id="data_referencia" type="date" name="data_referencia" value="{{ context_values.data_referencia }}" required>
+            </div>
+            <div class="form-field">
+                <label for="semana_referencia">Semana</label>
+                <input id="semana_referencia" name="semana_referencia" value="{{ context_values.semana_referencia }}" placeholder="Ex.: 2026-S15">
+            </div>
+            <div class="form-field">
+                <label for="modelo">Modelo</label>
+                <input id="modelo" name="modelo" list="modelos-list" value="{{ context_values.modelo }}" placeholder="Informe ou selecione o modelo" required>
+                <datalist id="modelos-list">
+                    {% for modelo in modelo_options %}
+                    <option value="{{ modelo.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field">
+                <label for="responsavel_nome">Responsável</label>
+                <input id="responsavel_nome" name="responsavel_nome" list="responsaveis-list" value="{{ context_values.responsavel_nome }}" placeholder="Informe ou selecione o responsável" required>
+                <datalist id="responsaveis-list">
+                    {% for responsavel in responsavel_options %}
+                    <option value="{{ responsavel.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field">
+                <label for="cis">CIS</label>
+                <input id="cis" name="cis" value="{{ context_values.cis }}" placeholder="Opcional, mas recomendado">
+            </div>
+            <div class="form-field">
+                <label for="velocidade">Velocidade</label>
+                <input id="velocidade" name="velocidade" value="{{ context_values.velocidade }}" placeholder="Ex.: 2.5 m/min">
+            </div>
+            <div class="form-field">
+                <label for="tipo">Tipo</label>
+                <input id="tipo" name="tipo" value="{{ context_values.tipo }}" placeholder="Ex.: Ensaio padrão">
+            </div>
+            <div class="form-field form-field-full">
+                <label for="observacoes">Observações</label>
+                <textarea id="observacoes" name="observacoes" rows="3" placeholder="Observações do ensaio, se necessário.">{{ context_values.observacoes }}</textarea>
+            </div>
+            <div class="form-field form-field-full">
+                <label for="acao_corretiva">Ação corretiva</label>
+                <textarea id="acao_corretiva" name="acao_corretiva" rows="3" placeholder="Ação corretiva associada, se necessário.">{{ context_values.acao_corretiva }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="button-secondary" type="submit" formaction="/poder-penetracao/carregar">Carregar pontos</button>
+            {% if point_rows %}
+            <button class="button-primary" type="submit" formaction="/poder-penetracao/salvar" name="submit_action" value="rascunho">Salvar rascunho</button>
+            <button class="button-primary" type="submit" formaction="/poder-penetracao/salvar" name="submit_action" value="concluido">Concluir lançamento</button>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if point_rows %}
+    <section class="panel-card poder-points-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Pontos do ensaio</span>
+            </div>
+            <div class="hero-actions">
+                <div class="ed-count-chip">{{ progress_summary.preenchidos }} preenchidos</div>
+                <div class="ed-count-chip emphasis approved">{{ progress_summary.aprovados }} aprovados</div>
+                <div class="ed-count-chip emphasis repproved">{{ progress_summary.reprovados }} reprovados</div>
+            </div>
+        </div>
+
+        <div class="poder-points-grid">
+            {% for row in point_rows %}
+            <article class="poder-point-tile {% if row.aprovado %}approved{% elif row.reprovado %}reproved{% endif %}">
+                <div class="temperature-zone-header">
+                    <div>
+                        <span class="page-kicker">Ponto {{ row.ponto_numero }}</span>
+                        <h4>Ponto {{ row.ponto_numero }}</h4>
+                    </div>
+                    <span class="evaluation-badge evaluation-{% if row.aprovado %}ok{% elif row.reprovado %}out{% else %}neutral{% endif %}">{{ row.status_label }}</span>
+                </div>
+                <p class="temperature-zone-range">{{ row.faixa_texto }}</p>
+                <div class="form-field">
+                    <label for="ponto_{{ row.ponto_numero }}">Valor medido</label>
+                    <input id="ponto_{{ row.ponto_numero }}" type="text" inputmode="decimal" name="ponto_{{ row.ponto_numero }}" value="{{ row.valor_medido }}" placeholder="Ex.: 8.1">
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">{{ lancamento.data_referencia.strftime('%d/%m/%Y') }} · Turno {{ lancamento.turno }} · {{ lancamento.modelo }}</span>
+            <p>Visualização consolidada do lote de carrocerias com anomalias registradas no turno.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/aspecto/historico">Voltar ao histórico</a>
+            <a class="button-primary" href="/aspecto">Novo registro</a>
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid ed-summary-grid pressure-summary-grid aspecto-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>Turno {{ lancamento.turno }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Modelo</span>
+        <strong>{{ lancamento.modelo }}</strong>
+        <p>{{ lancamento.responsavel_nome }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Carrocerias</span>
+        <strong>{{ lancamento.total_registros }}</strong>
+        <p>Registros consolidados no lote.</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Quantidade total</span>
+        <strong>{{ total_quantidade }}</strong>
+        <p>Soma das ocorrências informadas.</p>
+    </article>
+</section>
+
+<section class="panel-card table-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Carrocerias registradas</span>
+            <h3>Detalhamento das anomalias</h3>
+        </div>
+    </div>
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table compact-table">
+            <thead>
+                <tr>
+                    <th>CIS</th>
+                    <th>Código posição</th>
+                    <th>Local</th>
+                    <th>Anomalia</th>
+                    <th>Lado</th>
+                    <th>Geração</th>
+                    <th>Qtd</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for registro in lancamento.registros %}
+                <tr class="{% if loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ registro.cis }}</td>
+                    <td>{{ registro.cod_posicao }}</td>
+                    <td>{{ registro.local }}</td>
+                    <td>{{ registro.anomalia }}</td>
+                    <td>{{ registro.lado }}</td>
+                    <td>{{ registro.geracao }}</td>
+                    <td>{{ registro.quantidade }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

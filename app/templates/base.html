@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title }} | PINTURA</title>
+    <title>{{ page_title }} | CONTROL PLAN</title>
     <link rel="stylesheet" href="{{ request.url_for('static', path='css/main.css') }}">
 </head>
 <body>
@@ -11,10 +11,26 @@
         <aside class="sidebar">
             <div>
                 <div class="brand-block">
-                    <span class="brand-kicker">Fábrica · Galpão · Processos</span>
-                    <h1>PINTURA</h1>
-                    <p>Painel operacional com rastreabilidade preparada para evolução.</p>
+                    <h1>CONTROL PLAN</h1>
+                    <!-- <h2>Pintura</h2> -->
+                    <p>Pintura · Processos</p>
                 </div>
+
+                <nav class="nav-group">
+                    <h2>Painel</h2>
+                    <ul>
+                        <li>
+                            <a href="/dashboard" class="{% if active_path == '/dashboard' %}active{% endif %}">
+                                <span class="nav-label">Dashboard</span>
+                            </a>
+                        </li>
+                                                <li>
+                            <a href="/pendencias" class="{% if active_path == '/pendencias' %}active{% endif %}">
+                                <span class="nav-label">Pendências</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
 
                 <nav class="nav-group">
                     <h2>Seções operacionais</h2>
@@ -22,8 +38,7 @@
                         {% for item in nav_sections %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
-                                <span>{{ item.title }}</span>
-                                <small>{{ item.status }}</small>
+                                <span class="nav-label">{{ item.title }}</span>
                             </a>
                         </li>
                         {% endfor %}
@@ -31,18 +46,22 @@
                 </nav>
 
                 <nav class="nav-group nav-group-secondary">
-                    <h2>ADMINISTRADOR</h2>
+                    <h2>Administrador</h2>
                     <ul>
                         <li>
                             <a href="/cadastros" class="{% if active_path == '/cadastros' %}active{% endif %}">
-                                <span>Visão geral</span>
-                                <small>base administrativa</small>
+                                <span class="nav-label">Visão geral</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/pendencias" class="{% if active_path == '/pendencias' %}active{% endif %}">
+                                <span class="nav-label">Pendências</span>
                             </a>
                         </li>
                         {% for item in cadastro_links %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
-                                <span>{{ item.title }}</span>
+                                <span class="nav-label">{{ item.title }}</span>
                             </a>
                         </li>
                         {% endfor %}
@@ -54,11 +73,10 @@
         <main class="main-area">
             <header class="topbar">
                 <div>
-                    <span class="page-kicker">Base inicial · Server-side</span>
+                    <span class="page-kicker">CONTROL PLAN · Pintura</span>
                     <h2>{{ page_title }}</h2>
                     <p>{{ page_description }}</p>
                 </div>
-                <a class="topbar-action" href="/dashboard">Voltar ao dashboard</a>
             </header>
 
             <section class="content-area">

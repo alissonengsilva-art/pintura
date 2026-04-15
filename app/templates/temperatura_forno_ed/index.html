@@ -4,8 +4,6 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <span class="page-kicker">Módulo operacional real</span>
-            <h3>Temperatura Forno ED</h3>
             <p>Registre as temperaturas das 12 zonas do forno com leitura rápida, rascunho, conclusão e destaque automático de zonas fora da faixa.</p>
         </div>
         <div class="hero-actions">
@@ -63,8 +61,7 @@
     <section class="panel-card ed-context-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 1 · Contexto do lançamento</span>
-                <h3>Contexto operacional</h3>
+                <span class="page-kicker">Contexto operacional</span>
             </div>
             {% if lancamento and lancamento.id %}
             <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
@@ -106,8 +103,7 @@
     <section class="panel-card temperature-zones-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 2 · Monitoramento térmico</span>
-                <h3>Zonas 1 a 12</h3>
+                <span class="page-kicker">Monitoramento térmico</span>
             </div>
             <div class="hero-actions">
                 <div class="ed-count-chip">{{ progress_summary.preenchidos }} preenchidas</div>

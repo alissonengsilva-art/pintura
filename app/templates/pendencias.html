@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card dashboard-filter-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Filtros</span>
+        </div>
+    </div>
+
+    {% if error_message %}
+    <div class="alert-error">{{ error_message }}</div>
+    {% endif %}
+
+    <form class="form-grid pending-filter-grid" method="get" action="/pendencias">
+        <div class="form-field">
+            <label for="data_inicial">Data inicial</label>
+            <input id="data_inicial" type="date" name="data_inicial" value="{{ filters.data_inicial.isoformat() }}">
+        </div>
+        <div class="form-field">
+            <label for="data_final">Data final</label>
+            <input id="data_final" type="date" name="data_final" value="{{ filters.data_final.isoformat() }}">
+        </div>
+        <div class="form-field">
+            <label for="turno">Turno</label>
+            <select id="turno" name="turno">
+                <option value="">Todos os turnos</option>
+                {% for turno in filters.turno_options %}
+                {% set turno_value = (turno.codigo or turno.nome) %}
+                <option value="{{ turno_value }}" {% if filters.turno == turno_value %}selected{% endif %}>Turno {{ turno_value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                {% for status_value, status_label in status_options %}
+                <option value="{{ status_value }}" {% if filters.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label for="responsavel">Responsável</label>
+            <input id="responsavel" type="text" name="responsavel" value="{{ filters.responsavel }}" placeholder="Filtrar por responsável">
+        </div>
+        <div class="form-field">
+            <label for="modulo_setor">Módulo/Setor</label>
+            <select id="modulo_setor" name="modulo_setor">
+                {% for modulo_value, modulo_label in modulo_options %}
+                <option value="{{ modulo_value }}" {% if filters.modulo_setor == modulo_value %}selected{% endif %}>{{ modulo_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field form-field-full">
+            <div class="hero-actions">
+                <button class="button-primary" type="submit">Buscar</button>
+                <a class="button-secondary" href="/pendencias">Limpar filtro</a>
+            </div>
+        </div>
+    </form>
+</section>
+
+<section class="dashboard-metrics-grid">
+    {% for metric in status_metrics %}
+    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
+        <span class="summary-label">{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <p>{{ metric.helper }}</p>
+    </article>
+    {% endfor %}
+</section>
+
+<section class="panel-card table-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Fila operacional</span>
+            <h3>Lista de pendências</h3>
+        </div>
+    </div>
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Módulo</th>
+                    <th>Descrição</th>
+                    <th>Responsável</th>
+                    <th>Turno</th>
+                    <th>Status</th>
+                    <th>Prazo</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if rows %}
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.data_label }}</td>
+                    <td>{{ row.modulo }}</td>
+                    <td>{{ row.descricao }}</td>
+                    <td>{{ row.responsavel }}</td>
+                    <td>{{ row.turno }}</td>
+                    <td><span class="status-chip status-chip-{{ row.status_tone }}">{{ row.status }}</span></td>
+                    <td>{{ row.prazo }}</td>
+                    <td>
+                        <div class="actions-cell">
+                            <a class="button-secondary small" href="{{ row.detail_url }}">Detalhe</a>
+                            <a class="button-secondary small" href="{{ row.edit_url }}">Abrir</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="8">
+                        <div class="empty-state dashboard-empty-state">
+                            <p>Nenhuma pendência encontrada para os filtros informados.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

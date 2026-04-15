@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card aspecto-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Registre anomalias visuais por carroceria em um fluxo rápido, repetitivo e direto para o operador do turno.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/aspecto">Novo registro</a>
+            <a class="button-primary" href="/aspecto/historico">Histórico</a>
+        </div>
+    </div>
+    <div class="ed-kpi-strip aspecto-kpi-strip">
+        <div class="ed-kpi-card">
+            <span class="summary-label">Carrocerias registradas</span>
+            <strong id="aspecto-progress-count">{{ progress_summary.total_registrados }}</strong>
+            <p>Quantidade atual no lote em edição.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Capacidade do lote</span>
+            <strong>{{ progress_summary.limite }}</strong>
+            <p>Máximo de 10 carrocerias por envio.</p>
+        </div>
+        <div class="ed-kpi-card">
+            <span class="summary-label">Status do lote</span>
+            <strong id="aspecto-progress-label">{{ progress_summary.total_registrados }} de {{ progress_summary.limite }}</strong>
+            <p>Fluxo contínuo para entrada rápida de anomalias.</p>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+{% if info_message %}
+<div class="alert-info">{{ info_message }}</div>
+{% endif %}
+
+<form method="post" action="/aspecto/salvar" class="content-area aspecto-form" id="aspecto-form">
+    <section class="panel-card ed-context-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Contexto operacional</span>
+            </div>
+        </div>
+
+        <div class="form-grid aspecto-context-grid">
+            <div class="form-field">
+                <label for="data_referencia">Data</label>
+                <input id="data_referencia" type="date" name="data_referencia" value="{{ context_values.data_referencia }}" required>
+            </div>
+            <div class="form-field">
+                <label for="turno">Turno</label>
+                <select id="turno" name="turno" required>
+                    <option value="">Selecione</option>
+                    {% for turno in turno_options %}
+                    {% set turno_valor = turno.codigo or turno.nome %}
+                    <option value="{{ turno_valor }}" {% if context_values.turno == turno_valor %}selected{% endif %}>{{ turno.nome }}{% if turno.codigo %} · {{ turno.codigo }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label for="modelo">Modelo</label>
+                <input id="modelo" name="modelo" list="modelos-list" value="{{ context_values.modelo }}" placeholder="Informe ou selecione o modelo" required>
+                <datalist id="modelos-list">
+                    {% for modelo in modelo_options %}
+                    <option value="{{ modelo.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field">
+                <label for="responsavel_nome">Responsável</label>
+                <input id="responsavel_nome" name="responsavel_nome" list="responsaveis-list" value="{{ context_values.responsavel_nome }}" placeholder="Informe ou selecione o responsável" required>
+                <datalist id="responsaveis-list">
+                    {% for responsavel in responsavel_options %}
+                    <option value="{{ responsavel.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel-card aspecto-list-card">
+        <div class="section-header-inline compact">
+            <div>
+                <span class="page-kicker">Carrocerias</span>
+                <p class="dashboard-module-subtitle"><strong id="aspecto-progress-inline">{{ progress_summary.total_registrados }}</strong> de {{ progress_summary.limite }} carrocerias registradas.</p>
+            </div>
+            <div class="hero-actions">
+                <button class="button-secondary" type="button" id="add-aspecto-entry">Adicionar carroceria</button>
+                <button class="button-primary" type="submit">Salvar registros</button>
+            </div>
+        </div>
+
+        <div class="aspecto-entry-list" id="aspecto-entry-list" data-max="{{ max_registros }}">
+            {% for entry in entries %}
+            <article class="aspecto-entry-card" data-entry-card>
+                <div class="card-topline aspecto-entry-topline">
+                    <strong>Carroceria <span data-entry-number>{{ loop.index }}</span></strong>
+                    <button class="button-secondary small" type="button" data-remove-entry>Remover</button>
+                </div>
+                <div class="form-grid aspecto-entry-grid">
+                    <div class="form-field">
+                        <label>CIS</label>
+                        <input type="text" name="cis" value="{{ entry.cis }}" placeholder="Ex.: CIS-001" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Código posição</label>
+                        <input type="text" name="cod_posicao" value="{{ entry.cod_posicao }}" placeholder="Ex.: P-14" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Local</label>
+                        <input type="text" name="local" value="{{ entry.local }}" placeholder="Ex.: Porta dianteira" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Anomalia</label>
+                        <input type="text" name="anomalia" value="{{ entry.anomalia }}" placeholder="Ex.: Cratera" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Lado</label>
+                        <input type="text" name="lado" value="{{ entry.lado }}" placeholder="Ex.: LE" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Geração</label>
+                        <input type="text" name="geracao" value="{{ entry.geracao }}" placeholder="Ex.: G2" required>
+                    </div>
+                    <div class="form-field">
+                        <label>Quantidade</label>
+                        <input type="number" min="1" step="1" name="quantidade" value="{{ entry.quantidade or '1' }}" required>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+</form>
+
+<template id="aspecto-entry-template">
+    <article class="aspecto-entry-card" data-entry-card>
+        <div class="card-topline aspecto-entry-topline">
+            <strong>Carroceria <span data-entry-number></span></strong>
+            <button class="button-secondary small" type="button" data-remove-entry>Remover</button>
+        </div>
+        <div class="form-grid aspecto-entry-grid">
+            <div class="form-field">
+                <label>CIS</label>
+                <input type="text" name="cis" placeholder="Ex.: CIS-001" required>
+            </div>
+            <div class="form-field">
+                <label>Código posição</label>
+                <input type="text" name="cod_posicao" placeholder="Ex.: P-14" required>
+            </div>
+            <div class="form-field">
+                <label>Local</label>
+                <input type="text" name="local" placeholder="Ex.: Porta dianteira" required>
+            </div>
+            <div class="form-field">
+                <label>Anomalia</label>
+                <input type="text" name="anomalia" placeholder="Ex.: Cratera" required>
+            </div>
+            <div class="form-field">
+                <label>Lado</label>
+                <input type="text" name="lado" placeholder="Ex.: LE" required>
+            </div>
+            <div class="form-field">
+                <label>Geração</label>
+                <input type="text" name="geracao" placeholder="Ex.: G2" required>
+            </div>
+            <div class="form-field">
+                <label>Quantidade</label>
+                <input type="number" min="1" step="1" name="quantidade" value="1" required>
+            </div>
+        </div>
+    </article>
+</template>
+
+<script>
+(() => {
+    const list = document.getElementById('aspecto-entry-list');
+    const addButton = document.getElementById('add-aspecto-entry');
+    const template = document.getElementById('aspecto-entry-template');
+    const counter = document.getElementById('aspecto-progress-count');
+    const label = document.getElementById('aspecto-progress-label');
+    const inline = document.getElementById('aspecto-progress-inline');
+    if (!list || !addButton || !template) {
+        return;
+    }
+    const maxEntries = Number(list.dataset.max || '10');
+
+    const refresh = () => {
+        const cards = Array.from(list.querySelectorAll('[data-entry-card]'));
+        cards.forEach((card, index) => {
+            const number = card.querySelector('[data-entry-number]');
+            if (number) {
+                number.textContent = String(index + 1);
+            }
+            const removeButton = card.querySelector('[data-remove-entry]');
+            if (removeButton) {
+                removeButton.disabled = cards.length === 1;
+            }
+        });
+        if (counter) {
+            counter.textContent = String(cards.length);
+        }
+        if (inline) {
+            inline.textContent = String(cards.length);
+        }
+        if (label) {
+            label.textContent = `${cards.length} de ${maxEntries}`;
+        }
+        addButton.disabled = cards.length >= maxEntries;
+    };
+
+    list.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        if (target.matches('[data-remove-entry]')) {
+            const card = target.closest('[data-entry-card]');
+            if (card && list.querySelectorAll('[data-entry-card]').length > 1) {
+                card.remove();
+                refresh();
+            }
+        }
+    });
+
+    addButton.addEventListener('click', () => {
+        const currentCount = list.querySelectorAll('[data-entry-card]').length;
+        if (currentCount >= maxEntries) {
+            return;
+        }
+        const fragment = template.content.cloneNode(true);
+        list.appendChild(fragment);
+        refresh();
+    });
+
+    refresh();
+})();
+</script>
+{% endblock %}

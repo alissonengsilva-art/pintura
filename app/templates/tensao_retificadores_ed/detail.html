@@ -4,8 +4,7 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <span class="page-kicker">Detalhe do lançamento</span>
-            <h3>Tensão dos Retificadores ED · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</h3>
+            <span class="page-kicker">{{ lancamento.data_referencia.strftime('%d/%m/%Y') }} · Turno {{ lancamento.turno }} · {{ lancamento.modelo }}</span>
             <p>Visualização consolidada do lançamento por modelo com status, observações e destaque das zonas fora da faixa de tensão.</p>
         </div>
         <div class="hero-actions">

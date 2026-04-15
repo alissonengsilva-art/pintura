@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Consulte os ensaios semanais por semana, modelo, data e status com leitura direta do percentual de aprovação.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/poder-penetracao">Novo lançamento</a>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+
+<form method="get" class="panel-card ed-context-card">
+    <div class="form-grid poder-context-grid history-poder-grid">
+        <div class="form-field">
+            <label for="semana_referencia">Semana</label>
+            <input id="semana_referencia" name="semana_referencia" value="{{ filters.semana_referencia }}" placeholder="Ex.: 2026-S15">
+        </div>
+        <div class="form-field">
+            <label for="modelo">Modelo</label>
+            <input id="modelo" name="modelo" list="modelos-list" value="{{ filters.modelo }}" placeholder="Todos os modelos">
+            <datalist id="modelos-list">
+                {% for modelo in modelo_options %}
+                <option value="{{ modelo.nome }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-field">
+            <label for="data_referencia">Data</label>
+            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia }}">
+        </div>
+        <div class="form-field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="">Todos</option>
+                {% for key, label in status_badges.items() %}
+                <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="button-primary">Filtrar</button>
+    </div>
+</form>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table compact-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Semana</th>
+                    <th>Modelo</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                    <th>% aprovação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in history %}
+                <tr class="{% if lancamento.total_reprovados > 0 %}row-outlier{% elif loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ lancamento.semana_referencia }}</td>
+                    <td>{{ lancamento.modelo }}</td>
+                    <td>{{ lancamento.responsavel_nome }}</td>
+                    <td><span class="status-badge status-{{ lancamento.status }}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span></td>
+                    <td>{{ '%.1f'|format(lancamento.percentual_aprovacao) }}%</td>
+                    <td class="actions-cell">
+                        <a class="button-secondary small" href="/poder-penetracao/lancamentos/{{ lancamento.id }}">Visualizar</a>
+                        {% if lancamento.status == 'rascunho' %}
+                        <a class="button-primary small" href="/poder-penetracao/lancamentos/{{ lancamento.id }}/editar">Continuar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="empty-state">Nenhum ensaio encontrado com os filtros atuais.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

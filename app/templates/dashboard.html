@@ -3,15 +3,8 @@
 {% block content %}
 <section class="panel-card dashboard-filter-card {% if has_global_alert %}dashboard-filter-card-alert{% endif %}">
     <div class="section-header-inline compact">
-        <div>
-            <span class="page-kicker">Leitura consolidada</span>
-            <h3>Dashboard Operacional do Dia</h3>
-        </div>
         <div class="hero-actions">
-            <a class="button-secondary small" href="/ed">Abrir ED</a>
-            <a class="button-secondary small" href="/pressao-filtros-ed">Abrir pressão</a>
-            <a class="button-secondary small" href="/tensao-retificadores-ed">Abrir tensão</a>
-            <a class="button-secondary small" href="/temperatura-forno-ed">Abrir temperatura</a>
+            <a class="button-secondary small" href="/pendencias">Pendências</a>
         </div>
     </div>
 
@@ -21,13 +14,17 @@
     {% if has_global_alert %}
     <div class="alert-error dashboard-global-alert">{{ global_alert_message }}</div>
     {% else %}
-    <div class="alert-info dashboard-global-ok">Operação do dia sem desvios ativos até o momento.</div>
+    <div class="alert-info dashboard-global-ok">Operação sem desvios ativos no recorte atual.</div>
     {% endif %}
 
     <form class="form-grid dashboard-filter-grid" method="get" action="/dashboard">
         <div class="form-field">
-            <label for="data_referencia">Data de referência</label>
-            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia.isoformat() }}">
+            <label for="data_inicial">Data inicial</label>
+            <input id="data_inicial" type="date" name="data_inicial" value="{{ filters.data_inicial.isoformat() }}">
+        </div>
+        <div class="form-field">
+            <label for="data_final">Data final</label>
+            <input id="data_final" type="date" name="data_final" value="{{ filters.data_final.isoformat() }}">
         </div>
         <div class="form-field">
             <label for="turno">Turno</label>
@@ -39,52 +36,68 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="form-field dashboard-filter-actions">
-            <label>&nbsp;</label>
+        <div class="form-field dashboard-filter-actions dashboard-filter-actions-inline">
             <div class="hero-actions">
-                <button class="button-primary" type="submit">Atualizar painel</button>
+                <button class="button-primary" type="submit">Buscar</button>
                 <a class="button-secondary" href="/dashboard">Limpar filtro</a>
             </div>
         </div>
     </form>
-    <p class="dashboard-filter-note">Acompanhe rascunhos, concluídos e situações de alerta por data e turno sem sair da operação.</p>
+    <p class="dashboard-filter-note">Visão por período, turno e módulos do processo.</p>
 </section>
 
 <section class="section-header-inline">
     <div>
-        <span class="page-kicker">Central do dia</span>
-        <h3>Alertas do dia</h3>
+        <h3>Pendências</h3>
     </div>
 </section>
 
-<section class="dashboard-alert-grid">
-    {% for alert in alert_summaries %}
-    <a class="panel-card dashboard-alert-card tone-{{ alert.tone }}" href="{{ alert.action_url }}">
-        <div class="card-topline">
-            <strong>{{ alert.title }}</strong>
-            <span class="status-chip status-chip-{{ alert.tone }}">{{ alert.count }}</span>
-        </div>
-        <h4>{{ alert.description }}</h4>
-        <span class="card-link">{{ alert.action_label }}</span>
-    </a>
+<section class="dashboard-metrics-grid">
+    {% for metric in pending_summary %}
+    {% if metric.label == 'Pendências abertas' %}
+    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
+        <span class="summary-label">Pendências abertas</span>
+        <strong>{{ metric.value }}</strong>
+    </article>
+    {% endif %}
+    {% endfor %}
+
+    {% for metric in pending_summary %}
+    {% if metric.label == 'Em andamento' %}
+    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
+        <span class="summary-label">Em andamento</span>
+        <strong>{{ metric.value }}</strong>
+    </article>
+    {% endif %}
+    {% endfor %}
+
+    {% for metric in pending_summary %}
+    {% if metric.label == 'Concluídas no período' %}
+    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
+        <span class="summary-label">Concluídas</span>
+        <strong>{{ metric.value }}</strong>
+    </article>
+    {% endif %}
+    {% endfor %}
+
+    {% for metric in pending_summary %}
+    {% if metric.label == 'Vencidas' %}
+    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
+        <span class="summary-label">Vencidas</span>
+        <strong>{{ metric.value }}</strong>
+    </article>
+    {% endif %}
     {% endfor %}
 </section>
+
 
 <section class="dashboard-metrics-grid">
     {% for metric in metrics %}
     <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
         <span class="summary-label">{{ metric.label }}</span>
         <strong>{{ metric.value }}</strong>
-        <p>{{ metric.helper }}</p>
     </article>
     {% endfor %}
-</section>
-
-<section class="section-header-inline">
-    <div>
-        <span class="page-kicker">Módulos operacionais</span>
-        <h3>Status por frente</h3>
-    </div>
 </section>
 
 <section class="dashboard-module-grid">
@@ -117,14 +130,10 @@
             </div>
         </div>
 
-        <div class="dashboard-module-alertline">
-            <span class="status-chip status-chip-{{ module.priority_tone }}">{{ module.alert_count }} {{ module.alert_label }}</span>
-        </div>
-
         <div class="hero-actions">
             <a class="button-{{ module.quick_action_tone }} small" href="{{ module.quick_action_url }}">{{ module.quick_action_label }}</a>
-            <a class="button-secondary small" href="{{ module.history_url }}">Ver histórico</a>
-            <a class="button-secondary small" href="{{ module.card_url }}">Abrir módulo</a>
+            <a class="button-secondary small" href="{{ module.history_url }}">Histórico</a>
+            <a class="button-secondary small" href="{{ module.card_url }}">Módulo</a>
         </div>
     </article>
     {% endfor %}
@@ -134,7 +143,6 @@
     <article class="panel-card table-panel">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Pendências por turno</span>
                 <h3>Matriz de fechamento</h3>
             </div>
         </div>
@@ -144,6 +152,7 @@
                     <tr>
                         <th>Turno</th>
                         <th>ED</th>
+                        <th>Espessura</th>
                         <th>Pressão</th>
                         <th>Tensão</th>
                         <th>Total</th>
@@ -154,11 +163,12 @@
                     <tr>
                         <td>{{ row.turno_label }}</td>
                         <td>{{ row.ed_pending }}</td>
+                        <td>{{ row.espessura_pending }}</td>
                         <td>{{ row.pressao_pending }}</td>
                         <td>{{ row.tensao_pending }}</td>
                         <td>
-                            <span class="status-chip {% if row.total_pending == 0 %}status-chip-success{% elif row.total_pending > 0 %}status-chip-warning{% endif %}">
-                                {{ row.total_pending }} pendência(s)
+                            <span class="status-chip {% if row.total_pending == 0 %}status-chip-success{% else %}status-chip-warning{% endif %}">
+                                {{ row.total_pending }}
                             </span>
                         </td>
                     </tr>
@@ -168,13 +178,8 @@
         </div>
     </article>
 
-    <article class="panel-card table-panel">
-        <div class="section-header-inline compact">
-            <div>
-                <span class="page-kicker">Eventos relevantes</span>
-                <h3>Ocorrências do dia</h3>
-            </div>
-        </div>
+
+
         {% if occurrences %}
         <div class="dashboard-recent-list">
             {% for launch in occurrences %}
@@ -185,18 +190,13 @@
                         <span class="status-chip status-chip-{{ launch.tone }}">{{ launch.occurrence_type }}</span>
                     </div>
                     <p>{{ launch.reference_label }} · {{ launch.value_label }}</p>
-                    <small>{{ launch.context_label }} · Atualizado em {{ launch.updated_label }}</small>
-                </div>
-                <div class="dashboard-recent-side">
-                    <span class="card-link">Abrir detalhe</span>
+                    <small>{{ launch.context_label }} · {{ launch.updated_label }}</small>
                 </div>
             </a>
             {% endfor %}
         </div>
         {% else %}
-        <div class="empty-state dashboard-empty-state">
-            <p>Nenhum lançamento encontrado para o filtro informado.</p>
-        </div>
+
         {% endif %}
     </article>
 </section>

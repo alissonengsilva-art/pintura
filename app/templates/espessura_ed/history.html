@@ -4,10 +4,10 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <p>Consulte os lançamentos por período, turno, status e ocorrências de alarme.</p>
+            <p>Consulte medições técnicas por data, turno, modelo e status com leitura rápida dos pontos preenchidos.</p>
         </div>
         <div class="hero-actions">
-            <a class="button-secondary" href="/pressao-filtros-ed">Novo lançamento</a>
+            <a class="button-secondary" href="/espessura-ed">Novo lançamento</a>
         </div>
     </div>
 </section>
@@ -17,14 +17,10 @@
 {% endif %}
 
 <form method="get" class="panel-card ed-context-card">
-    <div class="form-grid pressure-context-grid">
+    <div class="form-grid espessura-context-grid history-espessura-grid">
         <div class="form-field">
-            <label for="data_inicial">Data inicial</label>
-            <input id="data_inicial" type="date" name="data_inicial" value="{{ filters.data_inicial }}">
-        </div>
-        <div class="form-field">
-            <label for="data_final">Data final</label>
-            <input id="data_final" type="date" name="data_final" value="{{ filters.data_final }}">
+            <label for="data_referencia">Data</label>
+            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia }}">
         </div>
         <div class="form-field">
             <label for="turno">Turno</label>
@@ -37,6 +33,15 @@
             </select>
         </div>
         <div class="form-field">
+            <label for="modelo">Modelo</label>
+            <input id="modelo" name="modelo" list="modelos-list" value="{{ filters.modelo }}" placeholder="Todos os modelos">
+            <datalist id="modelos-list">
+                {% for modelo in modelo_options %}
+                <option value="{{ modelo.nome }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-field">
             <label for="status">Status</label>
             <select id="status" name="status">
                 <option value="">Todos</option>
@@ -44,12 +49,6 @@
                 <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
-        </div>
-        <div class="form-field">
-            <label class="checkbox-field pressure-checkbox-field">
-                <input type="checkbox" name="somente_alarme" value="true" {% if filters.somente_alarme %}checked{% endif %}>
-                <span>Somente com alarme</span>
-            </label>
         </div>
     </div>
     <div class="form-actions">
@@ -64,32 +63,34 @@
                 <tr>
                     <th>Data</th>
                     <th>Turno</th>
+                    <th>Modelo</th>
+                    <th>CIS</th>
                     <th>Responsável</th>
                     <th>Status</th>
-                    <th>Filtros preenchidos</th>
-                    <th>Em alarme</th>
+                    <th>Pontos preenchidos</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in history %}
-                <tr class="{% if row.quantidade_alarmes > 0 %}row-outlier{% elif loop.index is even %}row-zebra{% endif %}">
+                <tr class="{% if loop.index is even %}row-zebra{% endif %}">
                     <td>{{ row.lancamento.data_referencia.strftime('%d/%m/%Y') }}</td>
                     <td>{{ row.lancamento.turno }}</td>
+                    <td>{{ row.lancamento.modelo }}</td>
+                    <td>{{ row.lancamento.cis or '-' }}</td>
                     <td>{{ row.lancamento.responsavel_nome }}</td>
                     <td><span class="status-badge status-{{ row.lancamento.status }}">{{ status_badges.get(row.lancamento.status, row.lancamento.status) }}</span></td>
-                    <td>{{ row.quantidade_filtros }}</td>
-                    <td><span class="evaluation-badge evaluation-{{ 'out' if row.quantidade_alarmes > 0 else 'neutral' }}">{{ row.quantidade_alarmes }}</span></td>
+                    <td>{{ row.quantidade_pontos }}</td>
                     <td class="actions-cell">
-                        <a class="button-secondary small" href="/pressao-filtros-ed/lancamentos/{{ row.lancamento.id }}">Visualizar</a>
+                        <a class="button-secondary small" href="/espessura-ed/lancamentos/{{ row.lancamento.id }}">Visualizar</a>
                         {% if row.lancamento.status == 'rascunho' %}
-                        <a class="button-primary small" href="/pressao-filtros-ed/lancamentos/{{ row.lancamento.id }}/editar">Continuar</a>
+                        <a class="button-primary small" href="/espessura-ed/lancamentos/{{ row.lancamento.id }}/editar">Continuar</a>
                         {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</td>
+                    <td colspan="8" class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</td>
                 </tr>
                 {% endfor %}
             </tbody>

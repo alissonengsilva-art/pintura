@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">{{ lancamento.data_referencia.strftime('%d/%m/%Y') }} · {{ lancamento.sequencia }} · {{ lancamento.responsavel_nome }}</span>
+            <p>Visualização consolidada da matriz de rugosidade com destaque imediato dos modelos fora do padrão.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/rugosidade/historico">Voltar ao histórico</a>
+            {% if lancamento.status == 'rascunho' %}
+            <a class="button-primary" href="/rugosidade/lancamentos/{{ lancamento.id }}/editar">Continuar edição</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid ed-summary-grid rugosidade-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>{{ lancamento.sequencia }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Responsável</span>
+        <strong>{{ lancamento.responsavel_nome }}</strong>
+        <p>{{ status_badges.get(lancamento.status, lancamento.status) }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Fora do padrão</span>
+        <strong>{{ lancamento.total_modelos_fora_padrao }}</strong>
+        <p>Modelos acima de 14 µin</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Modelos preenchidos</span>
+        <strong>{{ summary.preenchidos }}</strong>
+        <p>{{ summary.percentual_preenchido }}% da matriz preenchida</p>
+    </article>
+</section>
+
+{% if lancamento.observacoes_gerais %}
+<section class="panel-card">
+    <span class="page-kicker">Observações</span>
+    <p>{{ lancamento.observacoes_gerais }}</p>
+</section>
+{% endif %}
+
+<section class="panel-card rugosidade-matrix-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Matriz registrada</span>
+            <h3>Resultado por modelo</h3>
+        </div>
+        <div class="ed-count-chip emphasis repproved">{{ lancamento.total_modelos_fora_padrao }} fora do padrão</div>
+    </div>
+
+    <div class="table-wrapper operational-table-wrapper rugosidade-table-wrapper">
+        <table class="operational-table rugosidade-matrix-table">
+            <thead>
+                <tr>
+                    <th>Modelo</th>
+                    <th>Limite</th>
+                    <th>Valor medido</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in matrix_rows %}
+                <tr class="{% if row.fora_padrao %}row-outlier{% elif row.dentro_padrao %}rugosidade-row-ok{% elif loop.index is even %}row-zebra{% endif %}">
+                    <td><strong>{{ row.modelo_codigo }}</strong></td>
+                    <td>≤ {{ row.limite_referencia }} µin</td>
+                    <td>{{ row.valor_rugosidade if row.valor_rugosidade != '' else '-' }}</td>
+                    <td>
+                        <span class="evaluation-badge evaluation-{% if row.dentro_padrao %}ok{% elif row.fora_padrao %}out{% else %}neutral{% endif %}">{{ row.status_label }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

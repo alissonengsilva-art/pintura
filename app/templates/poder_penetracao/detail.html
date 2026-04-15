@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <span class="page-kicker">{{ lancamento.semana_referencia }} · {{ lancamento.modelo }} · {{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</span>
+            <p>Visualização consolidada do ensaio semanal com pontos aprovados, reprovados e percentual de aprovação.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/poder-penetracao/historico">Voltar ao histórico</a>
+            {% if lancamento.status == 'rascunho' %}
+            <a class="button-primary" href="/poder-penetracao/lancamentos/{{ lancamento.id }}/editar">Continuar edição</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel-grid ed-summary-grid pressure-summary-grid poder-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Data</span>
+        <strong>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</strong>
+        <p>{{ lancamento.semana_referencia }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Modelo</span>
+        <strong>{{ lancamento.modelo }}</strong>
+        <p>{{ lancamento.cis or 'CIS não informado' }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Responsável</span>
+        <strong>{{ lancamento.responsavel_nome }}</strong>
+        <p>{{ status_badges.get(lancamento.status, lancamento.status) }}</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">% aprovação</span>
+        <strong>{{ '%.1f'|format(lancamento.percentual_aprovacao) }}%</strong>
+        <p>{{ lancamento.total_aprovados }} aprovados · {{ lancamento.total_reprovados }} reprovados</p>
+    </article>
+</section>
+
+<section class="panel-grid ed-summary-grid pressure-summary-grid poder-summary-grid">
+    <article class="panel-card summary-card">
+        <span class="summary-label">Velocidade</span>
+        <strong>{{ lancamento.velocidade or '-' }}</strong>
+        <p>Condição informada no ensaio</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Tipo</span>
+        <strong>{{ lancamento.tipo or '-' }}</strong>
+        <p>Classificação do ensaio</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Menor valor</span>
+        <strong>{{ lancamento.menor_valor if lancamento.menor_valor is not none else '-' }}</strong>
+        <p>Menor leitura registrada</p>
+    </article>
+    <article class="panel-card summary-card">
+        <span class="summary-label">Pontos preenchidos</span>
+        <strong>{{ lancamento.total_pontos }}</strong>
+        <p>Base usada no cálculo automático</p>
+    </article>
+</section>
+
+{% if lancamento.observacoes %}
+<section class="panel-card">
+    <span class="page-kicker">Observações</span>
+    <p>{{ lancamento.observacoes }}</p>
+</section>
+{% endif %}
+{% if lancamento.acao_corretiva %}
+<section class="panel-card">
+    <span class="page-kicker">Ação corretiva</span>
+    <p>{{ lancamento.acao_corretiva }}</p>
+</section>
+{% endif %}
+
+<section class="panel-card poder-points-card">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Pontos registrados</span>
+            <h3>Resultado do ensaio</h3>
+        </div>
+        <div class="ed-count-chip emphasis approved">{{ lancamento.total_aprovados }} aprovados</div>
+    </div>
+
+    <div class="poder-points-grid">
+        {% for row in point_rows %}
+        <article class="poder-point-tile readonly {% if row.aprovado %}approved{% elif row.reprovado %}reproved{% endif %}">
+            <div class="temperature-zone-header">
+                <div>
+                    <span class="page-kicker">Ponto {{ row.ponto_numero }}</span>
+                    <h4>Ponto {{ row.ponto_numero }}</h4>
+                </div>
+                <span class="evaluation-badge evaluation-{% if row.aprovado %}ok{% elif row.reprovado %}out{% else %}neutral{% endif %}">{{ row.status_label }}</span>
+            </div>
+            <p class="temperature-zone-range">{{ row.faixa_texto }}</p>
+            <div class="pressure-value-display temperature-value-display">{{ row.valor_medido if row.valor_medido != '' else '-' }}</div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

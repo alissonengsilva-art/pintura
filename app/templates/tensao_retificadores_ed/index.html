@@ -4,8 +4,6 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <span class="page-kicker">Módulo operacional real</span>
-            <h3>Tensão dos Retificadores ED</h3>
             <p>Registre as leituras das 29 zonas dos retificadores por data, turno e modelo com destaque automático dos valores fora da faixa de 80V a 400V.</p>
         </div>
         <div class="hero-actions">
@@ -63,8 +61,7 @@
     <section class="panel-card ed-context-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 1 · Contexto do lançamento</span>
-                <h3>Contexto operacional</h3>
+                <span class="page-kicker">Contexto operacional</span>
             </div>
             {% if lancamento and lancamento.id %}
             <span class="status-chip {% if lancamento.status == 'concluido' %}subtle{% endif %}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span>
@@ -125,8 +122,7 @@
     <section class="panel-card tensao-zones-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Bloco 2 · Retificadores por zona</span>
-                <h3>Zonas 1 a 29</h3>
+                <span class="page-kicker">Retificadores por zona</span>
             </div>
             <div class="hero-actions">
                 <div class="ed-count-chip">{{ progress_summary.preenchidos }} preenchidas</div>

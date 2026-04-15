@@ -4,28 +4,28 @@
 <section class="panel-card ed-hero-card">
     <div class="section-header-inline">
         <div>
-            <p>Registre a pressão dos 24 filtros da ED com leitura rápida, rascunho, conclusão e detecção automática de alarme acima de 1 bar.</p>
+            <p>Registre medições de espessura da cataforese em 38 pontos com leitura técnica simples, rápida e rastreável por modelo.</p>
         </div>
         <div class="hero-actions">
-            <a class="button-secondary" href="/pressao-filtros-ed">Novo lançamento</a>
-            <a class="button-primary" href="/pressao-filtros-ed/historico">Histórico</a>
+            <a class="button-secondary" href="/espessura-ed">Novo lançamento</a>
+            <a class="button-primary" href="/espessura-ed/historico">Histórico</a>
         </div>
     </div>
-    <div class="ed-kpi-strip">
+    <div class="ed-kpi-strip espessura-kpi-strip">
         <div class="ed-kpi-card">
-            <span class="summary-label">Total de filtros</span>
+            <span class="summary-label">Total de pontos</span>
             <strong>{{ progress_summary.total }}</strong>
-            <p>Base operacional fixa do módulo.</p>
+            <p>Base fixa de medição técnica da carroceria.</p>
         </div>
         <div class="ed-kpi-card">
             <span class="summary-label">Preenchidos</span>
             <strong>{{ progress_summary.preenchidos }} / {{ progress_summary.total }}</strong>
-            <p>Filtros com valor de pressão informado.</p>
+            <p>Pontos já medidos no lançamento atual.</p>
         </div>
         <div class="ed-kpi-card">
-            <span class="summary-label">Em alarme</span>
-            <strong>{{ progress_summary.em_alarme }}</strong>
-            <p>Valores acima de 1 bar.</p>
+            <span class="summary-label">Atenção</span>
+            <strong>{{ progress_summary.atencao }}</strong>
+            <p>Valores muito fora da faixa esperada futura.</p>
         </div>
         <div class="ed-kpi-card">
             <span class="summary-label">Progresso</span>
@@ -50,7 +50,7 @@
         </div>
         <span class="status-badge status-{{ existing_context.status }}">{{ existing_context.label }}</span>
     </div>
-    <p>Já há um lançamento registrado para a combinação de data e turno selecionada.</p>
+    <p>Já há um lançamento registrado para a combinação de data, turno, modelo e CIS informada.</p>
     <div class="hero-actions">
         <a class="button-primary" href="{{ existing_context.action_url }}">{{ existing_context.action_label }}</a>
     </div>
@@ -70,7 +70,7 @@
 
         <input type="hidden" name="lancamento_id" value="{{ lancamento.id if lancamento and lancamento.id else '' }}">
 
-        <div class="form-grid pressure-context-grid">
+        <div class="form-grid espessura-context-grid">
             <div class="form-field">
                 <label for="data_referencia">Data</label>
                 <input id="data_referencia" type="date" name="data_referencia" value="{{ context_values.data_referencia }}" required>
@@ -86,6 +86,15 @@
                 </select>
             </div>
             <div class="form-field">
+                <label for="modelo">Modelo</label>
+                <input id="modelo" name="modelo" list="modelos-list" value="{{ context_values.modelo }}" placeholder="Informe ou selecione o modelo" required>
+                <datalist id="modelos-list">
+                    {% for modelo in modelo_options %}
+                    <option value="{{ modelo.nome }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div class="form-field">
                 <label for="responsavel_nome">Responsável</label>
                 <input id="responsavel_nome" name="responsavel_nome" list="responsaveis-list" value="{{ context_values.responsavel_nome }}" placeholder="Informe ou selecione o responsável" required>
                 <datalist id="responsaveis-list">
@@ -94,48 +103,52 @@
                     {% endfor %}
                 </datalist>
             </div>
+            <div class="form-field">
+                <label for="cis">CIS</label>
+                <input id="cis" name="cis" value="{{ context_values.cis }}" placeholder="Opcional, mas recomendado">
+            </div>
             <div class="form-field form-field-full">
-                <label for="observacoes_gerais">Observações gerais</label>
+                <label for="observacoes_gerais">Observações</label>
                 <textarea id="observacoes_gerais" name="observacoes_gerais" rows="3" placeholder="Observações gerais do lançamento, se necessário.">{{ context_values.observacoes_gerais }}</textarea>
             </div>
         </div>
 
         <div class="form-actions">
-            <button class="button-secondary" type="submit" formaction="/pressao-filtros-ed/carregar">Carregar formulário</button>
-            {% if filter_rows %}
-            <button class="button-primary" type="submit" formaction="/pressao-filtros-ed/salvar" name="submit_action" value="rascunho">Salvar rascunho</button>
-            <button class="button-primary" type="submit" formaction="/pressao-filtros-ed/salvar" name="submit_action" value="concluido">Concluir lançamento</button>
+            <button class="button-secondary" type="submit" formaction="/espessura-ed/carregar">Carregar pontos</button>
+            {% if point_rows %}
+            <button class="button-primary" type="submit" formaction="/espessura-ed/salvar" name="submit_action" value="rascunho">Salvar rascunho</button>
+            <button class="button-primary" type="submit" formaction="/espessura-ed/salvar" name="submit_action" value="concluido">Concluir lançamento</button>
             {% endif %}
         </div>
     </section>
 
-    {% if filter_rows %}
-    <section class="panel-card pressure-filters-card">
+    {% if point_rows %}
+    <section class="panel-card espessura-points-card">
         <div class="section-header-inline compact">
             <div>
-                <span class="page-kicker">Leituras dos filtros</span>
+                <span class="page-kicker">Pontos de medição</span>
             </div>
             <div class="hero-actions">
                 <div class="ed-count-chip">{{ progress_summary.preenchidos }} preenchidos</div>
-                <div class="ed-count-chip emphasis">{{ progress_summary.em_alarme }} em alarme</div>
+                <div class="ed-count-chip emphasis">{{ progress_summary.atencao }} atenção</div>
             </div>
         </div>
 
-        <div class="pressure-filters-grid">
-            {% for row in filter_rows %}
-            <article class="pressure-filter-tile {% if row.em_alarme %}alarm{% endif %}">
-                <div class="pressure-filter-header">
+        <div class="espessura-points-grid">
+            {% for row in point_rows %}
+            <article class="espessura-point-tile {% if row.is_attention %}attention{% elif row.is_filled %}filled{% endif %}">
+                <div class="temperature-zone-header">
                     <div>
-                        <span class="page-kicker">Filtro {{ row.filtro_numero }}</span>
-                        <h4>Filtro {{ row.filtro_numero }}</h4>
+                        <span class="page-kicker">Ponto {{ row.ponto_numero }}</span>
+                        <h4>Ponto {{ row.ponto_numero }}</h4>
                     </div>
-                    <span class="evaluation-badge evaluation-{{ 'out' if row.em_alarme else 'neutral' }}">{% if row.em_alarme %}⚠ Em alarme{% else %}Normal{% endif %}</span>
+                    <span class="evaluation-badge evaluation-{% if row.status == 'attention' %}out{% elif row.status == 'filled' %}ok{% else %}neutral{% endif %}">{{ row.status_label }}</span>
                 </div>
+                <p class="temperature-zone-range">{{ row.faixa_preparada }}</p>
                 <div class="form-field">
-                    <label for="filtro_{{ row.filtro_numero }}">Valor (bar)</label>
-                    <input id="filtro_{{ row.filtro_numero }}" type="text" inputmode="decimal" name="filtro_{{ row.filtro_numero }}" value="{{ row.valor_pressao }}" placeholder="Ex.: 0,85">
+                    <label for="ponto_{{ row.ponto_numero }}">Espessura (µm)</label>
+                    <input id="ponto_{{ row.ponto_numero }}" type="text" inputmode="decimal" name="ponto_{{ row.ponto_numero }}" value="{{ row.valor_espessura }}" placeholder="Ex.: 25">
                 </div>
-                <p class="pressure-filter-help">Alarme automático quando o valor estiver acima de 1,0 bar.</p>
             </article>
             {% endfor %}
         </div>

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card ed-hero-card">
+    <div class="section-header-inline">
+        <div>
+            <p>Consulte as coletas matriciais por data, sequência e status, com destaque para lançamentos com desvio.</p>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/rugosidade">Novo lançamento</a>
+        </div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-error">{{ error_message }}</div>
+{% endif %}
+
+<form method="get" class="panel-card ed-context-card">
+    <div class="form-grid rugosidade-context-grid history-rugosidade-grid">
+        <div class="form-field">
+            <label for="data_referencia">Data</label>
+            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia }}">
+        </div>
+        <div class="form-field">
+            <label for="sequencia">Sequência</label>
+            <input id="sequencia" name="sequencia" value="{{ filters.sequencia }}" placeholder="Todas as sequências">
+        </div>
+        <div class="form-field">
+            <label for="status">Status</label>
+            <select id="status" name="status">
+                <option value="">Todos</option>
+                {% for key, label in status_badges.items() %}
+                <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field checkbox-field">
+            <input id="somente_desvio" type="checkbox" name="somente_desvio" value="true" {% if filters.somente_desvio %}checked{% endif %}>
+            <label for="somente_desvio">Somente com desvio</label>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="button-primary">Filtrar</button>
+    </div>
+</form>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper operational-table-wrapper">
+        <table class="operational-table compact-table">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Sequência</th>
+                    <th>Responsável</th>
+                    <th>Status</th>
+                    <th>Fora do padrão</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lancamento in history %}
+                <tr class="{% if lancamento.total_modelos_fora_padrao > 0 %}row-outlier{% elif loop.index is even %}row-zebra{% endif %}">
+                    <td>{{ lancamento.data_referencia.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ lancamento.sequencia }}</td>
+                    <td>{{ lancamento.responsavel_nome }}</td>
+                    <td><span class="status-badge status-{{ lancamento.status }}">{{ status_badges.get(lancamento.status, lancamento.status) }}</span></td>
+                    <td>{{ lancamento.total_modelos_fora_padrao }}</td>
+                    <td class="actions-cell">
+                        <a class="button-secondary small" href="/rugosidade/lancamentos/{{ lancamento.id }}">Visualizar</a>
+                        {% if lancamento.status == 'rascunho' %}
+                        <a class="button-primary small" href="/rugosidade/lancamentos/{{ lancamento.id }}/editar">Continuar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty-state">Nenhum lançamento de rugosidade encontrado com os filtros atuais.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

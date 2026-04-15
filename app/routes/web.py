@@ -8,7 +8,9 @@ from app.db import get_db
 from app.services.dashboard_service import (
     DashboardValidationError,
     build_dashboard_snapshot,
+    build_pending_list_snapshot,
     parse_dashboard_filters,
+    parse_pending_filters,
 )
 from app.services.navigation import SECTIONS, layout_context
 
@@ -35,13 +37,14 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
     snapshot = build_dashboard_snapshot(db, filters)
     context = {
-        "page_title": "Dashboard Operacional do Dia",
-        "page_description": "Visão consolidada de ED e Pressão dos Filtros ED para decisão rápida por data e turno.",
+        "page_title": "Dashboard Operacional",
+        "page_description": "Visão consolidada por período, turno e módulos do processo.",
         "filters": snapshot.filters,
         "has_global_alert": snapshot.has_global_alert,
         "global_alert_message": snapshot.global_alert_message,
         "alert_summaries": snapshot.alert_summaries,
         "metrics": snapshot.metrics,
+        "pending_summary": snapshot.pending_summary,
         "module_cards": snapshot.module_cards,
         "pending_rows": snapshot.pending_rows,
         "occurrences": snapshot.occurrences,
@@ -49,6 +52,30 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         **layout_context(str(request.url.path)),
     }
     return templates.TemplateResponse(request=request, name="dashboard.html", context=context)
+
+
+@router.get("/pendencias", name="pendencias")
+def pendencias(request: Request, db: Session = Depends(get_db)):
+    error_message = None
+    try:
+        filters = parse_pending_filters(request.query_params, db)
+    except DashboardValidationError as error:
+        error_message = str(error)
+        filters = parse_pending_filters({}, db)
+
+    snapshot = build_pending_list_snapshot(db, filters)
+    context = {
+        "page_title": "Pendências",
+        "page_description": "Gestão de pendências operacionais por período, responsável, turno e módulo.",
+        "filters": snapshot.filters,
+        "status_metrics": snapshot.status_metrics,
+        "rows": snapshot.rows,
+        "status_options": snapshot.status_options,
+        "modulo_options": snapshot.modulo_options,
+        "error_message": error_message,
+        **layout_context(str(request.url.path)),
+    }
+    return templates.TemplateResponse(request=request, name="pendencias.html", context=context)
 
 
 @router.get("/{section_slug}", name="section_page")

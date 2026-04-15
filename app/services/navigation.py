@@ -1,3 +1,9 @@
+PRIMARY_LINKS = [
+    {"slug": "dashboard", "title": "Dashboard", "url": "/dashboard"},
+    {"slug": "pendencias", "title": "Pendências", "url": "/pendencias"},
+]
+
+
 SECTIONS = [
     {
         "slug": "ed",
@@ -30,30 +36,30 @@ SECTIONS = [
     {
         "slug": "poder-penetracao",
         "title": "Poder de penetração",
-        "description": "Área reservada para futuros formulários e rastreabilidade.",
+        "description": "Módulo operacional semanal com 30 pontos e cálculo automático de % de aprovação.",
         "url": "/poder-penetracao",
-        "status": "em breve",
+        "status": "operacional",
     },
     {
         "slug": "espessura-ed",
         "title": "Espessura ED",
-        "description": "Base visual para controle de espessura do filme.",
+        "description": "Módulo operacional para medições técnicas de espessura em 38 pontos por turno e modelo.",
         "url": "/espessura-ed",
-        "status": "em breve",
+        "status": "operacional",
     },
     {
         "slug": "aspecto",
         "title": "Aspecto",
-        "description": "Página preparada para avaliações visuais e critérios futuros.",
+        "description": "Módulo operacional para registrar anomalias visuais por carroceria em lotes rápidos por turno.",
         "url": "/aspecto",
-        "status": "em breve",
+        "status": "operacional",
     },
     {
         "slug": "rugosidade",
         "title": "Rugosidade",
-        "description": "Seção inicial para evolução do acompanhamento superficial.",
+        "description": "Módulo operacional matricial por data e sequência com controle técnico dos 5 modelos fixos.",
         "url": "/rugosidade",
-        "status": "em breve",
+        "status": "operacional",
     },
 ]
 
@@ -68,6 +74,7 @@ CADASTRO_LINKS = [
 
 def layout_context(current_path: str, active_path: str | None = None) -> dict:
     return {
+        "primary_links": PRIMARY_LINKS,
         "nav_sections": SECTIONS,
         "cadastro_links": CADASTRO_LINKS,
         "current_path": current_path,
