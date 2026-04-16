@@ -1,0 +1,28 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card module-status-bar">
+    <div class="module-status-row">
+        <div class="module-status-info">
+            <span class="page-kicker">Registro legado</span>
+        </div>
+    </div>
+</section>
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper">
+        <table class="module-history-table">
+            <tbody>
+                {% for key, value in legacy.__dict__.items() %}
+                {% if not key.startswith('_') %}
+                <tr>
+                    <th>{{ key }}</th>
+                    <td>{{ value }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -7,12 +7,12 @@ Painel de controle operacional do processo de pintura, construído com FastAPI, 
 - Estrutura modular em `app/` com separação de rotas, models e serviços.
 - Dashboard operacional nível 2 com filtro por data/turno, central de alertas, prioridade automática por módulo, pendências por turno e ocorrências do dia entre ED, Espessura, Poder de Penetração, Rugosidade, Pressão, Tensão, Temperatura e Aspecto.
 - Seção `ED` operacional com contexto de lançamento, carregamento de itens compatíveis, salvamento em rascunho, conclusão, histórico e visualização detalhada.
-- Seção `Pressão dos Filtros ED` operacional com 24 filtros, detecção automática de alarmes, rascunho, conclusão, histórico e detalhe.
-- Seção `Espessura ED` operacional com 38 pontos de medição, rascunho, conclusão, rastreabilidade por modelo/CIS, histórico e detalhe técnico.
+- Seção `Pressão dos filtros` operacional com 24 filtros, detecção automática de alarmes, rascunho, conclusão, histórico e detalhe.
+- Seção `Espessura` operacional com 38 pontos de medição, rascunho, conclusão, rastreabilidade por modelo/CIS, histórico e detalhe técnico.
 - Seção `Poder de Penetração` operacional com coleta semanal, 30 pontos, cálculo automático de aprovados/reprovados, menor valor e `% de aprovação`, com rascunho, conclusão, histórico e detalhe técnico.
 - Seção `Rugosidade` operacional com matriz por `data + sequência`, modelos fixos `521`, `226`, `551`, `598` e `291`, cálculo automático de fora do padrão por limite `14 µin`, rascunho, conclusão, histórico e detalhe técnico.
-- Seção `Tensão dos Retificadores ED` operacional com 29 zonas por lançamento, múltiplos lançamentos no dia por `turno + modelo`, validação automática da faixa `80V a 400V`, rascunho, conclusão, histórico e detalhe.
-- Seção `Temperatura Forno ED` operacional com 12 zonas térmicas, cálculo automático de faixa válida, rascunho, conclusão, histórico e detalhe.
+- Seção `Tensão dos retificadores` operacional com 29 zonas por lançamento, múltiplos lançamentos no dia por `turno + modelo`, validação automática da faixa `80V a 400V`, rascunho, conclusão, histórico e detalhe.
+- Seção `Temperatura Forno` operacional com 12 zonas térmicas, cálculo automático de faixa válida, rascunho, conclusão, histórico e detalhe.
 - Seção `Aspecto` operacional com entrada dinâmica de até 10 carrocerias por lote, registro rápido de anomalias visuais, histórico e detalhe consolidado.
 - Não há placeholders restantes entre os módulos principais do ciclo operacional.
 - CRUD server-side para `responsaveis`, `modelos`, `setores`, `turnos` e `itens_ed`.
@@ -74,8 +74,8 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
 
 - Abra `http://127.0.0.1:8000/dashboard`.
 - Filtre por `data` e, se necessário, por `turno`.
-- Use a seção `Alertas do dia` para abrir rapidamente ocorrências de `ED`, `Pressão dos Filtros ED`, `Tensão dos Retificadores ED`, `Temperatura Forno ED`, `Poder de Penetração`, `Rugosidade` e `Aspecto`.
-- Use os cards operacionais para acompanhar também as frentes `Espessura ED`, `Poder de Penetração` e `Rugosidade`, com visibilidade de lançamentos, rascunhos, pontos preenchidos e modelos fora do padrão.
+- Use a seção `Alertas do dia` para abrir rapidamente ocorrências de `ED`, `Pressão dos filtros`, `Tensão dos retificadores`, `Temperatura Forno`, `Poder de Penetração`, `Rugosidade` e `Aspecto`.
+- Use os cards operacionais para acompanhar também as frentes `Espessura`, `Poder de Penetração` e `Rugosidade`, com visibilidade de lançamentos, rascunhos, pontos preenchidos e modelos fora do padrão.
 - Acompanhe no topo os indicadores de `Módulos OK`, `Módulos com problema`, `Total de alertas` e `Pendências`.
 - Os cards dos módulos aplicam prioridade automática:
   - `Crítico`: existe desvio no dia.
@@ -89,7 +89,7 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
   - `Iniciar`
 - Consulte a `Matriz de fechamento` para identificar pendências por turno e a seção `Ocorrências do dia` para abrir direto o evento relevante.
 
-## Fluxo de Pressão dos Filtros ED
+## Fluxo de Pressão dos filtros
 
 - Abra `http://127.0.0.1:8000/pressao-filtros-ed`.
 - Preencha `data`, `turno` e `responsável`.
@@ -98,7 +98,7 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
 - Use `Salvar rascunho` para continuar depois ou `Concluir lançamento` para finalizar em modo leitura.
 - Consulte `http://127.0.0.1:8000/pressao-filtros-ed/historico` para filtrar por período, turno, status e alarmes.
 
-## Fluxo de Espessura ED
+## Fluxo de Espessura
 
 - Abra `http://127.0.0.1:8000/espessura-ed`.
 - Preencha `data`, `turno`, `modelo`, `responsável` e, se disponível, o `CIS`.
@@ -125,7 +125,7 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
 - Use `Salvar rascunho` para continuar depois ou `Concluir lançamento` para bloquear a edição.
 - Consulte `http://127.0.0.1:8000/rugosidade/historico` para filtrar por `data`, `sequência`, `status` e opcionalmente só lançamentos com desvio.
 
-## Fluxo de Tensão dos Retificadores ED
+## Fluxo de Tensão dos retificadores
 
 - Abra `http://127.0.0.1:8000/tensao-retificadores-ed`.
 - Preencha `data`, `turno`, `modelo` e `responsável`.
@@ -144,7 +144,7 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
 - Clique em `Salvar registros` para gravar o lote completo direto como lançamento concluído.
 - Consulte `http://127.0.0.1:8000/aspecto/historico` para filtrar por `data`, `turno` e `modelo` e abrir o detalhe do lote.
 
-## Fluxo de Temperatura Forno ED
+## Fluxo de Temperatura Forno
 
 - Abra `http://127.0.0.1:8000/temperatura-forno-ed`.
 - Preencha `data` e `responsável`.
@@ -156,17 +156,17 @@ C:/Users/se15218/AppData/Local/Programs/Python/Python314/python.exe -m pytest te
 ## Observação de escopo
 
 - `ED` já está operacional nesta etapa.
-- `Espessura ED` já está operacional nesta etapa.
-- `Pressão dos Filtros ED` já está operacional nesta etapa.
-- `Tensão dos Retificadores ED` já está operacional nesta etapa.
-- `Temperatura Forno ED` já está operacional nesta etapa.
+- `Espessura` já está operacional nesta etapa.
+- `Pressão dos filtros` já está operacional nesta etapa.
+- `Tensão dos retificadores` já está operacional nesta etapa.
+- `Temperatura Forno` já está operacional nesta etapa.
 - `Aspecto` já está operacional nesta etapa.
 - `Poder de Penetração` já está operacional nesta etapa.
 - `Rugosidade` já está operacional nesta etapa.
 
 ## Próxima etapa já preparada
 
-- Repetir o padrão operacional da ED e de Pressão dos Filtros ED para as próximas seções reais.
+- Repetir o padrão operacional da ED e de Pressão dos filtros para as próximas seções reais.
 - Adicionar histórico analítico mais rico, filtros avançados e rastreabilidade temporal.
 - Relacionar `itens_ed` com entidades de referência de forma mais rígida, se necessário.
 - Incluir autenticação, permissões e regras operacionais específicas sem reestruturar a base.

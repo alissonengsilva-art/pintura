@@ -1,4 +1,4 @@
-"""add espessura ed operational module
+"""add Espessura operational module
 
 Revision ID: 20260413_0007
 Revises: 20260413_0006

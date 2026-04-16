@@ -1,0 +1,76 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<div class="module-premium-layout module-report-layout">
+    <!-- Barra de navegação de relatórios -->
+    <nav class="module-reports-nav module-reports-nav--top">
+        <a href="/{{ module_config.slug }}" class="reports-nav-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            Voltar para edição
+        </a>
+        <div class="reports-nav-links">
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="reports-nav-item">Consolidado</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="reports-nav-item {% if not report_setor %}active{% endif %}">Relatório Geral</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=PTED" class="reports-nav-item {% if report_setor == 'PTED' %}active{% endif %}">PTED</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=LABORATORIO" class="reports-nav-item {% if report_setor == 'LABORATORIO' %}active{% endif %}">Laboratório</a>
+        </div>
+    </nav>
+
+    <!-- Cabeçalho de contexto -->
+    <header class="module-context-strip module-context-strip--readonly">
+        <div class="context-strip-left">
+            <span class="context-label">{{ context_label }}</span>
+            <span class="report-type-label">{% if report_setor %}Relatório {{ report_setor }}{% else %}Relatório Geral{% endif %}</span>
+        </div>
+        <div class="context-strip-right">
+            <span class="status-badge status-badge--{{ status_geral_label|lower|replace(' ', '-') }}">{{ status_geral_label }}</span>
+            <button type="button" class="btn-print" onclick="window.print()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Imprimir
+            </button>
+        </div>
+    </header>
+
+    <!-- Conteúdo do relatório -->
+    {% for setor_view in setor_views %}
+    <section class="report-sector-section">
+        <header class="report-sector-header">
+            <div class="report-sector-title">
+                <span class="sector-label">{{ setor_view.setor_label }}</span>
+                <span class="data-badge data-badge--{{ setor_view.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i') }}">{{ setor_view.status_label }}</span>
+            </div>
+            <div class="report-sector-meta">
+                <span><strong>Responsável:</strong> {{ setor_view.responsavel_nome or '—' }}</span>
+                <span><strong>Observações:</strong> {{ setor_view.observacoes_setor or '—' }}</span>
+            </div>
+        </header>
+        <div class="module-data-table-wrapper">
+            <table class="module-data-table module-data-table--readonly module-data-table--report {% if module_config.code == 'aspecto' %}module-data-table--wide{% endif %}">
+                <thead>
+                    <tr>
+                        {% for column in module_config.columns %}
+                        <th class="col-{{ column.key }}">{{ column.label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in setor_view.rows %}
+                    <tr class="{% if row.flag %}row-flagged{% endif %}">
+                        {% for column in module_config.columns %}
+                        <td class="col-{{ column.key }}">
+                            {% if column.kind == 'status' %}
+                            <span class="data-badge data-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o') }}">{{ row[column.key] }}</span>
+                            {% else %}
+                            {{ row[column.key] or '—' }}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% endblock %}

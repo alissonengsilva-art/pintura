@@ -1,0 +1,56 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card module-status-bar">
+    <div class="module-status-row">
+        <div class="module-status-info">
+            <span class="page-kicker">Histórico consolidado</span>
+        </div>
+        <a class="button-primary" href="/{{ module_config.slug }}">Novo registro</a>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="alert-info">{{ error_message }}</div>
+{% endif %}
+
+<section class="panel-card table-panel">
+    <div class="table-wrapper">
+        <table class="module-history-table">
+            <thead>
+                <tr>
+                    <th>Origem</th>
+                    <th>Contexto</th>
+                    <th>PTED</th>
+                    <th>Laboratório</th>
+                    <th>Status geral</th>
+                    <th>Responsável PTED</th>
+                    <th>Responsável Lab</th>
+                    <th>Desvios</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history_rows %}
+                <tr>
+                    <td>{{ row.origin|title }}</td>
+                    <td>{{ row.context_label }}</td>
+                    <td>{{ row.status_pted_label }}</td>
+                    <td>{{ row.status_lab_label }}</td>
+                    <td>{{ row.status_geral_label }}</td>
+                    <td>{{ row.responsavel_pted }}</td>
+                    <td>{{ row.responsavel_lab }}</td>
+                    <td>{{ row.desvios }}</td>
+                    <td class="table-actions">
+                        <a href="{{ row.detail_url }}">Consolidado</a>
+                        <a href="{{ row.report_url }}">Geral</a>
+                        <a href="{{ row.report_pted_url }}">PTED</a>
+                        <a href="{{ row.report_lab_url }}">Lab</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,79 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<div class="module-premium-layout">
+    <!-- Barra de navegação de relatórios -->
+    <nav class="module-reports-nav module-reports-nav--top">
+        <a href="/{{ module_config.slug }}" class="reports-nav-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            Voltar para edição
+        </a>
+        <div class="reports-nav-links">
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="reports-nav-item active">Consolidado</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="reports-nav-item">Relatório Geral</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=PTED" class="reports-nav-item">PTED</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=LABORATORIO" class="reports-nav-item">Laboratório</a>
+        </div>
+    </nav>
+
+    <!-- Cabeçalho de contexto -->
+    <header class="module-context-strip module-context-strip--readonly">
+        <div class="context-strip-left">
+            <span class="context-label">{{ context_label }}</span>
+        </div>
+        <div class="context-strip-right">
+            <span class="status-badge status-badge--{{ status_geral_label|lower|replace(' ', '-') }}">{{ status_geral_label }}</span>
+        </div>
+    </header>
+
+    <!-- Grid de setores -->
+    <div class="module-detail-sectors">
+        {% for setor_view in setor_views %}
+        <article class="detail-sector-card">
+            <header class="detail-sector-header">
+                <div class="detail-sector-title">
+                    <span class="sector-label">{{ setor_view.setor_label }}</span>
+                    <span class="data-badge data-badge--{{ setor_view.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i') }}">{{ setor_view.status_label }}</span>
+                </div>
+            </header>
+            <div class="detail-sector-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Responsável</span>
+                    <span class="meta-value">{{ setor_view.responsavel_nome or '—' }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Observações</span>
+                    <span class="meta-value">{{ setor_view.observacoes_setor or '—' }}</span>
+                </div>
+            </div>
+            <div class="module-data-table-wrapper">
+                <table class="module-data-table module-data-table--readonly {% if module_config.code == 'aspecto' %}module-data-table--wide{% endif %}">
+                    <thead>
+                        <tr>
+                            {% for column in module_config.columns %}
+                            <th class="col-{{ column.key }}">{{ column.label }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in setor_view.rows %}
+                        <tr class="{% if row.flag %}row-flagged{% endif %}">
+                            {% for column in module_config.columns %}
+                            <td class="col-{{ column.key }}">
+                                {% if column.kind == 'status' %}
+                                <span class="data-badge data-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o') }}">{{ row[column.key] }}</span>
+                                {% else %}
+                                {{ row[column.key] or '—' }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
