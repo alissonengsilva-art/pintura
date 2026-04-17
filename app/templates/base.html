@@ -15,26 +15,10 @@
                     <p>Pintura</p>
                 </div>
 
-                <nav class="nav-group">
-                    <h2>Painel</h2>
+                <nav class="nav-group nav-group--primary">
+                    <h2>Operacao</h2>
                     <ul>
-                        <li>
-                            <a href="/dashboard" class="{% if active_path == '/dashboard' %}active{% endif %}">
-                                <span class="nav-label">Dashboard</span>
-                            </a>
-                        </li>
-                                                <li>
-                            <a href="/pendencias" class="{% if active_path == '/pendencias' %}active{% endif %}">
-                                <span class="nav-label">Pendências</span>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-
-                <nav class="nav-group">
-                    <h2>Módulos</h2>
-                    <ul>
-                        {% for item in nav_sections %}
+                        {% for item in primary_links %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
                                 <span class="nav-label">{{ item.title }}</span>
@@ -49,11 +33,11 @@
                     <ul>
                         <li>
                             <a href="/cadastros" class="{% if active_path == '/cadastros' %}active{% endif %}">
-                                <span class="nav-label">Configuração</span>
+                                <span class="nav-label">Configuracao</span>
                             </a>
                         </li>
                         {% for item in cadastro_links %}
-                        {% if item.title not in ['Visão geral', 'Pendências', 'Responsáveis', 'Modelos', 'Setores', 'Turnos'] %}
+                        {% if item.title not in ['Visao geral', 'Pendencias', 'Responsaveis', 'Modelos', 'Setores', 'Turnos'] %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
                                 <span class="nav-label">{{ item.title }}</span>
@@ -67,16 +51,6 @@
         </aside>
 
         <main class="main-area">
-            <header class="topbar">
-                <div class="topbar-content">
-                    <div>
-                        <span class="page-kicker">CONTROL PLAN · Pintura</span>
-                        <h2>{{ page_title }}</h2>
-                        <p>{{ page_description }}</p>
-                    </div>
-                </div>
-            </header>
-
             <section class="content-area">
                 {% block content %}{% endblock %}
             </section>

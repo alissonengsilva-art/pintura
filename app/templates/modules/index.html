@@ -1,65 +1,188 @@
 ﻿{% extends 'base.html' %}
 
 {% block content %}
-<div class="module-premium-layout">
-    <!-- Barra de contexto compacta -->
-    <header class="module-context-strip">
-        <div class="context-strip-left">
-            <div class="context-field-inline">
-                <label for="data_referencia">Data</label>
-                <input type="date" id="data_referencia" name="data_referencia" value="{{ context_values.data_referencia }}" form="context-form">
+{# Determinar estados do ciclo #}
+{% set ciclo_concluido = status_geral_label == 'CONCLUIDO' %}
+{% set ciclo_ativo = status_geral_label in ['EM_ANDAMENTO', 'PARCIAL'] %}
+{% set sem_ciclo = status_geral_label == 'NAO_INICIADO' and not master %}
+
+<div class="op-module" data-status="{{ status_geral_label }}">
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SELETOR DE CONTEXTO (DATA / TURNO / ETC)
+         ═══════════════════════════════════════════════════════════════════ -->
+    {% if context_locked and master %}
+    {# Contexto travado - modo somente leitura #}
+    <div class="op-context-bar op-context-bar--locked">
+        <div class="op-context-display">
+            <div class="op-context-field op-context-field--readonly">
+                <span class="op-context-label">Data</span>
+                <span class="op-context-value">{{ context_values.data_referencia }}</span>
             </div>
             {% for field in context_fields %}
-            {% if field.name != 'data_referencia' %}
-            <div class="context-field-inline">
-                <label for="{{ field.name }}">{{ field.label }}</label>
-                {% if field.kind == 'select' %}
-                <select id="{{ field.name }}" name="{{ field.name }}" form="context-form">
-                    {% for option in context_options[field.options_key] %}
-                    {% set option_value = option.codigo if option.codigo is defined else (option.value if option.value is defined else option.nome) %}
-                    {% set option_label = option.nome if option.nome is defined else option.label %}
-                    <option value="{{ option_value }}" {% if context_values[field.name] == option_value|string %}selected{% endif %}>{{ option_label }}</option>
-                    {% endfor %}
-                </select>
-                {% else %}
-                <input id="{{ field.name }}" type="{{ field.kind }}" name="{{ field.name }}" value="{{ context_values[field.name] }}" form="context-form" {% if field.required %}required{% endif %}>
-                {% endif %}
+            {% if field.name != 'data_referencia' and context_values[field.name] %}
+            <div class="op-context-field op-context-field--readonly">
+                <span class="op-context-label">{{ field.label }}</span>
+                <span class="op-context-value">
+                    {% if field.kind == 'select' and field.options_key %}
+                        {% for option in context_options[field.options_key] %}
+                            {% set option_value = option.codigo if option.codigo is defined else (option.value if option.value is defined else option.nome) %}
+                            {% set option_label = option.nome if option.nome is defined else option.label %}
+                            {% if context_values[field.name] == option_value|string %}{{ option_label }}{% endif %}
+                        {% endfor %}
+                    {% else %}
+                        {{ context_values[field.name] }}
+                    {% endif %}
+                </span>
             </div>
             {% endif %}
             {% endfor %}
-            <form method="get" id="context-form" class="context-form-hidden"></form>
-            <button type="submit" form="context-form" class="btn-context-update">Atualizar</button>
         </div>
-        <div class="context-strip-right">
-            <span class="status-badge status-badge--{{ status_geral_texto|lower|replace(' ', '-') }}">{{ status_geral_texto }}</span>
-            <a href="/{{ module_config.slug }}/historico" class="btn-icon-link" title="Histórico">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
-                Histórico
+        <div class="op-context-actions">
+            {% if turno_atual_url %}
+            <a href="{{ turno_atual_url }}" class="op-btn op-btn--secondary op-btn--sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                Turno Atual
+            </a>
+            {% endif %}
+            <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Central
             </a>
         </div>
-    </header>
-
-    {% if error_message %}
-    <div class="alert-error">{{ error_message }}</div>
+    </div>
+    {% else %}
+    <div class="op-context-bar">
+        <form method="get" id="context-form" class="op-context-form">
+            <div class="op-context-fields">
+                <div class="op-context-field">
+                    <label for="data_referencia">Data</label>
+                    <input type="date" id="data_referencia" name="data_referencia" value="{{ context_values.data_referencia }}">
+                </div>
+                {% for field in context_fields %}
+                {% if field.name != 'data_referencia' %}
+                <div class="op-context-field">
+                    <label for="{{ field.name }}">{{ field.label }}</label>
+                    {% if field.kind == 'select' %}
+                    <select id="{{ field.name }}" name="{{ field.name }}">
+                        {% for option in context_options[field.options_key] %}
+                        {% set option_value = option.codigo if option.codigo is defined else (option.value if option.value is defined else option.nome) %}
+                        {% set option_label = option.nome if option.nome is defined else option.label %}
+                        <option value="{{ option_value }}" {% if context_values[field.name] == option_value|string %}selected{% endif %}>{{ option_label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input id="{{ field.name }}" type="{{ field.kind }}" name="{{ field.name }}" value="{{ context_values[field.name] }}" {% if field.required %}required{% endif %} {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div class="op-context-actions">
+                <button type="submit" class="op-btn op-btn--secondary op-btn--sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Buscar
+                </button>
+                <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    Central
+                </a>
+            </div>
+        </form>
+    </div>
     {% endif %}
 
-    <!-- Resumo de progresso dos setores -->
-    <div class="module-progress-strip">
-        {% for setor_view in setor_views %}
-        <div class="progress-sector-chip {% if setor_view.status_setor == 'CONCLUIDO' %}completed{% elif setor_view.status_setor == 'EM_ANDAMENTO' %}in-progress{% endif %}">
-            <span class="progress-sector-label">{{ setor_view.setor_label }}</span>
-            <span class="progress-sector-count">{{ setor_view.summary.preenchidos }}/{{ setor_view.summary.total }}</span>
-            <span class="progress-sector-status">{{ setor_view.status_label }}</span>
+    {% if error_message %}
+    <div class="op-alert op-alert--error">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {{ error_message }}
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ESTADO: CICLO CONCLUÍDO
+         Redireciona para histórico ou visão geral
+         ═══════════════════════════════════════════════════════════════════ -->
+    {% if ciclo_concluido %}
+    <div class="op-empty-state op-empty-state--completed">
+        <div class="op-empty-state__icon op-empty-state__icon--success">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </div>
-        {% endfor %}
+        <h2 class="op-empty-state__title">Ciclo concluído</h2>
+        <p class="op-empty-state__text">Este registro já foi finalizado. Use o Turno Atual para continuar a operação do dia.</p>
+        <div class="op-empty-state__actions">
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="op-btn op-btn--secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Ver detalhes
+            </a>
+            {% if turno_atual_url %}
+            <a href="{{ turno_atual_url }}" class="op-btn op-btn--primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+                Voltar ao Turno Atual
+            </a>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Controle segmentado premium PTED / Laboratório -->
-    <div class="segmented-control-wrapper">
-        <div class="segmented-control" role="tablist">
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ESTADO: SEM CICLO (não existe master para este contexto)
+         Mostra estado vazio - botão de iniciar está na barra de contexto
+         ═══════════════════════════════════════════════════════════════════ -->
+    {% elif sem_ciclo %}
+    <div class="op-empty-state">
+        <div class="op-empty-state__icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <h2 class="op-empty-state__title">Central histórica do módulo</h2>
+        <p class="op-empty-state__text">Esta página não cria execução nova. Inicie ou continue o módulo pelo Turno Atual.</p>
+        {% if turno_atual_url %}
+        <div class="op-empty-state__actions">
+            <a href="{{ turno_atual_url }}" class="op-btn op-btn--primary">Ir para Turno Atual</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ESTADO: CICLO ATIVO (NAO_INICIADO com master / EM_ANDAMENTO / PARCIAL)
+         Mostra formulário de preenchimento
+         ═══════════════════════════════════════════════════════════════════ -->
+    {% else %}
+    
+    <!-- Status card compacto -->
+    <div class="op-status-card">
+        <div class="op-status-card__info">
+            <span class="op-status-badge op-status-badge--{{ status_geral_label|lower|replace('_', '-') }}">{{ status_geral_texto }}</span>
+            {% set total_desvios = setor_views|sum(attribute='summary.flag_count') %}
+            {% if total_desvios > 0 %}
+            <span class="op-status-card__alert">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                {{ total_desvios }} desvio{% if total_desvios > 1 %}s{% endif %}
+            </span>
+            {% endif %}
+        </div>
+        {% if master %}
+        <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="op-status-card__link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Ver resumo
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Tabs PTED / Laboratório -->
+    <div class="op-tabs">
+        <div class="op-tabs__list" role="tablist">
             {% for setor_view in setor_views %}
-            <button class="segmented-control-item {% if loop.first %}active{% endif %}" type="button" role="tab" data-tab-target="{{ setor_view.setor_tipo }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
-                {{ setor_view.setor_label }}
+            <button class="op-tabs__tab {% if loop.first %}op-tabs__tab--active{% endif %}" 
+                    type="button" 
+                    role="tab" 
+                    data-tab-target="{{ setor_view.setor_tipo }}" 
+                    aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+                <span class="op-tabs__tab-label">{{ setor_view.setor_label }}</span>
+                <span class="op-tabs__tab-meta">
+                    <span class="op-tabs__tab-count">{{ setor_view.summary.preenchidos }}/{{ setor_view.summary.total }}</span>
+                    {% if setor_view.status_setor == 'CONCLUIDO' %}
+                    <svg class="op-tabs__tab-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    {% endif %}
+                </span>
             </button>
             {% endfor %}
         </div>
@@ -67,57 +190,105 @@
 
     <!-- Painéis de setor -->
     {% for setor_view in setor_views %}
-    <div class="module-sector-panel {% if loop.first %}active{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
-        <form method="post" action="/{{ module_config.slug }}/setores/{{ setor_view.setor_tipo }}/salvar" data-sector-form>
+    {% set setor_concluido = setor_view.status_setor == 'CONCLUIDO' %}
+    <div class="op-sector {% if loop.first %}op-sector--active{% endif %} {% if setor_concluido %}op-sector--done{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
+        <form method="post" action="/{{ module_config.slug }}/setores/{{ setor_view.setor_tipo }}/salvar" class="op-sector__form" data-sector-form>
             {% for field in context_fields %}
             <input type="hidden" name="{{ field.name }}" value="{{ context_values[field.name] }}">
             {% endfor %}
 
-            <!-- Meta do setor: Responsável + Observações -->
-            <div class="sector-meta-grid">
-                <div class="sector-meta-field sector-meta-field--responsavel">
-                    <label for="responsavel_nome_{{ setor_view.setor_tipo }}">Responsável</label>
-                    <input type="text" id="responsavel_nome_{{ setor_view.setor_tipo }}" name="responsavel_nome_{{ setor_view.setor_tipo }}" value="{{ setor_view.responsavel_nome }}" list="responsaveis-list" placeholder="Nome do responsável" required>
+            <!-- Cabeçalho do setor -->
+            <div class="op-sector__header">
+                <div class="op-sector__title">
+                    <h3>{{ setor_view.setor_label }}</h3>
+                    {% if setor_concluido %}
+                    <span class="op-sector__done-badge">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                        Concluído
+                    </span>
+                    {% endif %}
                 </div>
-                <div class="sector-meta-field sector-meta-field--obs">
+                {% if setor_view.summary.flag_count > 0 %}
+                <div class="op-sector__alert">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    {{ setor_view.summary.flag_count }} desvio{% if setor_view.summary.flag_count > 1 %}s{% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Metadados: Responsável + Observações -->
+            <div class="op-sector__meta">
+                <div class="op-sector__meta-field op-sector__meta-field--resp">
+                    <label for="responsavel_nome_{{ setor_view.setor_tipo }}">Responsável</label>
+                    <input type="text" 
+                           id="responsavel_nome_{{ setor_view.setor_tipo }}" 
+                           name="responsavel_nome_{{ setor_view.setor_tipo }}" 
+                           value="{{ setor_view.responsavel_nome }}" 
+                           list="responsaveis-list-{{ setor_view.setor_tipo }}" 
+                           placeholder="Nome do responsável" 
+                           {% if not setor_concluido %}required{% endif %}
+                           autocomplete="off"
+                           {% if setor_concluido %}disabled readonly{% endif %}>
+                    <datalist id="responsaveis-list-{{ setor_view.setor_tipo }}">
+                        {% for responsavel in context_options['responsaveis'] %}
+                        <option value="{{ responsavel.nome }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="op-sector__meta-field op-sector__meta-field--obs">
                     <label for="observacoes_setor_{{ setor_view.setor_tipo }}">Observações</label>
-                    <textarea id="observacoes_setor_{{ setor_view.setor_tipo }}" name="observacoes_setor_{{ setor_view.setor_tipo }}" rows="1" placeholder="Observações do setor (opcional)">{{ setor_view.observacoes_setor }}</textarea>
+                    <input type="text" 
+                           id="observacoes_setor_{{ setor_view.setor_tipo }}" 
+                           name="observacoes_setor_{{ setor_view.setor_tipo }}" 
+                           value="{{ setor_view.observacoes_setor }}" 
+                           placeholder="Opcional"
+                           {% if setor_concluido %}disabled readonly{% endif %}>
                 </div>
             </div>
 
-            <datalist id="responsaveis-list">
-                {% for responsavel in context_options['responsaveis'] %}
-                <option value="{{ responsavel.nome }}"></option>
-                {% endfor %}
-            </datalist>
-
-            <!-- Tabela de dados compacta e premium -->
-            <div class="module-data-table-wrapper">
-                <table class="module-data-table {% if module_config.code == 'aspecto' %}module-data-table--wide{% endif %}">
+            <!-- Tabela operacional -->
+            <div class="op-table-wrapper">
+                <table class="op-table {% if module_config.code == 'aspecto' %}op-table--aspecto{% endif %}">
                     <thead>
                         <tr>
                             {% for column in module_config.columns %}
-                            <th class="col-{{ column.key }}">{{ column.label }}</th>
+                            <th class="op-table__col--{{ column.key }}">{{ column.label }}</th>
                             {% endfor %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in setor_view.rows %}
-                        <tr class="{% if row.flag %}row-flagged{% endif %}">
+                        <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
                             {% for column in module_config.columns %}
-                            <td class="col-{{ column.key }}">
+                            <td class="op-table__col--{{ column.key }}">
                                 {% if column.kind == 'input' %}
                                     {% if module_config.code == 'aspecto' %}
-                                    <input type="text" name="{{ column.key }}_{{ setor_view.setor_tipo }}_{{ row.reference }}" value="{{ row[column.key] }}" class="input-compact">
+                                    <input type="text" 
+                                           name="{{ column.key }}_{{ setor_view.setor_tipo }}_{{ row.reference }}" 
+                                           value="{{ row[column.key] }}" 
+                                           class="op-input op-input--compact"
+                                           {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
+                                           {% if setor_concluido %}disabled readonly{% endif %}>
                                     {% elif column.key == 'row_observation' %}
-                                    <input type="text" name="obs_{{ setor_view.setor_tipo }}_{{ row.reference }}" value="{{ row[column.key] }}" class="input-compact input-obs" placeholder="Obs.">
+                                    <input type="text" 
+                                           name="obs_{{ setor_view.setor_tipo }}_{{ row.reference }}" 
+                                           value="{{ row[column.key] }}" 
+                                           class="op-input op-input--compact op-input--obs" 
+                                           placeholder="Obs."
+                                           {% if setor_concluido %}disabled readonly{% endif %}>
                                     {% else %}
-                                    <input type="text" name="value_{{ setor_view.setor_tipo }}_{{ row.reference }}" value="{{ row[column.key] if column.key == 'value' else row[column.key] }}" class="input-compact input-value" {% if column.key != 'value' %}readonly{% endif %}>
+                                    <input type="text" 
+                                           name="value_{{ setor_view.setor_tipo }}_{{ row.reference }}" 
+                                           value="{{ row[column.key] if column.key == 'value' else row[column.key] }}" 
+                                           class="op-input op-input--compact op-input--value" 
+                                           {% if column.key != 'value' %}readonly{% endif %}
+                                           {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
+                                           {% if setor_concluido %}disabled{% endif %}>
                                     {% endif %}
                                 {% elif column.kind == 'status' %}
-                                <span class="data-badge data-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o') }}">{{ row[column.key] }}</span>
+                                <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o')|replace('ú', 'u') }}">{{ row[column.key] }}</span>
                                 {% else %}
-                                {{ row[column.key] }}
+                                <span class="op-table__text">{{ row[column.key] }}</span>
                                 {% endif %}
                             </td>
                             {% endfor %}
@@ -127,69 +298,81 @@
                 </table>
             </div>
 
-            <!-- Barra de ações do setor -->
-            <div class="sector-actions-bar">
-                <button class="btn-sector-save" type="submit" name="submit_action" value="salvar">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                    Salvar rascunho
-                </button>
-                <button class="btn-sector-conclude" type="submit" name="submit_action" value="concluir">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    Concluir setor
-                </button>
+            <!-- Barra de ações -->
+            <div class="op-sector__actions">
+                <div class="op-sector__actions-info">
+                    <span class="op-sector__progress">{{ setor_view.summary.preenchidos }}/{{ setor_view.summary.total }} preenchidos</span>
+                </div>
+                {% if not setor_concluido %}
+                <div class="op-sector__actions-buttons">
+                    <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Salvar
+                    </button>
+                    <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        Concluir setor
+                    </button>
+                </div>
+                {% else %}
+                <div class="op-sector__actions-done">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span>Setor finalizado</span>
+                </div>
+                {% endif %}
             </div>
         </form>
     </div>
     {% endfor %}
-
-    <!-- Navegação secundária de relatórios -->
-    {% if master %}
-    <nav class="module-reports-nav">
-        <span class="reports-nav-label">Visualizar:</span>
-        <div class="reports-nav-links">
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="reports-nav-item">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-                Consolidado
-            </a>
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="reports-nav-item">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                Relatório Geral
-            </a>
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=PTED" class="reports-nav-item">PTED</a>
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=LABORATORIO" class="reports-nav-item">Laboratório</a>
-        </div>
-    </nav>
     {% endif %}
 </div>
 
 <script>
 (function () {
-    const contextForm = document.getElementById('context-form');
-    const buttons = document.querySelectorAll('[data-tab-target]');
+    'use strict';
+    
+    // Controle de abas PTED/Laboratório
+    const tabs = document.querySelectorAll('[data-tab-target]');
     const panels = document.querySelectorAll('[data-tab-panel]');
-    buttons.forEach((button) => {
-        button.addEventListener('click', () => {
-            buttons.forEach((item) => {
-                item.classList.remove('active');
-                item.setAttribute('aria-selected', 'false');
+    const contextForm = document.getElementById('context-form');
+    
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            const target = this.getAttribute('data-tab-target');
+            
+            tabs.forEach(function(t) {
+                t.classList.remove('op-tabs__tab--active');
+                t.setAttribute('aria-selected', 'false');
             });
-            panels.forEach((panel) => panel.classList.remove('active'));
-            button.classList.add('active');
-            button.setAttribute('aria-selected', 'true');
-            const target = button.getAttribute('data-tab-target');
+            
+            panels.forEach(function(p) {
+                p.classList.remove('op-sector--active');
+            });
+            
+            this.classList.add('op-tabs__tab--active');
+            this.setAttribute('aria-selected', 'true');
+            
             const panel = document.querySelector('[data-tab-panel="' + target + '"]');
             if (panel) {
-                panel.classList.add('active');
+                panel.classList.add('op-sector--active');
             }
         });
     });
-    document.querySelectorAll('[data-sector-form]').forEach((form) => {
-        form.addEventListener('submit', () => {
-            if (!contextForm) return;
-            contextForm.querySelectorAll('input[name], select[name], textarea[name]').forEach((field) => {
-                const target = form.querySelector('[name="' + field.name + '"]');
-                if (target) target.value = field.value;
-            });
+    
+    // Sincronizar contexto nos formulários
+    document.querySelectorAll('[data-sector-form]').forEach(function(form) {
+        form.setAttribute('method', 'post');
+        
+        form.addEventListener('submit', function() {
+            if (contextForm) {
+                var formData = new FormData(contextForm);
+                for (var pair of formData.entries()) {
+                    var hidden = form.querySelector('input[name="' + pair[0] + '"]');
+                    if (hidden) {
+                        hidden.value = pair[1];
+                    }
+                }
+            }
         });
     });
 })();

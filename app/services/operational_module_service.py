@@ -92,6 +92,7 @@ class ModuleConfig:
     legacy_detail_loader: Callable[[Session, int], Any | None]
     legacy_detail_template: str
     supports_turno: bool = False
+    frequency: str = "daily"  # "daily" | "weekly" | "conditional"
 
 
 class OperationalModuleValidationError(ValueError):
@@ -135,9 +136,9 @@ def list_shared_options(session: Session) -> dict[str, list[Any]]:
         "modelos": modelos,
         "tipo_dia": [{"value": value, "label": label} for value, label in ed_service.TIPO_DIA_OPTIONS],
         "sequencias_rugosidade": [
-            {"value": "1Âª coleta", "label": "1Âª coleta"},
-            {"value": "2Âª coleta", "label": "2Âª coleta"},
-            {"value": "3Âª coleta", "label": "3Âª coleta"},
+            {"value": "1a coleta", "label": "1\u00aa coleta"},
+            {"value": "2a coleta", "label": "2\u00aa coleta"},
+            {"value": "3a coleta", "label": "3\u00aa coleta"},
         ],
     }
 
@@ -210,7 +211,7 @@ def context_label(config: ModuleConfig, context_data: dict[str, Any]) -> str:
                 parts.append(value.strftime("%d/%m/%Y"))
                 continue
         parts.append(f"{field.label}: {value}")
-    return " Â· ".join(parts)
+    return " \u00b7 ".join(parts)
 
 
 def build_context_key(config: ModuleConfig, context: dict[str, Any]) -> str:
@@ -222,17 +223,33 @@ def build_context_key(config: ModuleConfig, context: dict[str, Any]) -> str:
     return "|".join(parts)
 
 
-def get_or_create_master(session: Session, config: ModuleConfig, context: dict[str, Any]) -> OperationalModuleRecord:
+def get_or_create_master(
+    session: Session,
+    config: ModuleConfig,
+    context: dict[str, Any],
+    shift_id: int | None = None,
+) -> OperationalModuleRecord:
     if not operational_schema_available(session):
         raise OperationalModuleValidationError(MISSING_SCHEMA_MESSAGE)
     key = build_context_key(config, context)
-    statement = (
+    by_shift_statement = (
+        select(OperationalModuleRecord)
+        .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
+        .where(OperationalModuleRecord.module_code == config.code)
+    )
+    by_context_statement = (
         select(OperationalModuleRecord)
         .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
         .where(OperationalModuleRecord.module_code == config.code)
         .where(OperationalModuleRecord.context_key == key)
     )
-    master = session.scalars(statement).unique().first()
+
+    if shift_id is not None:
+        master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
+        if master is None:
+            master = session.scalars(by_context_statement).unique().first()
+    else:
+        master = session.scalars(by_context_statement).unique().first()
     if master is None:
         now = datetime.now(UTC).replace(tzinfo=None)
         master = OperationalModuleRecord(
@@ -242,6 +259,7 @@ def get_or_create_master(session: Session, config: ModuleConfig, context: dict[s
             context_key=key,
             context_data=_serialize_context(config, context),
             status_geral=MODULE_STATUS_NAO_INICIADO,
+            shift_id=shift_id,  # Vínculo com turno operacional
             created_at=now,
             updated_at=now,
         )
@@ -257,11 +275,19 @@ def get_or_create_master(session: Session, config: ModuleConfig, context: dict[s
                 )
             )
         session.flush()
-        master = session.scalars(statement).unique().first()
+        if shift_id is not None:
+            master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
+        else:
+            master = session.scalars(by_context_statement).unique().first()
     else:
+        if shift_id is not None and master.shift_id not in (None, shift_id):
+            raise OperationalModuleValidationError("O registro informado pertence a outro turno operacional.")
         master.data_referencia = context["data_referencia"]
         master.turno = str(context.get("turno") or "") or None
+        master.context_key = key
         master.context_data = _serialize_context(config, context)
+        if shift_id and not master.shift_id:
+            master.shift_id = shift_id
     return master
 
 
@@ -272,6 +298,18 @@ def get_master(session: Session, record_id: int) -> OperationalModuleRecord | No
         select(OperationalModuleRecord)
         .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
         .where(OperationalModuleRecord.id == record_id)
+    )
+    return session.scalars(statement).unique().first()
+
+
+def get_master_by_shift(session: Session, shift_id: int, module_code: str) -> OperationalModuleRecord | None:
+    if not operational_schema_available(session):
+        return None
+    statement = (
+        select(OperationalModuleRecord)
+        .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
+        .where(OperationalModuleRecord.shift_id == shift_id)
+        .where(OperationalModuleRecord.module_code == module_code)
     )
     return session.scalars(statement).unique().first()
 
@@ -320,10 +358,16 @@ def save_sector(
     setor_tipo: str,
     form_data: Any,
     action: str,
+    shift_id: int | None = None,
 ) -> OperationalModuleRecord:
     if not operational_schema_available(session):
         raise OperationalModuleValidationError(MISSING_SCHEMA_MESSAGE)
-    master = get_or_create_master(session, config, context)
+    if shift_id is not None:
+        master = get_or_create_master(session, config, context, shift_id=shift_id)
+    else:
+        master = get_master_by_context(session, config, context)
+        if master is None or master.shift_id is None:
+            raise OperationalModuleValidationError("Este modulo so pode ser executado pela tela principal do turno.")
     sector = _find_sector(master, setor_tipo)
     if sector is None:
         raise OperationalModuleValidationError("Setor não encontrado para o registro mestre.")
@@ -385,6 +429,7 @@ def build_history_row(config: ModuleConfig, master: OperationalModuleRecord) -> 
     pted = _find_sector(master, SETOR_PTED)
     lab = _find_sector(master, SETOR_LAB)
     total_flags = sum(int((sector.metricas or {}).get("flag_count", 0)) for sector in master.setores)
+    turno_url = f"/turnos/{master.shift_id}?modulo={config.code}" if master.shift_id else None
     return {
         "id": master.id,
         "context_label": context_label(config, master.context_data),
@@ -402,6 +447,8 @@ def build_history_row(config: ModuleConfig, master: OperationalModuleRecord) -> 
         "report_url": f"/{config.slug}/registros/{master.id}/relatorio",
         "report_pted_url": f"/{config.slug}/registros/{master.id}/relatorio?setor=PTED",
         "report_lab_url": f"/{config.slug}/registros/{master.id}/relatorio?setor=LABORATORIO",
+        "shift_id": master.shift_id,
+        "turno_url": turno_url,
         "sort_key": master.data_referencia.isoformat() + f"-{master.id:08d}",
     }
 
@@ -605,7 +652,7 @@ def _legacy_ed_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· Turno {lancamento.turno} Â· {lancamento.setor}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 Turno {lancamento.turno} \u00b7 {lancamento.setor}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -633,7 +680,7 @@ def _legacy_pressao_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· Turno {lancamento.turno}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 Turno {lancamento.turno}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -689,7 +736,7 @@ def _legacy_tensao_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· Turno {lancamento.turno} Â· {lancamento.modelo}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 Turno {lancamento.turno} \u00b7 {lancamento.modelo}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -716,7 +763,7 @@ def _legacy_poder_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"Semana {lancamento.semana_referencia} Â· {lancamento.modelo}",
+                "context_label": f"Semana {lancamento.semana_referencia} \u00b7 {lancamento.modelo}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -744,7 +791,7 @@ def _legacy_espessura_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· Turno {lancamento.turno} Â· {lancamento.modelo}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 Turno {lancamento.turno} \u00b7 {lancamento.modelo}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -771,7 +818,7 @@ def _legacy_aspecto_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· Turno {lancamento.turno} Â· {lancamento.modelo}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 Turno {lancamento.turno} \u00b7 {lancamento.modelo}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": MODULE_STATUS_CONCLUIDO,
                 "status_geral_label": STATUS_LABELS[MODULE_STATUS_CONCLUIDO],
@@ -798,7 +845,7 @@ def _legacy_rugosidade_history(session: Session) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": lancamento.id,
-                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} Â· {lancamento.sequencia}",
+                "context_label": f"{lancamento.data_referencia.strftime('%d/%m/%Y')} \u00b7 {lancamento.sequencia}",
                 "data_label": lancamento.data_referencia.strftime("%d/%m/%Y"),
                 "status_geral": lancamento.status.upper(),
                 "status_geral_label": lancamento.status.title(),
@@ -870,7 +917,7 @@ def _pressao_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str)
             "reference": str(numero),
             "order": numero,
             "label": f"Filtro {numero}",
-            "expected": "â‰¤ 1,0 bar",
+            "expected": "0,1 ≤ 1,0 bar",
             "value": "",
             "status_label": "Normal",
             "flag": False,
@@ -960,7 +1007,7 @@ def _poder_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -
             "reference": str(numero),
             "order": numero,
             "label": f"Ponto {numero}",
-            "expected": f"â‰¥ {poder_penetracao_service.VALOR_REFERENCIA}",
+            "expected": f"\u2265 {poder_penetracao_service.VALOR_REFERENCIA}",
             "value": "",
             "status_label": poder_penetracao_service.STATUS_LABELS["empty"],
             "flag": False,
@@ -1024,7 +1071,7 @@ def _rugosidade_rows(_session: Session, _context: dict[str, Any], _setor_tipo: s
             "reference": codigo,
             "order": index,
             "label": f"Modelo {codigo}",
-            "expected": f"â‰¤ {rugosidade_service.LIMITE_REFERENCIA}",
+            "expected": "≤ 14 µin ou ≤ 0.356 µm",
             "value": "",
             "status_label": rugosidade_service.STATUS_LABELS["empty"],
             "flag": False,
@@ -1248,6 +1295,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_poder_history,
         legacy_detail_loader=poder_penetracao_service.get_lancamento,
         legacy_detail_template="poder_penetracao/detail.html",
+        frequency="weekly",
     ),
     "espessura-ed": ModuleConfig(
         code="espessura-ed",
@@ -1334,4 +1382,214 @@ def get_module_config(module_key: str) -> ModuleConfig:
     if config is None:
         raise OperationalModuleValidationError(f"Módulo inválido: {module_key}.")
     return config
+
+
+# =============================================================================
+# TURNO OPERACIONAL - Visão consolidada dos 8 módulos
+# =============================================================================
+
+FREQUENCY_LABELS = {
+    "daily": "Diário",
+    "weekly": "Semanal",
+    "conditional": "Condicional",
+}
+
+
+def build_shift_overview(
+    session: Session,
+    data_referencia: date,
+    turno: str | None = None,
+) -> dict[str, Any]:
+    """
+    Monta visão consolidada de todos os módulos para um turno/dia específico.
+    Retorna status de cada módulo sem criar registros.
+    """
+    if not operational_schema_available(session):
+        return {"modules": [], "data": data_referencia, "turno": turno}
+
+    modules_overview = []
+    for code, config in MODULE_CONFIGS.items():
+        # Busca registro existente para este módulo no contexto
+        context = {"data_referencia": data_referencia}
+        if config.supports_turno and turno:
+            context["turno"] = turno
+
+        master = get_master_by_context(session, config, context)
+
+        pted = _find_sector(master, SETOR_PTED) if master else None
+        lab = _find_sector(master, SETOR_LAB) if master else None
+
+        # Determina ação principal
+        if master is None:
+            action = "iniciar"
+            action_label = "Iniciar"
+        elif master.status_geral == MODULE_STATUS_CONCLUIDO:
+            action = "visualizar"
+            action_label = "Visualizar"
+        else:
+            action = "continuar"
+            action_label = "Continuar"
+
+        modules_overview.append({
+            "code": code,
+            "slug": config.slug,
+            "title": config.title,
+            "description": config.description,
+            "frequency": config.frequency,
+            "frequency_label": FREQUENCY_LABELS.get(config.frequency, config.frequency),
+            "supports_turno": config.supports_turno,
+            "record_id": master.id if master else None,
+            "status_geral": master.status_geral if master else MODULE_STATUS_NAO_INICIADO,
+            "status_geral_label": STATUS_LABELS.get(
+                master.status_geral if master else MODULE_STATUS_NAO_INICIADO,
+                "Não iniciado"
+            ),
+            "status_pted": pted.status_setor if pted else SETOR_STATUS_NAO_INICIADO,
+            "status_pted_label": STATUS_LABELS.get(
+                pted.status_setor if pted else SETOR_STATUS_NAO_INICIADO,
+                "Não iniciado"
+            ),
+            "status_lab": lab.status_setor if lab else SETOR_STATUS_NAO_INICIADO,
+            "status_lab_label": STATUS_LABELS.get(
+                lab.status_setor if lab else SETOR_STATUS_NAO_INICIADO,
+                "Não iniciado"
+            ),
+            "action": action,
+            "action_label": action_label,
+            "desvios": sum(
+                int((s.metricas or {}).get("flag_count", 0))
+                for s in (master.setores if master else [])
+            ),
+        })
+
+    # Calcula status geral do turno
+    total = len(modules_overview)
+    concluidos = sum(1 for m in modules_overview if m["status_geral"] == MODULE_STATUS_CONCLUIDO)
+    em_andamento = sum(1 for m in modules_overview if m["status_geral"] in (MODULE_STATUS_EM_ANDAMENTO, MODULE_STATUS_PARCIAL))
+
+    if concluidos == total:
+        shift_status = MODULE_STATUS_CONCLUIDO
+    elif concluidos > 0 or em_andamento > 0:
+        shift_status = MODULE_STATUS_EM_ANDAMENTO
+    else:
+        shift_status = MODULE_STATUS_NAO_INICIADO
+
+    return {
+        "data": data_referencia,
+        "data_label": data_referencia.strftime("%d/%m/%Y"),
+        "turno": turno,
+        "modules": modules_overview,
+        "status_geral": shift_status,
+        "status_geral_label": STATUS_LABELS.get(shift_status, "Não iniciado"),
+        "total_modules": total,
+        "concluidos": concluidos,
+        "em_andamento": em_andamento,
+        "nao_iniciados": total - concluidos - em_andamento,
+    }
+
+
+def build_general_history(
+    session: Session,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    turno: str | None = None,
+    module_code: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """
+    Histórico geral agrupado por data/turno, mostrando status de cada módulo.
+    """
+    if not operational_schema_available(session):
+        return []
+
+    # Busca todos os registros com filtros
+    statement: Select[tuple[OperationalModuleRecord]] = (
+        select(OperationalModuleRecord)
+        .options(joinedload(OperationalModuleRecord.setores))
+        .order_by(
+            OperationalModuleRecord.data_referencia.desc(),
+            OperationalModuleRecord.turno.desc(),
+            OperationalModuleRecord.updated_at.desc(),
+        )
+    )
+
+    if data_inicio:
+        statement = statement.where(OperationalModuleRecord.data_referencia >= data_inicio)
+    if data_fim:
+        statement = statement.where(OperationalModuleRecord.data_referencia <= data_fim)
+    if turno:
+        statement = statement.where(OperationalModuleRecord.turno == turno)
+    if module_code:
+        statement = statement.where(OperationalModuleRecord.module_code == module_code)
+    if status:
+        statement = statement.where(OperationalModuleRecord.status_geral == status)
+
+    records = list(session.scalars(statement.limit(limit * 10)).unique().all())
+
+    # Agrupa por data/turno
+    shifts: dict[str, dict[str, Any]] = {}
+    for record in records:
+        shift_key = f"{record.data_referencia.isoformat()}|{record.turno or 'geral'}"
+        if shift_key not in shifts:
+            shifts[shift_key] = {
+                "data": record.data_referencia,
+                "data_label": record.data_referencia.strftime("%d/%m/%Y"),
+                "turno": record.turno,
+                "modules": {},
+                "records": [],
+            }
+
+        config = MODULE_CONFIGS.get(record.module_code)
+        if config:
+            pted = _find_sector(record, SETOR_PTED)
+            lab = _find_sector(record, SETOR_LAB)
+            shifts[shift_key]["modules"][record.module_code] = {
+                "id": record.id,
+                "title": config.title,
+                "slug": config.slug,
+                "status_geral": record.status_geral,
+                "status_geral_label": STATUS_LABELS.get(record.status_geral, record.status_geral),
+                "status_pted": pted.status_setor if pted else SETOR_STATUS_NAO_INICIADO,
+                "status_lab": lab.status_setor if lab else SETOR_STATUS_NAO_INICIADO,
+                "context_label": context_label(config, record.context_data),
+            }
+            shifts[shift_key]["records"].append(record)
+
+    # Converte para lista ordenada
+    result = []
+    for shift_key in sorted(shifts.keys(), reverse=True):
+        shift = shifts[shift_key]
+        total = len(shift["modules"])
+        concluidos = sum(
+            1 for m in shift["modules"].values()
+            if m["status_geral"] == MODULE_STATUS_CONCLUIDO
+        )
+        shift["total_modules"] = total
+        shift["concluidos"] = concluidos
+        shift["status_geral"] = MODULE_STATUS_CONCLUIDO if concluidos == total and total > 0 else (
+            MODULE_STATUS_EM_ANDAMENTO if total > 0 else MODULE_STATUS_NAO_INICIADO
+        )
+        shift["status_geral_label"] = STATUS_LABELS.get(shift["status_geral"], "")
+        result.append(shift)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
+def list_all_modules() -> list[dict[str, Any]]:
+    """Retorna lista de todos os módulos configurados."""
+    return [
+        {
+            "code": config.code,
+            "slug": config.slug,
+            "title": config.title,
+            "description": config.description,
+            "frequency": config.frequency,
+            "frequency_label": FREQUENCY_LABELS.get(config.frequency, config.frequency),
+            "supports_turno": config.supports_turno,
+        }
+        for config in MODULE_CONFIGS.values()
+    ]
 

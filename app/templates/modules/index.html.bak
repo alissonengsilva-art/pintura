@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{# Determinar se o ciclo está concluído (readonly) #}
+{% set ciclo_concluido = status_geral_label == 'CONCLUIDO' %}
+
+<div class="op-module {% if ciclo_concluido %}op-module--readonly{% endif %}" data-status="{{ status_geral_label }}">
+    <!-- BACKUP DO TEMPLATE ANTERIOR -->
+</div>
+{% endblock %}

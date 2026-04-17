@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="op-module">
+    <!-- Header -->
+    <header class="op-header">
+        <div class="op-header__content">
+            <div class="op-header__info">
+                <span class="op-header__kicker">Visão Consolidada</span>
+                <h1 class="op-header__title">Histórico Geral</h1>
+            </div>
+            <div class="op-header__actions">
+                <a href="/turno-atual" class="button-primary">Turnos</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filtros -->
+    <section class="op-filters panel-card">
+        <form method="get" action="/historico-geral" class="op-filters__form">
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="data_inicio">Data inicial</label>
+                <input type="date" id="data_inicio" name="data_inicio" class="op-filters__input" 
+                       value="{{ selected_data_inicio }}">
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="data_fim">Data final</label>
+                <input type="date" id="data_fim" name="data_fim" class="op-filters__input" 
+                       value="{{ selected_data_fim }}">
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="turno">Turno</label>
+                <select id="turno" name="turno" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for t in turnos %}
+                    <option value="{{ t.codigo }}" {% if selected_turno == t.codigo %}selected{% endif %}>
+                        {{ t.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="modulo">Módulo</label>
+                <select id="modulo" name="modulo" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for m in modulos %}
+                    <option value="{{ m.code }}" {% if selected_modulo == m.code %}selected{% endif %}>
+                        {{ m.title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="status">Status</label>
+                <select id="status" name="status" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for s in status_options %}
+                    <option value="{{ s.value }}" {% if selected_status == s.value %}selected{% endif %}>
+                        {{ s.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="button-primary">Filtrar</button>
+            <a href="/historico-geral" class="button-secondary">Limpar</a>
+        </form>
+    </section>
+
+    <!-- Lista de Turnos -->
+    <section class="op-history-shifts">
+        {% if shifts %}
+        {% for shift in shifts %}
+        <article class="op-shift-card panel-card">
+            <div class="op-shift-card__header">
+                <div class="op-shift-card__info">
+                    <h3 class="op-shift-card__date">{{ shift.data_label }}</h3>
+                    <span class="op-shift-card__turno">Turno {{ shift.turno or 'Geral' }}</span>
+                </div>
+                <div class="op-shift-card__status">
+                    <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">
+                        {{ shift.status_geral_label }}
+                    </span>
+                    <span class="op-shift-card__count">{{ shift.concluidos }}/{{ shift.total_modules }} módulos</span>
+                </div>
+            </div>
+
+            <div class="op-shift-card__modules">
+                {% for mod in shift.modules %}
+                {% if mod.record_id %}
+                <a href="/{{ mod.slug }}/registros/{{ mod.record_id }}" class="op-shift-module">
+                    <span class="op-shift-module__title">{{ mod.title }}</span>
+                    <span class="op-status-badge op-status-badge--sm op-status-badge--{{ mod.status_geral|lower|replace('_', '-') }}">
+                        {{ mod.status_geral_label }}
+                    </span>
+                </a>
+                {% else %}
+                <span class="op-shift-module op-shift-module--disabled">
+                    <span class="op-shift-module__title">{{ mod.title }}</span>
+                    <span class="op-status-badge op-status-badge--sm op-status-badge--nao-iniciado">
+                        {{ mod.status_geral_label }}
+                    </span>
+                </span>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </article>
+        {% endfor %}
+        {% else %}
+        <div class="op-empty-state panel-card">
+            <p>Nenhum registro encontrado com os filtros selecionados.</p>
+            <a href="/turno-atual" class="button-primary">Ir para Turnos</a>
+        </div>
+        {% endif %}
+    </section>
+</section>
+{% endblock %}

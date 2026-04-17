@@ -8,6 +8,20 @@ from app.models.operational_module import (
     OperationalModuleSectorEntry,
     OperationalModuleSectorRecord,
 )
+from app.models.operational_shift import (
+    OperationalShift,
+    OperationalShiftModule,
+    SHIFT_STATUS_NAO_INICIADO,
+    SHIFT_STATUS_EM_ANDAMENTO,
+    SHIFT_STATUS_PARCIAL,
+    SHIFT_STATUS_CONCLUIDO,
+    SHIFT_STATUS_LABELS,
+    MODULE_PREVISAO_OBRIGATORIO,
+    MODULE_PREVISAO_PREVISTO,
+    MODULE_PREVISAO_NAO_PREVISTO,
+    MODULE_PREVISAO_SEM_EXECUCAO,
+    MODULE_PREVISAO_LABELS,
+)
 from app.models.poder_penetracao import PoderPenetracaoItem, PoderPenetracaoLancamento
 from app.models.pressao_filtros import PressaoFiltrosItem, PressaoFiltrosLancamento
 from app.models.reference import Modelo, Responsavel, Setor, Turno
@@ -24,6 +38,18 @@ __all__ = [
     "OperationalModuleRecord",
     "OperationalModuleSectorRecord",
     "OperationalModuleSectorEntry",
+    "OperationalShift",
+    "OperationalShiftModule",
+    "SHIFT_STATUS_NAO_INICIADO",
+    "SHIFT_STATUS_EM_ANDAMENTO",
+    "SHIFT_STATUS_PARCIAL",
+    "SHIFT_STATUS_CONCLUIDO",
+    "SHIFT_STATUS_LABELS",
+    "MODULE_PREVISAO_OBRIGATORIO",
+    "MODULE_PREVISAO_PREVISTO",
+    "MODULE_PREVISAO_NAO_PREVISTO",
+    "MODULE_PREVISAO_SEM_EXECUCAO",
+    "MODULE_PREVISAO_LABELS",
     "PoderPenetracaoLancamento",
     "PoderPenetracaoItem",
     "RugosidadeLancamento",

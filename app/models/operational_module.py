@@ -23,7 +23,19 @@ class OperationalModuleRecord(Base, TimestampMixin):
     status_geral: Mapped[str] = mapped_column(String(20), nullable=False, default="NAO_INICIADO")
     context_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     legacy_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    
+    # Vínculo com turno operacional (opcional para compatibilidade)
+    shift_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_shifts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
+    # Relacionamentos
+    shift: Mapped["OperationalShift | None"] = relationship(
+        "OperationalShift",
+        back_populates="modulos",
+    )
     setores: Mapped[list[OperationalModuleSectorRecord]] = relationship(
         back_populates="registro_mestre",
         cascade="all, delete-orphan",
