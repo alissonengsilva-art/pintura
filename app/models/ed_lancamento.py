@@ -11,6 +11,7 @@ from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.ed_item import ItemED
+    from app.models.operational_module_item import OperationalModuleItem
 
 
 class EDLancamento(Base, TimestampMixin):
@@ -37,10 +38,16 @@ class EDLancamentoItem(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     lancamento_id: Mapped[int] = mapped_column(ForeignKey("ed_lancamentos.id", ondelete="CASCADE"), nullable=False, index=True)
-    item_ed_id: Mapped[int] = mapped_column(ForeignKey("itens_ed.id"), nullable=False, index=True)
+    item_ed_id: Mapped[int | None] = mapped_column(ForeignKey("itens_ed.id"), nullable=True, index=True)
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id"),
+        nullable=True,
+        index=True,
+    )
     valor_informado: Mapped[str | None] = mapped_column(String(150), nullable=True)
     observacao_item: Mapped[str | None] = mapped_column(Text, nullable=True)
     fora_parametro: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     lancamento: Mapped[EDLancamento] = relationship(back_populates="itens")
-    item_ed: Mapped[ItemED] = relationship()
+    item_ed: Mapped[ItemED | None] = relationship()
+    operational_module_item: Mapped[OperationalModuleItem | None] = relationship()

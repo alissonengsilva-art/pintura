@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import ItemED, Modelo, Responsavel, Setor, Turno
+from app.models import Modelo, OperationalModuleItem, Responsavel, Setor, Turno
 
 
 @dataclass(frozen=True)
@@ -78,33 +78,31 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
         list_fields=("nome", "codigo", "ativo"),
         default_sort=("nome",),
     ),
-    "itens-ed": EntityConfig(
-        key="itens-ed",
-        title="Itens ED",
-        model=ItemED,
+    "modulos-itens": EntityConfig(
+        key="modulos-itens",
+        title="Itens dos módulos",
+        model=OperationalModuleItem,
         fields=(
-            FieldConfig("operacao_equipamento", "Operação / equipamento", required=True),
-            FieldConfig("descricao_controle", "Descrição do controle", required=True),
+            FieldConfig("module_code", "Módulo", required=True, placeholder="Ex.: ed"),
+            FieldConfig("setor_tipo", "Setor", required=True, placeholder="PTED, LABORATORIO ou AMBOS"),
+            FieldConfig("operacao", "Operação"),
+            FieldConfig("controle", "Controle", required=True),
             FieldConfig("norma", "Norma"),
             FieldConfig("parametro", "Parâmetro"),
+            FieldConfig("unidade", "Unidade"),
+            FieldConfig("valor_min", "Valor mínimo", input_type="number"),
+            FieldConfig("valor_max", "Valor máximo", input_type="number"),
+            FieldConfig("ordem", "Ordem", input_type="number"),
             FieldConfig("frequencia", "Frequência"),
             FieldConfig("responsavel_padrao", "Responsável padrão"),
-            FieldConfig("setor_padrao", "Setor padrão"),
             FieldConfig("turno_padrao", "Turno padrão"),
             FieldConfig("numero_coleta", "Número da coleta", input_type="number"),
-            FieldConfig("ordem_exibicao", "Ordem de exibição", input_type="number"),
             FieldConfig("observacao", "Observação", input_type="textarea", rows=3),
+            FieldConfig("obrigatorio", "Obrigatório", input_type="checkbox"),
             FieldConfig("ativo", "Ativo", input_type="checkbox"),
         ),
-        list_fields=(
-            "operacao_equipamento",
-            "descricao_controle",
-            "frequencia",
-            "turno_padrao",
-            "numero_coleta",
-            "ativo",
-        ),
-        default_sort=("ordem_exibicao", "operacao_equipamento"),
+        list_fields=("module_code", "setor_tipo", "controle", "parametro", "turno_padrao", "ordem", "ativo"),
+        default_sort=("module_code", "ordem"),
     ),
 }
 
@@ -116,10 +114,15 @@ def get_entity_config(entity: str) -> EntityConfig:
     return config
 
 
-def list_records(session: Session, entity: str) -> list:
+def list_records(session: Session, entity: str, filters: dict | None = None) -> list:
     config = get_entity_config(entity)
     model = config.model
     statement: Select = select(model)
+    filters = filters or {}
+    if entity == "modulos-itens":
+        module_code = str(filters.get("module_code") or "").strip()
+        if module_code:
+            statement = statement.where(model.module_code == module_code)
     for field_name in config.default_sort:
         statement = statement.order_by(getattr(model, field_name))
     return list(session.scalars(statement).all())
@@ -139,6 +142,8 @@ def _normalize_value(field: FieldConfig, raw_value: str | None):
     if value == "":
         return None if field.input_type != "number" else None
     if field.input_type == "number":
+        if any(marker in value for marker in [".", ","]):
+            return float(value.replace(",", "."))
         return int(value)
     return value
 
@@ -146,15 +151,14 @@ def _normalize_value(field: FieldConfig, raw_value: str | None):
 def payload_from_form(config: EntityConfig, form_data) -> dict:
     payload = {}
     for field in config.fields:
-        if field.input_type == "checkbox":
-            payload[field.name] = form_data.get(field.name)
-        else:
-            payload[field.name] = form_data.get(field.name)
+        payload[field.name] = form_data.get(field.name)
     normalized = {field.name: _normalize_value(field, payload.get(field.name)) for field in config.fields}
     if "ativo" in normalized and normalized["ativo"] is None:
         normalized["ativo"] = False
-    if config.key == "itens-ed" and normalized.get("ordem_exibicao") is None:
-        normalized["ordem_exibicao"] = 0
+    if "obrigatorio" in normalized and normalized["obrigatorio"] is None:
+        normalized["obrigatorio"] = False
+    if config.key == "modulos-itens" and normalized.get("ordem") is None:
+        normalized["ordem"] = 0
     return normalized
 
 

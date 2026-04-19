@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel-card form-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <span class="page-kicker">Configuracao dedicada</span>
+        </div>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/cadastros">Voltar</a>
+            <a class="button-secondary" href="/cadastros/modulos-itens?module_code=temperatura-forno-ed">Abrir lista</a>
+        </div>
+    </div>
+
+    {% if success_message %}
+    <div class="alert-info">{{ success_message }}</div>
+    {% endif %}
+    {% if error_message %}
+    <div class="alert-error">{{ error_message }}</div>
+    {% endif %}
+
+    <form method="post">
+        <section class="panel-card table-panel">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ordem</th>
+                            <th>Zona</th>
+                            <th>Faixa atual</th>
+                            <th>Previa</th>
+                            <th>Valor minimo</th>
+                            <th>Valor maximo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr{% if item.range_error %} class="row-outlier"{% endif %} data-range-row="{{ item.id }}">
+                            <td>{{ item.ordem }}</td>
+                            <td>{{ item.controle }}</td>
+                            <td>{{ item.parametro or '-' }}</td>
+                            <td>
+                                <span
+                                    class="status-chip{% if item.range_error %} status-chip-danger{% else %} subtle{% endif %}"
+                                    data-range-preview="{{ item.id }}"
+                                >
+                                    {{ item.parametro or 'Sem faixa definida' }}
+                                </span>
+                            </td>
+                            <td>
+                                <input
+                                    id="valor_min_{{ item.id }}"
+                                    type="number"
+                                    step="0.1"
+                                    name="valor_min_{{ item.id }}"
+                                    value="{{ item.valor_min if item.valor_min is not none else '' }}"
+                                    data-range-input="min"
+                                    data-item-id="{{ item.id }}"
+                                >
+                            </td>
+                            <td>
+                                <input
+                                    id="valor_max_{{ item.id }}"
+                                    type="number"
+                                    step="0.1"
+                                    name="valor_max_{{ item.id }}"
+                                    value="{{ item.valor_max if item.valor_max is not none else '' }}"
+                                    data-range-input="max"
+                                    data-item-id="{{ item.id }}"
+                                >
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="form-actions">
+            <button class="button-primary" type="submit">Salvar faixas</button>
+        </div>
+    </form>
+</section>
+<script>
+    (() => {
+        const formatValue = (value) => {
+            if (value === "") {
+                return "";
+            }
+            const number = Number(value);
+            if (Number.isNaN(number)) {
+                return value;
+            }
+            return Number.isInteger(number) ? String(number) : String(number);
+        };
+
+        const buildPreview = (minValue, maxValue) => {
+            if (minValue && maxValue) {
+                return `${formatValue(minValue)} a ${formatValue(maxValue)} °C`;
+            }
+            if (minValue) {
+                return `>= ${formatValue(minValue)} °C`;
+            }
+            if (maxValue) {
+                return `<= ${formatValue(maxValue)} °C`;
+            }
+            return "Sem faixa definida";
+        };
+
+        const updateRow = (itemId) => {
+            const minInput = document.querySelector(`[data-range-input="min"][data-item-id="${itemId}"]`);
+            const maxInput = document.querySelector(`[data-range-input="max"][data-item-id="${itemId}"]`);
+            const preview = document.querySelector(`[data-range-preview="${itemId}"]`);
+            const row = document.querySelector(`[data-range-row="${itemId}"]`);
+            if (!minInput || !maxInput || !preview || !row) {
+                return;
+            }
+
+            const minValue = minInput.value.trim();
+            const maxValue = maxInput.value.trim();
+            const minNumber = minValue === "" ? null : Number(minValue);
+            const maxNumber = maxValue === "" ? null : Number(maxValue);
+            const invalid =
+                minNumber !== null &&
+                maxNumber !== null &&
+                !Number.isNaN(minNumber) &&
+                !Number.isNaN(maxNumber) &&
+                minNumber > maxNumber;
+
+            preview.textContent = invalid ? "Faixa invalida" : buildPreview(minValue, maxValue);
+            preview.classList.toggle("status-chip-danger", invalid);
+            preview.classList.toggle("subtle", !invalid);
+            row.classList.toggle("row-outlier", invalid);
+        };
+
+        document.querySelectorAll("[data-range-input]").forEach((input) => {
+            input.addEventListener("input", () => updateRow(input.dataset.itemId));
+            updateRow(input.dataset.itemId);
+        });
+    })();
+</script>
+{% endblock %}

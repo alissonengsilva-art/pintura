@@ -1,0 +1,55 @@
+{% if module_code == 'ed' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M4 12h3l2-5 3 10 2-5h6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+</svg>
+{% elif module_code == 'temperatura-forno-ed' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M10 5a2 2 0 1 1 4 0v8.4a4.5 4.5 0 1 1-4 0V5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12 9v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>
+{% elif module_code == 'pressao-filtros-ed' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M5 15a7 7 0 1 1 14 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M12 8v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M8.5 10.5l1 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M15.5 10.5l-1 1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M12 15l4-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <circle cx="12" cy="15" r="1.2" fill="currentColor"/>
+</svg>
+{% elif module_code == 'tensao-retificadores-ed' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M13 3 6.5 13h4l-1 8L17.5 11h-4L13 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+</svg>
+{% elif module_code == 'poder-penetracao' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+</svg>
+{% elif module_code == 'espessura-ed' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="m6 16 8-8 4 4-8 8H6v-4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    <path d="M11 9.5 14.5 13M8.5 12l1.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% elif module_code == 'aspecto' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    <circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+{% elif module_code == 'rugosidade' %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="6" cy="6" r="1.4" fill="currentColor"/>
+    <circle cx="12" cy="6" r="1.4" fill="currentColor"/>
+    <circle cx="18" cy="6" r="1.4" fill="currentColor"/>
+    <circle cx="9" cy="12" r="1.4" fill="currentColor"/>
+    <circle cx="15" cy="12" r="1.4" fill="currentColor"/>
+    <circle cx="6" cy="18" r="1.4" fill="currentColor"/>
+    <circle cx="12" cy="18" r="1.4" fill="currentColor"/>
+    <circle cx="18" cy="18" r="1.4" fill="currentColor"/>
+</svg>
+{% else %}
+<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+{% endif %}

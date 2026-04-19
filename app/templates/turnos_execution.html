@@ -3,13 +3,22 @@
 {% block content %}
 <section class="turno-workspace">
     <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
         <div class="turno-workspace__heading">
-            <span class="turno-workspace__kicker">Execucao do turno</span>
-            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} · Turno {{ shift.turno }}{% endif %}</h1>
-            <p class="turno-workspace__subtitle">Os oito modulos executam dentro do mesmo turno mestre.</p>
+            <span class="turno-workspace__kicker">EXECUÇÃO DO TURNO</span>
+            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} &middot; Turno {{ shift.turno }}{% endif %}</h1>
+            <p class="turno-workspace__subtitle">Os oito módulos executam dentro do mesmo turno mestre.</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
+            {% if shift.status_geral != 'CONCLUÍDO' %}
+            <button type="button" class="op-btn op-btn--primary op-btn--sm" data-open-close-shift-modal>Concluir turno</button>
+            {% endif %}
             <a href="/turno-atual" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
     </header>
@@ -19,32 +28,197 @@
     {% endif %}
 
     <section class="turno-overview panel-card">
-        <div class="turno-overview__inline">
-            <span class="turno-overview__chip"><strong>PTED:</strong> {{ shift.responsavel_pted or '-' }}</span>
-            <span class="turno-overview__chip"><strong>LAB:</strong> {{ shift.responsavel_lab or '-' }}</span>
-            <span class="turno-overview__chip"><strong>Concluidos:</strong> {{ shift.concluidos }}/{{ shift.total_modules }}</span>
-            <span class="turno-overview__chip"><strong>Em andamento:</strong> {{ shift.em_andamento }}</span>
-            <span class="turno-overview__chip turno-overview__chip--progress"><strong>{{ shift.progresso }}%</strong></span>
-            <div class="turno-overview__progress">
-                <div class="op-shift-summary__progress-bar">
-                    <div class="op-shift-summary__progress-fill" style="width: {{ shift.progresso }}%"></div>
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">PT/ED</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="8" r="3.1" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M5.5 19c.8-3.4 3.2-5 6.5-5s5.7 1.6 6.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ shift.responsavel_pted or '-' }}</strong>
                 </div>
-            </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">LAB</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="8" r="3.1" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M5.5 19c.8-3.4 3.2-5 6.5-5s5.7 1.6 6.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ shift.responsavel_lab or '-' }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Concluidos</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="m8.5 12 2.3 2.3 4.7-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Em andamento</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ shift.em_andamento }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric turno-overview__metric--progress">
+                <span class="turno-overview__label">Progresso geral</span>
+                <div class="turno-overview__progress-row">
+                    <strong>{{ shift.progresso }}%</strong>
+                    <div class="turno-overview__progress">
+                        <div class="op-shift-summary__progress-bar">
+                            <div class="op-shift-summary__progress-fill" style="width: {{ shift.progresso }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </article>
         </div>
     </section>
 
     <nav class="turno-browser-tabs" aria-label="Modulos do turno">
         {% for module in shift.modules %}
         <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}">
-            <span class="turno-browser-tab__row">
-                <span class="turno-browser-tab__title">{{ module.title }}</span>
-                <span class="turno-browser-tab__status turno-browser-tab__status--{{ module.status_geral|lower|replace('_', '-') }}">{{ module.status_geral_label }}</span>
+            <span class="turno-browser-tab__icon" aria-hidden="true">
+                {% set module_code = module.code %}
+                {% include 'modules/_module_icon.html' %}
             </span>
-            <span class="turno-browser-tab__meta">P {{ module.status_pted_label }} · L {{ module.status_lab_label }}</span>
+            <span class="turno-browser-tab__content">
+                <span class="turno-browser-tab__title-band">
+                    <span class="turno-browser-tab__title-wrap">
+                        <span class="turno-browser-tab__title">{{ module.title }}</span>
+                        {% if module.has_alert %}
+                        <span class="turno-browser-tab__alert" aria-label="{{ module.desvios }} desvios">&#9888;</span>
+                        {% endif %}
+                    </span>
+                </span>
+                <span class="turno-browser-tab__status-band">
+                    <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ module.status_geral|lower|replace('_', '-') }}">{{ module.status_badge_label }}</span>
+                </span>
+                <span class="turno-browser-tab__progress-band turno-browser-tab__meta">
+                    <span>P: {{ module.pted_progress.preenchidos }}/{{ module.pted_progress.total }}</span>
+                    <span>L: {{ module.lab_progress.preenchidos }}/{{ module.lab_progress.total }}</span>
+                </span>
+            </span>
         </a>
         {% endfor %}
     </nav>
 
     {% include 'modules/_editor.html' %}
 </section>
+
+{% if shift.status_geral != 'CONCLUIDO' %}
+<div class="op-modal" id="closeShiftModal" hidden>
+    <div class="op-modal__backdrop" data-close-shift-modal></div>
+    <div class="op-modal__content turno-close-modal">
+        <div class="turno-close-modal__hero">
+            <span class="turno-close-modal__eyebrow">Encerramento do turno</span>
+            <h2 class="op-modal__title turno-close-modal__title">Confirmar conclusao do turno</h2>
+            {% if shift.pending_count %}
+            <p class="op-modal__subtitle turno-close-modal__subtitle">
+                Ainda existem {{ shift.pending_count }} modulo(s) em aberto. Ao concluir, o turno sera encerrado mesmo com pendencias.
+            </p>
+            {% else %}
+            <p class="op-modal__subtitle turno-close-modal__subtitle">
+                Nao existem itens em aberto. Deseja realmente encerrar este turno agora?
+            </p>
+            {% endif %}
+        </div>
+
+        <div class="op-modal__body turno-close-modal__body">
+            <div class="turno-close-modal__summary">
+                <div class="turno-close-modal__metric">
+                    <span class="turno-close-modal__metric-label">Data</span>
+                    <strong>{{ shift.data_label }}</strong>
+                </div>
+                <div class="turno-close-modal__metric">
+                    <span class="turno-close-modal__metric-label">Turno</span>
+                    <strong>{{ shift.turno or '-' }}</strong>
+                </div>
+                <div class="turno-close-modal__metric">
+                    <span class="turno-close-modal__metric-label">Concluidos</span>
+                    <strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong>
+                </div>
+                <div class="turno-close-modal__metric">
+                    <span class="turno-close-modal__metric-label">Em aberto</span>
+                    <strong>{{ shift.pending_count }}</strong>
+                </div>
+            </div>
+
+            {% if shift.pending_count %}
+            <div class="turno-close-modal__alert">
+                <span class="turno-close-modal__alert-badge">Atencao</span>
+                <p class="turno-close-modal__alert-text">Os modulos abaixo ainda nao foram concluidos:</p>
+                <ul class="turno-close-modal__list">
+                    {% for module in shift.pending_modules %}
+                    <li>
+                        <strong>{{ module.title }}</strong>
+                        <span>{{ module.status_geral_label }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="op-modal__actions turno-close-modal__actions">
+            <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-close-shift-modal>Cancelar</button>
+            <form method="post" action="/turnos/{{ shift.id }}/concluir">
+                <button type="submit" class="op-btn op-btn--primary op-btn--sm">Concluir turno</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('closeShiftModal');
+    if (!modal) {
+        return;
+    }
+
+    var openButtons = document.querySelectorAll('[data-open-close-shift-modal]');
+    var closeButtons = document.querySelectorAll('[data-close-shift-modal]');
+
+    function openModal() {
+        modal.hidden = false;
+        modal.classList.add('op-modal--open');
+    }
+
+    function closeModal() {
+        modal.classList.remove('op-modal--open');
+        modal.hidden = true;
+    }
+
+    openButtons.forEach(function(button) {
+        button.addEventListener('click', openModal);
+    });
+
+    closeButtons.forEach(function(button) {
+        button.addEventListener('click', closeModal);
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+            closeModal();
+        }
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

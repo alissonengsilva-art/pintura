@@ -19,6 +19,7 @@ from app.models import (
     Base,
     ItemED,
     Modelo,
+    OperationalModuleItem,
     OperationalModuleRecord,
     OperationalShift,
     Responsavel,
@@ -27,6 +28,7 @@ from app.models import (
     Turno,
 )
 from app.services.ed_seed_data import DEFAULT_RESPONSAVEIS, DEFAULT_SETORES, DEFAULT_TURNOS, build_seed_items
+from app.services.operational_module_seed import build_operational_module_seed_items_runtime
 from app.services.operational_module_service import (
     MODULE_STATUS_CONCLUIDO,
     MODULE_STATUS_EM_ANDAMENTO,
@@ -51,6 +53,7 @@ def test_env() -> Generator[tuple[TestClient, sessionmaker], None, None]:
         session.add_all(Setor(**row) for row in DEFAULT_SETORES)
         session.add_all(Turno(**row) for row in DEFAULT_TURNOS)
         session.add_all(ItemED(**row) for row in build_seed_items())
+        session.add_all(OperationalModuleItem(**row) for row in build_operational_module_seed_items_runtime())
         session.commit()
 
     def override_get_db() -> Generator[Session, None, None]:
@@ -219,8 +222,8 @@ def test_turno_execution_shows_browser_tabs_and_no_individual_start_button(test_
 
     assert response.status_code == 200
     assert "Temperatura Forno" in response.text
-    assert "Pressão dos Filtros ED" in response.text or "PressÃ£o dos Filtros ED" in response.text
-    assert "Tensão dos Retificadores ED" in response.text or "TensÃ£o dos Retificadores ED" in response.text
+    assert "Pressão dos Filtros" in response.text or "PressÃ£o dos Filtros ED" in response.text
+    assert "Tensão dos Retificadores" in response.text or "TensÃ£o dos Retificadores ED" in response.text
     assert "Poder de Penetração" in response.text or "Poder de PenetraÃ§Ã£o" in response.text
     assert "Iniciar modulo" not in response.text
     assert "Iniciar pelo Turno Atual" not in response.text

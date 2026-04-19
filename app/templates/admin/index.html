@@ -1,6 +1,21 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% if featured_cards %}
+<section class="panel-grid cards-grid">
+    {% for card in featured_cards %}
+    <article class="panel-card section-card">
+        <div class="card-topline">
+            <h4>{{ card.title }}</h4>
+            <span class="status-chip subtle">{{ card.tag }}</span>
+        </div>
+        <p>{{ card.description }}</p>
+        <a class="card-link" href="{{ card.url }}">Editar em lote</a>
+    </article>
+    {% endfor %}
+</section>
+{% endif %}
+
 <section class="panel-grid cards-grid">
     {% for entity in entities %}
     <article class="panel-card section-card">

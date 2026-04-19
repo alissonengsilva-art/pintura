@@ -6,9 +6,10 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, object_session
 
-from app.models import EDLancamento, EDLancamentoItem, ItemED, Responsavel, Turno
+from app.models import EDLancamento, EDLancamentoItem, OperationalModuleItem, Responsavel, Turno
+from app.services import operational_module_item_service
 
 
 TIPO_DIA_OPTIONS = [
@@ -86,21 +87,14 @@ def list_context_options(session: Session) -> ContextOptions:
         session.scalars(
             select(Turno)
             .where(Turno.ativo.is_(True))
-            .order_by(
-                case_turno_order(Turno.codigo),
-                Turno.codigo,
-                Turno.nome,
-            )
+            .order_by(case_turno_order(Turno.codigo), Turno.codigo, Turno.nome)
         ).all()
     )
     return ContextOptions(responsaveis=responsaveis, turnos=turnos)
 
 
 def case_turno_order(column):
-    return case(
-        (column.in_(["1", "2", "3"]), 0),
-        else_=1,
-    )
+    return case((column.in_(["1", "2", "3"]), 0), else_=1)
 
 
 def parse_context_payload(form_data) -> ParsedContext:
@@ -140,32 +134,27 @@ def parse_context_payload(form_data) -> ParsedContext:
     )
 
 
-def load_items_for_context(session: Session, setor: str, turno: str) -> list[ItemED]:
-    items = list(
-        session.scalars(
-            select(ItemED)
-            .where(ItemED.ativo.is_(True))
-            .order_by(ItemED.ordem_exibicao, ItemED.operacao_equipamento, ItemED.id)
-        ).all()
-    )
-    return [item for item in items if _matches_setor(item, setor) and _matches_turno(item, turno)]
+def load_items_for_context(session: Session, setor: str, turno: str) -> list[OperationalModuleItem]:
+    setor_tipo = _resolve_setor_tipo(setor)
+    items = operational_module_item_service.get_items_by_module_and_setor(session, "ed", setor_tipo)
+    return [item for item in items if _matches_turno(item, turno)]
 
 
-def list_items_by_ids(session: Session, item_ids: list[int]) -> list[ItemED]:
+def list_items_by_ids(session: Session, item_ids: list[int]) -> list[OperationalModuleItem]:
     if not item_ids:
         return []
     items = list(
         session.scalars(
-            select(ItemED)
-            .where(ItemED.id.in_(item_ids))
-            .order_by(ItemED.ordem_exibicao, ItemED.operacao_equipamento, ItemED.id)
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.id.in_(item_ids))
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.operacao, OperationalModuleItem.id)
         ).all()
     )
     order_map = {item_id: index for index, item_id in enumerate(item_ids)}
-    return sorted(items, key=lambda item: (order_map.get(item.id, 9999), item.ordem_exibicao, item.id))
+    return sorted(items, key=lambda item: (order_map.get(item.id, 9999), item.ordem, item.id))
 
 
-def build_item_rows(items: list[ItemED], existing_rows: dict[int, dict] | None = None) -> list[dict]:
+def build_item_rows(items: list[OperationalModuleItem], existing_rows: dict[int, dict] | None = None) -> list[dict]:
     rows = []
     existing_rows = existing_rows or {}
     for item in items:
@@ -236,21 +225,36 @@ def build_existing_context_status(lancamento: EDLancamento | None) -> ExistingCo
 def get_lancamento(session: Session, lancamento_id: int) -> EDLancamento | None:
     statement = (
         select(EDLancamento)
-        .options(joinedload(EDLancamento.itens).joinedload(EDLancamentoItem.item_ed))
+        .options(
+            joinedload(EDLancamento.itens).joinedload(EDLancamentoItem.operational_module_item),
+            joinedload(EDLancamento.itens).joinedload(EDLancamentoItem.item_ed),
+        )
         .where(EDLancamento.id == lancamento_id)
     )
     return session.scalars(statement).unique().first()
 
 
 def get_existing_row_map(lancamento: EDLancamento) -> dict[int, dict]:
-    return {
-        row.item_ed_id: {
+    row_map: dict[int, dict] = {}
+    current_session = object_session(lancamento)
+    legacy_item_map = (
+        operational_module_item_service.get_item_map_by_legacy_ed_id(current_session)
+        if current_session is not None
+        else {}
+    )
+    for row in lancamento.itens:
+        item_id = row.operational_module_item_id
+        if item_id is None and row.item_ed_id is not None:
+            mapped = legacy_item_map.get(row.item_ed_id)
+            item_id = mapped.id if mapped else None
+        if item_id is None:
+            continue
+        row_map[item_id] = {
             "valor_informado": row.valor_informado,
             "observacao_item": row.observacao_item,
             "fora_parametro": row.fora_parametro,
         }
-        for row in lancamento.itens
-    }
+    return row_map
 
 
 def save_lancamento(
@@ -297,9 +301,13 @@ def save_lancamento(
 
     item_lookup = {
         item.id: item
-        for item in session.scalars(select(ItemED).where(ItemED.id.in_(item_ids))).all()
+        for item in session.scalars(select(OperationalModuleItem).where(OperationalModuleItem.id.in_(item_ids))).all()
     }
-    existing_rows = {row.item_ed_id: row for row in lancamento.itens}
+    existing_rows = {
+        row.operational_module_item_id: row
+        for row in lancamento.itens
+        if row.operational_module_item_id is not None
+    }
 
     for item_id in item_ids:
         item = item_lookup.get(item_id)
@@ -310,12 +318,13 @@ def save_lancamento(
         evaluation = evaluate_parameter(item.parametro, valor)
         if evaluation["fora_parametro"] is True and not observacao:
             raise EDValidationError(
-                f"Informe observação para itens fora do padrão, como '{item.descricao_controle}'."
+                f"Informe observação para itens fora do padrão, como '{item.controle}'."
             )
         row = existing_rows.get(item_id)
         if row is None:
-            row = EDLancamentoItem(item_ed_id=item_id)
+            row = EDLancamentoItem(operational_module_item_id=item_id)
             lancamento.itens.append(row)
+        row.operational_module_item_id = item_id
         row.valor_informado = valor
         row.observacao_item = observacao
         row.fora_parametro = evaluation["fora_parametro"]
@@ -438,18 +447,14 @@ def evaluate_parameter(parametro: str | None, valor_informado: str | None) -> di
     return {"status": "out", "fora_parametro": True, "label": EVALUATION_LABELS["out"]}
 
 
-def _matches_setor(item: ItemED, setor: str) -> bool:
+def _resolve_setor_tipo(setor: str) -> str:
     selected = _normalize_text(setor)
-    item_setor = _normalize_text(item.setor_padrao)
-    responsavel = _normalize_text(item.responsavel_padrao)
     if selected == "laboratorio":
-        return item_setor == "laboratorio" or "laboratorio" in responsavel
-    if selected in {"pt/ed", "pted"}:
-        return item_setor in {"pt/ed", "pted"} or "pt/ed" in responsavel or "pted" in responsavel
-    return False
+        return "LABORATORIO"
+    return "PTED"
 
 
-def _matches_turno(item: ItemED, turno: str) -> bool:
+def _matches_turno(item: OperationalModuleItem, turno: str) -> bool:
     item_turno = (item.turno_padrao or "").strip()
     selected = (turno or "").strip()
     if item_turno in _SHIFT_CODES:
@@ -479,6 +484,8 @@ def _extract_first_number(value: str) -> Decimal | None:
 
 def _to_decimal(value: str) -> Decimal | None:
     try:
-        return Decimal(value.replace(".", "").replace(",", ".")) if "," in value and "." in value else Decimal(value.replace(",", "."))
+        if "," in value and "." in value:
+            return Decimal(value.replace(".", "").replace(",", "."))
+        return Decimal(value.replace(",", "."))
     except InvalidOperation:
         return None

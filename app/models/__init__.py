@@ -8,6 +8,7 @@ from app.models.operational_module import (
     OperationalModuleSectorEntry,
     OperationalModuleSectorRecord,
 )
+from app.models.operational_module_item import OperationalModuleItem
 from app.models.operational_shift import (
     OperationalShift,
     OperationalShiftModule,
@@ -38,6 +39,7 @@ __all__ = [
     "OperationalModuleRecord",
     "OperationalModuleSectorRecord",
     "OperationalModuleSectorEntry",
+    "OperationalModuleItem",
     "OperationalShift",
     "OperationalShiftModule",
     "SHIFT_STATUS_NAO_INICIADO",

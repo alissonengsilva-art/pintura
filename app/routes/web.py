@@ -45,6 +45,7 @@ from app.services.shift_service import (
     ShiftValidationError,
     build_shift_detail,
     build_shifts_history,
+    conclude_shift,
     create_shift,
     get_shift_by_id,
     list_shared_options as shift_list_options,
@@ -195,8 +196,8 @@ def _render_shift_execution(
 
     context = {
         "request": request,
-        "page_title": f"Execucao do Turno {shift_detail['data_label']}",
-        "page_description": "Execucao principal do turno com os oito modulos do mesmo turno mestre.",
+        "page_title": f"Execução do Turno {shift_detail['data_label']}",
+        "page_description": "Execução principal do turno com os oito módulos do mesmo turno mestre.",
         "shift": shift_detail,
         "active_module_code": active_module_code,
         "module_state": module_state,
@@ -354,6 +355,19 @@ def turno_execucao(
     db: Session = Depends(get_db),
 ):
     return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor)
+
+
+@router.post("/turnos/{shift_id}/concluir", name="turno_concluir")
+def turno_concluir(
+    shift_id: int,
+    db: Session = Depends(get_db),
+):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+
+    conclude_shift(db, shift)
+    return RedirectResponse(url="/turno-atual?tab=concluidos", status_code=303)
 
 
 @router.post("/turnos/{shift_id}/modulos/{module_code}/setores/{setor_tipo}/salvar", name="turno_modulo_salvar_setor")

@@ -4,6 +4,9 @@
 <section class="section-header-inline">
     <div>
         <span class="page-kicker">Cadastro base</span>
+        {% if entity == 'modulos-itens' and active_filters.module_code %}
+        <p>Filtro ativo: <strong>{{ active_filters.module_code }}</strong>. Edite <code>valor_min</code> e <code>valor_max</code> nos registros abaixo.</p>
+        {% endif %}
     </div>
     <a class="button-primary" href="/cadastros/{{ entity }}/novo">Novo registro</a>
 </section>

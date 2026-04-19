@@ -47,12 +47,12 @@
         <div class="card-topline">
             <div>
                 <h4>{{ module.title }}</h4>
-                <p class="dashboard-module-subtitle">PTED: {{ module.status_pted }} | Laboratorio: {{ module.status_lab }}</p>
+                <p class="dashboard-module-subtitle">PT/ED: {{ module.status_pted }} | Laboratório: {{ module.status_lab }}</p>
             </div>
             <span class="status-chip">{{ module.status_geral }}</span>
         </div>
         <div class="dashboard-module-metrics compact-module-metrics">
-            <div><span class="metric-label">Resp. PTED</span><strong>{{ module.responsavel_pted }}</strong></div>
+            <div><span class="metric-label">Resp. PT/ED</span><strong>{{ module.responsavel_pted }}</strong></div>
             <div><span class="metric-label">Resp. Lab</span><strong>{{ module.responsavel_lab }}</strong></div>
             <div><span class="metric-label">Desvios</span><strong>{{ module.desvios }}</strong></div>
         </div>

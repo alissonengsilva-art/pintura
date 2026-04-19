@@ -9,10 +9,10 @@ Painel de controle operacional do processo de pintura, construído com FastAPI, 
 - Dashboard operacional nível 2 com filtro por data/turno, central de alertas, prioridade automática por módulo, pendências por turno e ocorrências do dia.
 - **8 módulos operacionais consolidados** no novo fluxo setorial:
   - `ED` – checklist operacional por contexto.
-  - `Pressão dos Filtros ED` – 24 filtros com alarmes automáticos.
+  - `Pressão dos Filtros` – 24 filtros com alarmes automáticos.
   - `Temperatura Forno` – 12 zonas térmicas.
-  - `Tensão dos Retificadores ED` – 29 zonas por turno/modelo.
-  - `Espessura ED` – 38 pontos de medição por modelo/CIS.
+  - `Tensão dos Retificadores` – 29 zonas por turno/modelo.
+  - `Espessura` – 38 pontos de medição por modelo/CIS.
   - `Poder de Penetração` – 30 pontos com aprovação automática semanal.
   - `Rugosidade` – matriz fixa por sequência com limite `14 µin`.
   - `Aspecto` – registro de lote com até 10 carrocerias.
@@ -178,7 +178,7 @@ Visão consolidada de todos os turnos:
 - **Itens**: checklist fixo carregado automaticamente por tipo do dia e setor.
 - **Validação**: sem regra de faixa rígida (somente registro).
 
-### Pressão dos Filtros ED
+### Pressão dos Filtros
 - **Contexto**: data + turno.
 - **Itens**: 24 filtros.
 - **Validação**: alarme quando pressão > `1.0 bar`.
@@ -188,12 +188,12 @@ Visão consolidada de todos os turnos:
 - **Itens**: 12 zonas térmicas.
 - **Validação**: faixa esperada por zona (calculada automaticamente).
 
-### Tensão dos Retificadores ED
+### Tensão dos Retificadores
 - **Contexto**: data + turno + modelo.
 - **Itens**: 29 zonas dos retificadores.
 - **Validação**: fora do padrão quando < `80V` ou > `400V`.
 
-### Espessura ED
+### Espessura
 - **Contexto**: data + turno + modelo + CIS (opcional).
 - **Itens**: 38 pontos de medição.
 - **Validação**: destaque para valores muito fora do padrão futuro.

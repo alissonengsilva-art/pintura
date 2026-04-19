@@ -59,6 +59,27 @@ class ShiftContext:
     can_create_shift: bool
 
 
+def _status_badge_label(status: str) -> str:
+    if status == MODULE_STATUS_EM_ANDAMENTO:
+        return "Andamento"
+    return STATUS_LABELS.get(status, "Nao iniciado")
+
+
+def _build_sector_progress(
+    session: Session,
+    config: Any,
+    context: dict[str, Any],
+    sector_record: Any | None,
+    setor_tipo: str,
+) -> dict[str, int]:
+    metricas = sector_record.metricas if sector_record else {}
+    total = int(metricas.get("total") or 0)
+    preenchidos = int(metricas.get("preenchidos") or 0)
+    if total <= 0:
+        total = len(config.default_rows_builder(session, context, setor_tipo))
+    return {"preenchidos": preenchidos, "total": total}
+
+
 def shift_schema_available(session: Session) -> bool:
     """Verifica se as tabelas de turno operacional existem."""
     from sqlalchemy import inspect
@@ -264,6 +285,16 @@ def update_shift_status(session: Session, shift: OperationalShift) -> None:
         session.commit()
 
 
+def conclude_shift(session: Session, shift: OperationalShift) -> None:
+    """Encerra manualmente o turno operacional."""
+    if not shift_schema_available(session):
+        return
+
+    shift.status_geral = SHIFT_STATUS_CONCLUIDO
+    shift.updated_at = datetime.now(UTC).replace(tzinfo=None)
+    session.commit()
+
+
 def update_module_previsao(
     session: Session,
     shift_id: int,
@@ -325,6 +356,10 @@ def build_shift_detail(
         m.module_code: m
         for m in shift.modulos
     }
+
+    shift_context = {"data_referencia": shift.data_referencia}
+    if shift.turno:
+        shift_context["turno"] = shift.turno
     
     # Monta lista de módulos
     modules_list = []
@@ -358,6 +393,12 @@ def build_shift_detail(
             status_pted = SETOR_STATUS_NAO_INICIADO
             status_lab = SETOR_STATUS_NAO_INICIADO
             desvios = 0
+
+        pted_progress = _build_sector_progress(session, config, shift_context, pted if record else None, SETOR_PTED)
+        lab_progress = _build_sector_progress(session, config, shift_context, lab if record else None, SETOR_LAB)
+        total_items = pted_progress["total"] + lab_progress["total"]
+        total_filled = pted_progress["preenchidos"] + lab_progress["preenchidos"]
+        progress_percent = round((total_filled / total_items) * 100) if total_items > 0 else 0
         
         # Determina ação principal
         previsao = prev_info["previsao"]
@@ -384,10 +425,15 @@ def build_shift_detail(
             "supports_turno": config.supports_turno,
             "record_id": record_id,
             "status_geral": status_geral,
+            "status_badge_label": _status_badge_label(status_geral),
             "status_geral_label": STATUS_LABELS.get(status_geral, "Não iniciado"),
             "status_pted": status_pted,
             "status_pted_label": STATUS_LABELS.get(status_pted, "Não iniciado"),
             "status_lab": status_lab,
+            "pted_progress": pted_progress,
+            "lab_progress": lab_progress,
+            "progress_percent": progress_percent,
+            "has_alert": desvios > 0,
             "status_lab_label": STATUS_LABELS.get(status_lab, "Não iniciado"),
             "previsao": previsao,
             "previsao_label": prev_info["previsao_label"],
@@ -404,7 +450,17 @@ def build_shift_detail(
     em_andamento = sum(1 for m in previstos if m["status_geral"] in (MODULE_STATUS_EM_ANDAMENTO, MODULE_STATUS_PARCIAL))
     nao_iniciados = total_previstos - concluidos - em_andamento
     nao_previstos = len(modules_list) - total_previstos
-    
+    pending_modules = [
+        {
+            "code": m["code"],
+            "title": m["title"],
+            "status_geral": m["status_geral"],
+            "status_geral_label": m["status_geral_label"],
+        }
+        for m in previstos
+        if m["status_geral"] != MODULE_STATUS_CONCLUIDO
+    ]
+
     return {
         "id": shift.id,
         "data": shift.data_referencia,
@@ -422,6 +478,8 @@ def build_shift_detail(
         "em_andamento": em_andamento,
         "nao_iniciados": nao_iniciados,
         "nao_previstos": nao_previstos,
+        "pending_modules": pending_modules,
+        "pending_count": len(pending_modules),
         "progresso": round((concluidos / total_previstos * 100) if total_previstos > 0 else 0),
     }
 

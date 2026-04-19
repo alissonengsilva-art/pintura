@@ -18,6 +18,7 @@ from app.models import (
 from app.services import aspecto_service
 from app.services import ed_service
 from app.services import espessura_ed_service
+from app.services import operational_module_item_service
 from app.services import poder_penetracao_service
 from app.services import pressao_filtros_service
 from app.services import rugosidade_service
@@ -112,6 +113,7 @@ def operational_schema_available(session: Session) -> bool:
         "operational_module_records",
         "operational_module_sector_records",
         "operational_module_sector_entries",
+        "operational_module_items",
     )
     return all(inspector.has_table(table_name) for table_name in required_tables)
 
@@ -872,9 +874,9 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
     return [
         {
             "reference": str(item.id),
-            "order": item.ordem_exibicao or item.id,
-            "operacao": item.operacao_equipamento,
-            "descricao": item.descricao_controle,
+            "order": item.ordem or item.id,
+            "operacao": item.operacao or "-",
+            "descricao": item.controle,
             "parametro": item.parametro or "-",
             "value": "",
             "row_observation": "",
@@ -911,23 +913,33 @@ def _ed_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_d
     return rows, summary
 
 
-def _pressao_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _module_items(session: Session, module_code: str, setor_tipo: str):
+    return operational_module_item_service.get_items_by_module_and_setor(session, module_code, setor_tipo)
+
+
+def _module_reference(module_code: str, item) -> str:
+    if module_code == "rugosidade" and item.operacao:
+        return str(item.operacao)
+    return str(item.ordem)
+
+
+def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": str(numero),
-            "order": numero,
-            "label": f"Filtro {numero}",
-            "expected": "0,1 ≤ 1,0 bar",
+            "reference": _module_reference("pressao-filtros-ed", item),
+            "order": item.ordem,
+            "label": item.controle,
+            "expected": item.parametro or "-",
             "value": "",
             "status_label": "Normal",
             "flag": False,
         }
-        for numero in range(1, pressao_filtros_service.TOTAL_FILTROS + 1)
+        for item in _module_items(session, "pressao-filtros-ed", setor_tipo)
     ]
 
 
 def _pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _pressao_rows(session, context, setor_tipo)
+    rows = _build_pressao_item_rows(session, context, setor_tipo)
     for row in rows:
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
@@ -939,19 +951,17 @@ def _pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
     return rows, summary
 
 
-def _temperatura_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_temperatura_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     rows = []
-    for spec in temperatura_forno_service.ZONA_SPECS:
-        faixa_min = spec["nominal"] - spec["tolerancia"]
-        faixa_max = spec["nominal"] + spec["tolerancia"]
+    for item in _module_items(session, "temperatura-forno-ed", setor_tipo):
         rows.append(
             {
-                "reference": str(spec["zona_numero"]),
-                "order": spec["zona_numero"],
-                "label": f"Zona {spec['zona_numero']}",
-                "expected": f"{int(faixa_min)} a {int(faixa_max)} °C",
-                "faixa_min": faixa_min,
-                "faixa_max": faixa_max,
+                "reference": _module_reference("temperatura-forno-ed", item),
+                "order": item.ordem,
+                "label": item.controle,
+                "expected": item.parametro or "-",
+                "faixa_min": item.valor_min,
+                "faixa_max": item.valor_max,
                 "value": "",
                 "status_label": temperatura_forno_service.STATUS_LABELS["neutral"],
                 "flag": False,
@@ -961,7 +971,7 @@ def _temperatura_rows(_session: Session, _context: dict[str, Any], _setor_tipo: 
 
 
 def _temperatura_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _temperatura_rows(session, context, setor_tipo)
+    rows = _build_temperatura_item_rows(session, context, setor_tipo)
     for row in rows:
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
@@ -973,23 +983,23 @@ def _temperatura_parse(session: Session, context: dict[str, Any], setor_tipo: st
     return rows, summary
 
 
-def _tensao_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_tensao_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": str(numero),
-            "order": numero,
-            "label": f"Zona {numero}",
-            "expected": f"{int(tensao_retificadores_service.FAIXA_MINIMA)}V a {int(tensao_retificadores_service.FAIXA_MAXIMA)}V",
+            "reference": _module_reference("tensao-retificadores-ed", item),
+            "order": item.ordem,
+            "label": item.controle,
+            "expected": item.parametro or "-",
             "value": "",
             "status_label": tensao_retificadores_service.STATUS_LABELS["neutral"],
             "flag": False,
         }
-        for numero in range(1, tensao_retificadores_service.TOTAL_ZONAS + 1)
+        for item in _module_items(session, "tensao-retificadores-ed", setor_tipo)
     ]
 
 
 def _tensao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _tensao_rows(session, context, setor_tipo)
+    rows = _build_tensao_item_rows(session, context, setor_tipo)
     for row in rows:
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
@@ -1001,23 +1011,23 @@ def _tensao_parse(session: Session, context: dict[str, Any], setor_tipo: str, fo
     return rows, summary
 
 
-def _poder_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": str(numero),
-            "order": numero,
-            "label": f"Ponto {numero}",
-            "expected": f"\u2265 {poder_penetracao_service.VALOR_REFERENCIA}",
+            "reference": _module_reference("poder-penetracao", item),
+            "order": item.ordem,
+            "label": item.controle,
+            "expected": item.parametro or "-",
             "value": "",
             "status_label": poder_penetracao_service.STATUS_LABELS["empty"],
             "flag": False,
         }
-        for numero in range(1, poder_penetracao_service.TOTAL_PONTOS + 1)
+        for item in _module_items(session, "poder-penetracao", setor_tipo)
     ]
 
 
 def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _poder_rows(session, context, setor_tipo)
+    rows = _build_poder_item_rows(session, context, setor_tipo)
     approved = 0
     filled = 0
     for row in rows:
@@ -1037,23 +1047,23 @@ def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, for
     return rows, summary
 
 
-def _espessura_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": str(numero),
-            "order": numero,
-            "label": f"Ponto {numero}",
-            "expected": "Faixa de atenção: 10 a 60 µm",
+            "reference": _module_reference("espessura-ed", item),
+            "order": item.ordem,
+            "label": item.controle,
+            "expected": item.parametro or "-",
             "value": "",
             "status_label": espessura_ed_service.STATUS_LABELS["empty"],
             "flag": False,
         }
-        for numero in range(1, espessura_ed_service.TOTAL_PONTOS + 1)
+        for item in _module_items(session, "espessura-ed", setor_tipo)
     ]
 
 
 def _espessura_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _espessura_rows(session, context, setor_tipo)
+    rows = _build_espessura_item_rows(session, context, setor_tipo)
     for row in rows:
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
@@ -1065,23 +1075,23 @@ def _espessura_parse(session: Session, context: dict[str, Any], setor_tipo: str,
     return rows, summary
 
 
-def _rugosidade_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": codigo,
-            "order": index,
-            "label": f"Modelo {codigo}",
-            "expected": "≤ 14 µin ou ≤ 0.356 µm",
+            "reference": _module_reference("rugosidade", item),
+            "order": item.ordem,
+            "label": item.controle,
+            "expected": item.parametro or "-",
             "value": "",
             "status_label": rugosidade_service.STATUS_LABELS["empty"],
             "flag": False,
         }
-        for index, codigo in enumerate(rugosidade_service.MODELOS_FIXOS, start=1)
+        for item in _module_items(session, "rugosidade", setor_tipo)
     ]
 
 
 def _rugosidade_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = _rugosidade_rows(session, context, setor_tipo)
+    rows = _build_rugosidade_item_rows(session, context, setor_tipo)
     for row in rows:
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
@@ -1093,11 +1103,11 @@ def _rugosidade_parse(session: Session, context: dict[str, Any], setor_tipo: str
     return rows, summary
 
 
-def _aspecto_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str) -> list[dict[str, Any]]:
+def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
-            "reference": str(index),
-            "order": index,
+            "reference": _module_reference("aspecto", item),
+            "order": item.ordem,
             "cis": "",
             "cod_posicao": "",
             "local": "",
@@ -1109,24 +1119,27 @@ def _aspecto_rows(_session: Session, _context: dict[str, Any], _setor_tipo: str)
             "status_label": "Linha vazia",
             "flag": False,
         }
-        for index in range(1, aspecto_service.MAX_REGISTROS_POR_LOTE + 1)
+        for item in _module_items(session, "aspecto", setor_tipo)
     ]
 
 
 def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    base_rows = _build_aspecto_item_rows(session, context, setor_tipo)
+    base_rows_by_reference = {row["reference"]: row for row in base_rows}
     rows: list[dict[str, Any]] = []
     total_quantidade = 0
-    for index in range(1, aspecto_service.MAX_REGISTROS_POR_LOTE + 1):
-        cis = (form_data.get(f"cis_{setor_tipo}_{index}") or "").strip()
-        cod_posicao = (form_data.get(f"cod_posicao_{setor_tipo}_{index}") or "").strip()
-        local = (form_data.get(f"local_{setor_tipo}_{index}") or "").strip()
-        anomalia = (form_data.get(f"anomalia_{setor_tipo}_{index}") or "").strip()
-        lado = (form_data.get(f"lado_{setor_tipo}_{index}") or "").strip()
-        geracao = (form_data.get(f"geracao_{setor_tipo}_{index}") or "").strip()
-        quantidade = (form_data.get(f"quantidade_{setor_tipo}_{index}") or "").strip()
+    for base_row in base_rows:
+        reference = base_row["reference"]
+        cis = (form_data.get(f"cis_{setor_tipo}_{reference}") or "").strip()
+        cod_posicao = (form_data.get(f"cod_posicao_{setor_tipo}_{reference}") or "").strip()
+        local = (form_data.get(f"local_{setor_tipo}_{reference}") or "").strip()
+        anomalia = (form_data.get(f"anomalia_{setor_tipo}_{reference}") or "").strip()
+        lado = (form_data.get(f"lado_{setor_tipo}_{reference}") or "").strip()
+        geracao = (form_data.get(f"geracao_{setor_tipo}_{reference}") or "").strip()
+        quantidade = (form_data.get(f"quantidade_{setor_tipo}_{reference}") or "").strip()
         if not any([cis, cod_posicao, local, anomalia, lado, geracao, quantidade]):
-            if index <= 5:
-                rows.append(_aspecto_rows(session, context, setor_tipo)[index - 1])
+            if int(reference) <= 5:
+                rows.append(dict(base_rows_by_reference[reference]))
             continue
         missing = [
             label
@@ -1142,16 +1155,16 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
             if not locals()[key]
         ]
         if missing:
-            raise OperationalModuleValidationError(f"Complete a linha {index}: {', '.join(missing)}.")
+            raise OperationalModuleValidationError(f"Complete a linha {reference}: {', '.join(missing)}.")
         try:
             quantidade_int = int(quantidade)
         except ValueError as error:
-            raise OperationalModuleValidationError(f"Quantidade inválida na linha {index}.") from error
+            raise OperationalModuleValidationError(f"Quantidade inválida na linha {reference}.") from error
         total_quantidade += quantidade_int
         rows.append(
             {
-                "reference": str(index),
-                "order": index,
+                "reference": reference,
+                "order": base_row["order"],
                 "cis": cis,
                 "cod_posicao": cod_posicao,
                 "local": local,
@@ -1214,7 +1227,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Temperatura (°C)", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_temperatura_rows,
+        default_rows_builder=_build_temperatura_item_rows,
         parse_rows=_temperatura_parse,
         legacy_history_builder=_legacy_temp_history,
         legacy_detail_loader=temperatura_forno_service.get_lancamento,
@@ -1223,10 +1236,10 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
     "pressao-filtros-ed": ModuleConfig(
         code="pressao-filtros-ed",
         slug="pressao-filtros-ed",
-        title="Pressão dos Filtros ED",
+        title="Pressão dos Filtros",
         description="Leitura dos 24 filtros com alarmes calculados por setor e consolidado geral do contexto.",
-        history_title="Histórico consolidado · Pressão dos Filtros ED",
-        report_title="Relatório · Pressão dos Filtros ED",
+        history_title="Histórico consolidado · Pressão dos Filtros",
+        report_title="Relatório · Pressão dos Filtros",
         context_fields=(
             ContextField("data_referencia", "Data", "date", True),
             ContextField("turno", "Turno", "select", True, "turnos"),
@@ -1237,7 +1250,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Pressão (bar)", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_pressao_rows,
+        default_rows_builder=_build_pressao_item_rows,
         parse_rows=_pressao_parse,
         legacy_history_builder=_legacy_pressao_history,
         legacy_detail_loader=pressao_filtros_service.get_lancamento,
@@ -1247,10 +1260,10 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
     "tensao-retificadores-ed": ModuleConfig(
         code="tensao-retificadores-ed",
         slug="tensao-retificadores-ed",
-        title="Tensão dos Retificadores ED",
+        title="Tensão dos Retificadores",
         description="Controle das 29 zonas dos retificadores por data, turno e modelo em duas abas setoriais.",
-        history_title="Histórico consolidado · Tensão dos Retificadores ED",
-        report_title="Relatório · Tensão dos Retificadores ED",
+        history_title="Histórico consolidado · Tensão dos Retificadores",
+        report_title="Relatório · Tensão dos Retificadores",
         context_fields=(
             ContextField("data_referencia", "Data", "date", True),
             ContextField("turno", "Turno", "select", True, "turnos"),
@@ -1262,7 +1275,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Tensão (V)", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_tensao_rows,
+        default_rows_builder=_build_tensao_item_rows,
         parse_rows=_tensao_parse,
         legacy_history_builder=_legacy_tensao_history,
         legacy_detail_loader=tensao_retificadores_service.get_lancamento,
@@ -1290,7 +1303,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Valor medido", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_poder_rows,
+        default_rows_builder=_build_poder_item_rows,
         parse_rows=_poder_parse,
         legacy_history_builder=_legacy_poder_history,
         legacy_detail_loader=poder_penetracao_service.get_lancamento,
@@ -1300,10 +1313,10 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
     "espessura-ed": ModuleConfig(
         code="espessura-ed",
         slug="espessura-ed",
-        title="Espessura ED",
+        title="Espessura",
         description="Rastreabilidade de 38 pontos por contexto, com salvamento independente por PTED e Laboratório.",
-        history_title="Histórico consolidado · Espessura ED",
-        report_title="Relatório · Espessura ED",
+        history_title="Histórico consolidado · Espessura",
+        report_title="Relatório · Espessura",
         context_fields=(
             ContextField("data_referencia", "Data", "date", True),
             ContextField("turno", "Turno", "select", True, "turnos"),
@@ -1316,7 +1329,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Espessura (µm)", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_espessura_rows,
+        default_rows_builder=_build_espessura_item_rows,
         parse_rows=_espessura_parse,
         legacy_history_builder=_legacy_espessura_history,
         legacy_detail_loader=espessura_ed_service.get_lancamento,
@@ -1344,7 +1357,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("geracao", "Geração", "input"),
             TableColumn("quantidade", "Qtd.", "input"),
         ),
-        default_rows_builder=_aspecto_rows,
+        default_rows_builder=_build_aspecto_item_rows,
         parse_rows=_aspecto_parse,
         legacy_history_builder=_legacy_aspecto_history,
         legacy_detail_loader=aspecto_service.get_lancamento,
@@ -1368,7 +1381,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("value", "Rugosidade", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
-        default_rows_builder=_rugosidade_rows,
+        default_rows_builder=_build_rugosidade_item_rows,
         parse_rows=_rugosidade_parse,
         legacy_history_builder=_legacy_rugosidade_history,
         legacy_detail_loader=rugosidade_service.get_lancamento,

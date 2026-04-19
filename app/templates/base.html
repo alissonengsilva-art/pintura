@@ -16,7 +16,7 @@
                 </div>
 
                 <nav class="nav-group nav-group--primary">
-                    <h2>Operacao</h2>
+                    <h2>Operação</h2>
                     <ul>
                         {% for item in primary_links %}
                         <li>
@@ -33,11 +33,11 @@
                     <ul>
                         <li>
                             <a href="/cadastros" class="{% if active_path == '/cadastros' %}active{% endif %}">
-                                <span class="nav-label">Configuracao</span>
+                                <span class="nav-label">Configuração</span>
                             </a>
                         </li>
                         {% for item in cadastro_links %}
-                        {% if item.title not in ['Visao geral', 'Pendencias', 'Responsaveis', 'Modelos', 'Setores', 'Turnos'] %}
+                        {% if item.title not in ['Visão geral', 'Pendências', 'Responsáveis', 'Modelos', 'Setores', 'Turnos'] %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
                                 <span class="nav-label">{{ item.title }}</span>
