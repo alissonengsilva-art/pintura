@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="op-module reports-page">
+    <header class="op-header">
+        <div class="op-header__content">
+            <div class="op-header__info">
+                <span class="op-header__kicker">Central Operacional</span>
+                <h1 class="op-header__title">Relatórios</h1>
+                <p class="op-header__description">Consulte turnos completos, módulos e setores com exportação em PDF.</p>
+            </div>
+            <div class="op-header__actions">
+                <a href="{{ pdf_export_url }}" class="button-primary">Exportar PDF</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="op-filters panel-card">
+        {% if validation_error %}
+        <div class="op-alert op-alert--error">{{ validation_error }}</div>
+        {% endif %}
+        <form method="get" action="/relatorios" class="op-filters__form">
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="visao">Visão</label>
+                <select id="visao" name="visao" class="op-filters__select">
+                    {% for item in visoes %}
+                    <option value="{{ item.value }}" {% if filters.visao == item.value %}selected{% endif %}>{{ item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="data_inicio">Data inicial</label>
+                <input type="date" id="data_inicio" name="data_inicio" class="op-filters__input" value="{{ filters.data_inicio.isoformat() if filters.data_inicio else '' }}" required>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="data_fim">Data final</label>
+                <input type="date" id="data_fim" name="data_fim" class="op-filters__input" value="{{ filters.data_fim.isoformat() if filters.data_fim else '' }}" required>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="turno">Turno</label>
+                <select id="turno" name="turno" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for item in turnos %}
+                    <option value="{{ item.codigo }}" {% if filters.turno == item.codigo %}selected{% endif %}>{{ item.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="modulo">Modulo</label>
+                <select id="modulo" name="modulo" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for item in modulos %}
+                    <option value="{{ item.code }}" {% if filters.modulo == item.code %}selected{% endif %}>{{ item.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="setor">Setor</label>
+                <select id="setor" name="setor" class="op-filters__select">
+                    {% for item in setores %}
+                    <option value="{{ item.value }}" {% if filters.setor == item.value %}selected{% endif %}>{{ item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="responsavel">Responsável</label>
+                <select id="responsavel" name="responsavel" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for item in responsaveis %}
+                    <option value="{{ item.nome }}" {% if filters.responsavel == item.nome %}selected{% endif %}>{{ item.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="status">Status</label>
+                <select id="status" name="status" class="op-filters__select">
+                    <option value="">Todos</option>
+                    {% for item in status_options %}
+                    <option value="{{ item.value }}" {% if filters.status == item.value %}selected{% endif %}>{{ item.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="button-primary">Filtrar</button>
+            <a href="/relatorios" class="button-secondary">Limpar</a>
+        </form>
+    </section>
+
+    <section class="reports-metrics">
+        {% for metric in metrics %}
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">{{ metric.label }}</span>
+            <strong class="reports-metric__value">{{ metric.value }}</strong>
+        </article>
+        {% endfor %}
+    </section>
+
+    <section class="panel-card">
+        <div class="op-table-wrapper">
+            <table class="op-table op-table--history reports-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Turno</th>
+                        <th>Modulo</th>
+                        <th>Setor</th>
+                        <th>Responsável</th>
+                        <th>Status</th>
+                        <th>Itens</th>
+                        <th>Desvios</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td><span class="op-table__text op-table__text--primary">{{ row.data_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.turno_label }}</span></td>
+                        <td><span class="op-table__text op-table__text--primary">{{ row.modulo_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.setor_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.responsavel_label }}</span></td>
+                        <td>
+                            <span class="op-status-badge op-status-badge--{{ row.status_geral|lower|replace('_', '-') }}">{{ row.status_label }}</span>
+                        </td>
+                        <td><span class="op-table__text">{{ row.preenchidos }}/{{ row.total }}</span></td>
+                        <td><span class="op-table__text">{{ row.desvios }}</span></td>
+                        <td>
+                            <div class="op-table__actions">
+                                <a href="{{ row.detail_url }}" class="op-table__action" title="Abrir relatorio" target="_blank" rel="noopener">Abrir</a>
+                                {% if row.pdf_url %}
+                                <a href="{{ row.pdf_url }}" class="op-table__action" title="PDF" target="_blank" rel="noopener">PDF</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="op-table__empty">Nenhum registro encontrado com os filtros selecionados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}

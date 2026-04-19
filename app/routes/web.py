@@ -1,4 +1,5 @@
 from datetime import date
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -41,6 +42,14 @@ from app.services.operational_module_service import (
     resolve_context_defaults,
     save_sector,
 )
+from app.services.report_service import (
+    ReportFilters,
+    build_module_report_detail,
+    build_reports_snapshot,
+    build_shift_report_detail,
+    build_shift_pdf_context,
+    report_filter_options,
+)
 from app.services.shift_service import (
     ShiftValidationError,
     build_shift_detail,
@@ -79,6 +88,29 @@ def _coerce_date(raw_value: str | None, fallback: date | None = None) -> date | 
     if fallback is not None:
         return fallback
     return date.today()
+
+
+def _parse_report_filters(request: Request) -> ReportFilters:
+    data_inicio_raw = (request.query_params.get("data_inicio") or "").strip()
+    data_fim_raw = (request.query_params.get("data_fim") or "").strip()
+    turno = (request.query_params.get("turno") or "").strip() or None
+    modulo = (request.query_params.get("modulo") or "").strip() or None
+    setor = (request.query_params.get("setor") or "").strip() or None
+    responsavel = (request.query_params.get("responsavel") or "").strip() or None
+    status = (request.query_params.get("status") or "").strip() or None
+    visao = (request.query_params.get("visao") or "modulos").strip().lower()
+    if visao not in {"modulos", "turnos"}:
+        visao = "modulos"
+    return ReportFilters(
+        data_inicio=_coerce_date(data_inicio_raw, None) if data_inicio_raw else None,
+        data_fim=_coerce_date(data_fim_raw, None) if data_fim_raw else None,
+        turno=turno,
+        modulo=modulo,
+        setor=setor,
+        responsavel=responsavel,
+        status=status,
+        visao=visao,
+    )
 
 
 def _resolve_active_module(shift_detail: dict, requested_module: str | None) -> str:
@@ -425,6 +457,127 @@ def turno_modulo_executar(shift_id: int, module_code: str):
 @router.post("/turno-atual/{shift_id}/modulos/{module_code}/iniciar", name="turno_modulo_iniciar")
 def turno_modulo_iniciar(shift_id: int, module_code: str):
     return RedirectResponse(url=_shift_execution_url(shift_id, module_code), status_code=303)
+
+
+@router.get("/relatorios", name="relatorios")
+def relatorios(request: Request, db: Session = Depends(get_db)):
+    has_query = bool(request.query_params)
+    if not has_query:
+        today = date.today()
+        filters = ReportFilters(data_inicio=today, data_fim=today, visao="modulos")
+        validation_error = None
+        snapshot = build_reports_snapshot(db, filters)
+    else:
+        filters = _parse_report_filters(request)
+        if not filters.data_inicio or not filters.data_fim:
+            validation_error = "Informe data inicial e data final para consultar relatorios."
+            snapshot = {"rows": [], "metrics": []}
+        else:
+            validation_error = None
+            snapshot = build_reports_snapshot(db, filters)
+    options = report_filter_options(db)
+    query = {
+        key: value
+        for key, value in {
+            "data_inicio": request.query_params.get("data_inicio", ""),
+            "data_fim": request.query_params.get("data_fim", ""),
+            "turno": filters.turno or "",
+            "modulo": filters.modulo or "",
+            "setor": filters.setor or "",
+            "responsavel": filters.responsavel or "",
+            "status": filters.status or "",
+            "visao": filters.visao,
+        }.items()
+        if value
+    }
+    pdf_export_url = "/relatorios/pdf"
+    if query:
+        pdf_export_url += "?" + urlencode(query)
+
+    context = {
+        "request": request,
+        "page_title": "Relatorios",
+        "page_description": "Consulta consolidada por turno, modulo, setor e responsavel.",
+        "validation_error": validation_error,
+        "filters": filters,
+        "rows": snapshot["rows"],
+        "metrics": snapshot["metrics"],
+        "pdf_export_url": pdf_export_url,
+        **options,
+        **layout_context(str(request.url.path), scope_source=request.query_params),
+    }
+    return templates.TemplateResponse(request=request, name="reports.html", context=context)
+
+
+@router.get("/relatorios/pdf", name="relatorios_pdf")
+def relatorios_pdf(request: Request, db: Session = Depends(get_db)):
+    filters = _parse_report_filters(request)
+    if not filters.data_inicio or not filters.data_fim:
+        raise HTTPException(status_code=400, detail="Data inicial e data final sao obrigatorias.")
+    snapshot = build_reports_snapshot(db, filters)
+    context = {
+        "request": request,
+        "page_title": "Relatorios",
+        "page_description": "Exportacao de relatorios",
+        "filters": filters,
+        "rows": snapshot["rows"],
+        "metrics": snapshot["metrics"],
+        "print_mode": True,
+        **layout_context(str(request.url.path), scope_source=request.query_params),
+    }
+    return templates.TemplateResponse(request=request, name="reports_pdf.html", context=context)
+
+
+@router.get("/relatorios/visualizar/turnos/{shift_id}", name="relatorio_turno_detalhe")
+def relatorio_turno_detalhe(shift_id: int, request: Request, db: Session = Depends(get_db)):
+    detail = build_shift_report_detail(db, shift_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    context = {
+        "request": request,
+        "page_title": f"Relatorio do Turno {detail['data_label']}",
+        "page_description": "Consulta detalhada do turno.",
+        "shift": detail,
+        "pdf_url": f"/relatorios/turnos/{shift_id}/pdf",
+        **layout_context(str(request.url.path), scope_source=request.query_params),
+    }
+    return templates.TemplateResponse(request=request, name="report_detail_shift.html", context=context)
+
+
+@router.get("/relatorios/visualizar/modulos/{module_code}/{record_id}", name="relatorio_modulo_detalhe")
+def relatorio_modulo_detalhe(module_code: str, record_id: int, request: Request, db: Session = Depends(get_db)):
+    setor = request.query_params.get("setor") or None
+    detail = build_module_report_detail(db, module_code, record_id, setor=setor)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Relatorio nao encontrado")
+    pdf_url = f"/{detail['module_config'].slug}/registros/{record_id}/relatorio"
+    if setor:
+        pdf_url += f"?setor={setor}"
+    context = {
+        "request": request,
+        "page_title": detail["module_config"].report_title,
+        "page_description": "Consulta detalhada do modulo.",
+        "pdf_url": pdf_url,
+        **detail,
+        **layout_context(str(request.url.path), scope_source=request.query_params),
+    }
+    return templates.TemplateResponse(request=request, name="report_detail_module.html", context=context)
+
+
+@router.get("/relatorios/turnos/{shift_id}/pdf", name="relatorio_turno_pdf")
+def relatorio_turno_pdf(shift_id: int, request: Request, db: Session = Depends(get_db)):
+    detail = build_shift_pdf_context(db, shift_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    context = {
+        "request": request,
+        "page_title": f"Relatorio do Turno {detail['data_label']}",
+        "page_description": "Relatorio completo do turno.",
+        "shift": detail,
+        "print_mode": True,
+        **layout_context(str(request.url.path), scope_source=request.query_params),
+    }
+    return templates.TemplateResponse(request=request, name="reports_shift_pdf.html", context=context)
 
 
 @router.get("/historico-geral", name="historico_geral")

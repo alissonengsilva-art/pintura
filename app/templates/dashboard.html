@@ -34,10 +34,17 @@
 
 <section class="dashboard-metrics-grid">
     {% for metric in metrics %}
+    {% if metric.url %}
+    <a class="panel-card dashboard-metric-card dashboard-metric-card-link tone-{{ metric.tone }}" href="{{ metric.url }}">
+        <span class="summary-label">{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+    </a>
+    {% else %}
     <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
         <span class="summary-label">{{ metric.label }}</span>
         <strong>{{ metric.value }}</strong>
     </article>
+    {% endif %}
     {% endfor %}
 </section>
 

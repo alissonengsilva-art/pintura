@@ -68,16 +68,17 @@
             <article class="turno-card turno-card--compact turno-card--done panel-card">
                 <div class="turno-card__compact-layout">
                     <div class="turno-card__columns">
-                        <div class="turno-card__field">
-                            <span class="turno-card__label">Turns</span>
-                            <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
-                        </div>
-                        <div class="turno-card__field">
+                                                <div class="turno-card__field">
                             <span class="turno-card__label">Data</span>
                             <strong class="turno-card__value">{{ shift.data_label }}</strong>
                         </div>
                         <div class="turno-card__field">
-                            <span class="turno-card__label">PETED</span>
+                            <span class="turno-card__label">Turno</span>
+                            <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
+                        </div>
+
+                        <div class="turno-card__field">
+                            <span class="turno-card__label">PE/TED</span>
                             <strong class="turno-card__value">{{ shift.responsavel_pted or '-' }}</strong>
                         </div>
                         <div class="turno-card__field">

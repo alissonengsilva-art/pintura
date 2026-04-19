@@ -141,6 +141,12 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
         {"label": "Módulos monitorados", "value": snapshot["total_modulos"], "tone": "neutral"},
         {"label": "Módulos com alerta", "value": snapshot["modulos_com_alerta"], "tone": "warning"},
         {"label": "Total de alertas", "value": snapshot["total_desvios"], "tone": "warning"},
+        {
+            "label": "Pendencias",
+            "value": sum(1 for card in module_cards if card["pending_launches"]),
+            "tone": "warning",
+            "url": "/pendencias",
+        },
     ]
     pending_summary = [
         {"label": "Pendências abertas", "value": sum(1 for card in module_cards if card["pending_launches"]), "tone": "warning"},

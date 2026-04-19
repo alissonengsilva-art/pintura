@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="op-module reports-page">
+    <header class="op-header">
+        <div class="op-header__content">
+            <div class="op-header__info">
+                <span class="op-header__kicker">Relatorio detalhado</span>
+                <h1 class="op-header__title">{{ module_config.title }}</h1>
+                <p class="op-header__description">{{ context_label }}</p>
+            </div>
+            <div class="op-header__actions">
+                <a href="{{ pdf_url }}" class="button-primary" target="_blank" rel="noopener">Gerar PDF</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="reports-metrics">
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Modulo</span>
+            <strong class="reports-metric__value">{{ module_config.title }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Status</span>
+            <strong class="reports-metric__value">{{ status_geral_label }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Setores</span>
+            <strong class="reports-metric__value">{{ setor_views|length }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Registro</span>
+            <strong class="reports-metric__value">#{{ master.id }}</strong>
+        </article>
+    </section>
+
+    {% for setor_view in setor_views %}
+    <section class="panel-card">
+        <div class="op-sector__header">
+            <div class="op-sector__title">
+                <h3>{{ setor_view.setor_label }}</h3>
+                <span class="op-status-badge op-status-badge--{{ setor_view.status_setor|lower|replace('_', '-') }}">{{ setor_view.status_label }}</span>
+            </div>
+        </div>
+        <div class="op-sector__meta op-sector__meta--readonly">
+            <div class="op-sector__meta-item">
+                <span class="op-sector__meta-label">Responsavel</span>
+                <span class="op-sector__meta-value">{{ setor_view.responsavel_nome or '—' }}</span>
+            </div>
+            <div class="op-sector__meta-item">
+                <span class="op-sector__meta-label">Observacoes</span>
+                <span class="op-sector__meta-value">{{ setor_view.observacoes_setor or '—' }}</span>
+            </div>
+        </div>
+        <div class="op-table-wrapper">
+            <table class="op-table op-table--readonly {% if module_config.code == 'aspecto' %}op-table--aspecto{% endif %}">
+                <thead>
+                    <tr>
+                        {% for column in module_config.columns %}
+                        <th class="op-table__col--{{ column.key }}">{{ column.label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in setor_view.rows %}
+                    <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
+                        {% for column in module_config.columns %}
+                        <td class="op-table__col--{{ column.key }}">
+                            {% if column.kind == 'status' %}
+                            <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('_', '-') }}">{{ row[column.key] }}</span>
+                            {% else %}
+                            <span class="op-table__text">{{ row[column.key] or '—' }}</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endfor %}
+</section>
+{% endblock %}

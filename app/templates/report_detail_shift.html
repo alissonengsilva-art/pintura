@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="op-module reports-page">
+    <header class="op-header">
+        <div class="op-header__content">
+            <div class="op-header__info">
+                <span class="op-header__kicker">Relatorio detalhado</span>
+                <h1 class="op-header__title">{{ shift.data_label }}{% if shift.turno %} · Turno {{ shift.turno }}{% endif %}</h1>
+                <p class="op-header__description">Visao historica consolidada do turno completo.</p>
+            </div>
+            <div class="op-header__actions">
+                <a href="{{ pdf_url }}" class="button-primary" target="_blank" rel="noopener">Gerar PDF</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="reports-metrics">
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">PTED</span>
+            <strong class="reports-metric__value">{{ shift.responsavel_pted or '-' }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">LAB</span>
+            <strong class="reports-metric__value">{{ shift.responsavel_lab or '-' }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Concluidos</span>
+            <strong class="reports-metric__value">{{ shift.concluidos }}/{{ shift.total_modules }}</strong>
+        </article>
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">Status</span>
+            <strong class="reports-metric__value">{{ shift.status_geral_label }}</strong>
+        </article>
+    </section>
+
+    <section class="panel-card">
+        <div class="op-table-wrapper">
+            <table class="op-table op-table--history reports-table">
+                <thead>
+                    <tr>
+                        <th>Modulo</th>
+                        <th>Status</th>
+                        <th>PTED</th>
+                        <th>LAB</th>
+                        <th>Itens</th>
+                        <th>Desvios</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for module in shift.modules %}
+                    <tr>
+                        <td><span class="op-table__text op-table__text--primary">{{ module.title }}</span></td>
+                        <td><span class="op-status-badge op-status-badge--{{ module.status_geral|lower|replace('_', '-') }}">{{ module.status_geral_label }}</span></td>
+                        <td><span class="op-table__text">{{ module.status_pted_label }}</span></td>
+                        <td><span class="op-table__text">{{ module.status_lab_label }}</span></td>
+                        <td><span class="op-table__text">{{ module.pted_progress.preenchidos + module.lab_progress.preenchidos }}/{{ module.pted_progress.total + module.lab_progress.total }}</span></td>
+                        <td><span class="op-table__text">{{ module.desvios }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}
