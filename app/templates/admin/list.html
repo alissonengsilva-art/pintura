@@ -8,8 +8,54 @@
         <p>Filtro ativo: <strong>{{ active_filters.module_code }}</strong>. Edite <code>valor_min</code> e <code>valor_max</code> nos registros abaixo.</p>
         {% endif %}
     </div>
-    <a class="button-primary" href="/cadastros/{{ entity }}/novo">Novo registro</a>
+    <div class="hero-actions">
+        <a class="button-secondary" href="/configuracoes">Voltar</a>
+        {% if entity != 'responsaveis' %}
+        <a class="button-primary" href="/cadastros/{{ entity }}/novo">Novo registro</a>
+        {% else %}
+        <button type="button" class="button-primary" data-open-responsavel-modal>Novo responsavel</button>
+        {% endif %}
+    </div>
 </section>
+
+{% if entity == 'responsaveis' %}
+<div class="op-modal responsavel-modal {% if open_responsavel_modal %}op-modal--open{% endif %}" id="responsavelModal" {% if not open_responsavel_modal %}hidden{% endif %}>
+    <div class="op-modal__backdrop" data-close-responsavel-modal></div>
+    <div class="op-modal__content panel-card responsavel-modal__content">
+        <div class="turnos-modal__header">
+            <div>
+                <span class="page-kicker">Novo colaborador</span>
+                <h2 class="turnos-modal__title">Cadastrar responsavel</h2>
+            </div>
+            <button type="button" class="turnos-modal__close" data-close-responsavel-modal aria-label="Fechar">x</button>
+        </div>
+
+        {% if inline_form_error_message %}
+        <div class="alert-error">{{ inline_form_error_message }}</div>
+        {% endif %}
+
+        <form method="post" action="/cadastros/{{ entity }}/novo" class="form-grid responsavel-modal__form">
+            <div class="form-field">
+                <label for="inline_nome">Nome *</label>
+                <input id="inline_nome" type="text" name="nome" value="{{ inline_form_record.nome if inline_form_record else '' }}" placeholder="Ex.: Joao da Silva" required>
+            </div>
+            <div class="form-field">
+                <label for="inline_setor_id">Setor *</label>
+                <select id="inline_setor_id" name="setor_id" required>
+                    <option value="">Selecione</option>
+                    {% for setor in available_setores %}
+                    <option value="{{ setor.id }}" {% if inline_form_record and inline_form_record.setor_id and inline_form_record.setor_id|int == setor.id %}selected{% endif %}>{{ setor.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-actions form-field-full">
+                <button class="button-secondary" type="button" data-close-responsavel-modal>Cancelar</button>
+                <button class="button-primary" type="submit">Inserir</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <section class="panel-card table-panel">
     <div class="table-wrapper">
@@ -53,4 +99,35 @@
         </table>
     </div>
 </section>
+{% if entity == 'responsaveis' %}
+<script>
+    (function () {
+        var modal = document.getElementById('responsavelModal');
+        if (!modal) {
+            return;
+        }
+
+        var openButtons = document.querySelectorAll('[data-open-responsavel-modal]');
+        var closeButtons = document.querySelectorAll('[data-close-responsavel-modal]');
+
+        function openModal() {
+            modal.hidden = false;
+            modal.classList.add('op-modal--open');
+        }
+
+        function closeModal() {
+            modal.classList.remove('op-modal--open');
+            modal.hidden = true;
+        }
+
+        openButtons.forEach(function (button) {
+            button.addEventListener('click', openModal);
+        });
+
+        closeButtons.forEach(function (button) {
+            button.addEventListener('click', closeModal);
+        });
+    })();
+</script>
+{% endif %}
 {% endblock %}

@@ -2,8 +2,10 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.middleware.simple_session import SimpleSessionMiddleware
 from app.routes.aspecto import router as aspecto_router
 from app.routes.admin import router as admin_router
+from app.routes.auth import router as auth_router
 from app.routes.ed import router as ed_router
 from app.routes.espessura_ed import router as espessura_ed_router
 from app.routes.poder_penetracao import router as poder_penetracao_router
@@ -15,8 +17,10 @@ from app.routes.web import router as web_router
 
 
 app = FastAPI(title=settings.app_name)
+app.add_middleware(SimpleSessionMiddleware, secret_key=settings.secret_key)
 app.mount("/static", StaticFiles(directory=str(settings.static_dir)), name="static")
 
+app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(aspecto_router)
 app.include_router(ed_router)

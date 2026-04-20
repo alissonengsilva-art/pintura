@@ -279,7 +279,7 @@ def _render_turnos_index(
 
 @router.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    return RedirectResponse(url="/turno-atual", status_code=302)
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 
 @router.get("/dashboard", name="dashboard")

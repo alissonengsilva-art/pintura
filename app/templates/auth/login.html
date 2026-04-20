@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} | CONTROL PLAN</title>
+    <link rel="stylesheet" href="{{ request.url_for('static', path='css/main.css') }}">
+</head>
+<body class="auth-page">
+    <main class="auth-layout">
+        <section class="auth-card panel-card">
+            <div class="auth-card__header">
+                <span class="page-kicker">CONTROL PLAN</span>
+                <h1>Acesso interno</h1>
+                <!-- <p>Entre com suas credenciais para continuar no painel de pintura.</p> -->
+            </div>
+
+            {% if error_message %}
+            <div class="alert-error">{{ error_message }}</div>
+            {% endif %}
+
+            <form method="post" class="auth-form">
+                <input type="hidden" name="next_url" value="{{ next_url }}">
+                <div class="form-field">
+                    <label for="username">Usuário</label>
+                    <input id="username" name="username" type="text" autocomplete="username" required>
+                </div>
+                <div class="form-field">
+                    <label for="password">Senha</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="button-primary">Entrar</button>
+                </div>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

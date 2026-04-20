@@ -6,7 +6,7 @@
         <div>
             <span class="turnos-page__kicker">Centro operacional</span>
             <h1 class="turnos-page__title">Turnos</h1>
-            <p class="turnos-page__subtitle">Entrada principal para iniciar um turno mestre e acompanhar o que esta em andamento ou concluido.</p>
+            <p class="turnos-page__subtitle">Entrada principal para iniciar um turno mestre e acompanhar o que está em andamento ou concluído.</p>
         </div>
         <button type="button" class="button-primary button-primary--lg" data-open-start-modal>Iniciar turno</button>
     </header>
@@ -63,33 +63,22 @@
 
     <div class="turnos-panel {% if active_tab == 'concluidos' %}turnos-panel--active{% endif %}" data-turnos-panel="concluidos">
         {% if shifts_concluidos %}
-        <div class="turnos-list">
+        <div class="turnos-list turnos-list--table turnos-list--table-concluded">
+            <div class="turno-table-header turno-table-header--concluded panel-card">
+                <span>Data</span>
+                <span>Turno</span>
+                <span>PT/ED</span>
+                <span>Laboratório</span>
+                <span>Ações</span>
+            </div>
             {% for shift in shifts_concluidos %}
-            <article class="turno-card turno-card--compact turno-card--done panel-card">
-                <div class="turno-card__compact-layout">
-                    <div class="turno-card__columns">
-                                                <div class="turno-card__field">
-                            <span class="turno-card__label">Data</span>
-                            <strong class="turno-card__value">{{ shift.data_label }}</strong>
-                        </div>
-                        <div class="turno-card__field">
-                            <span class="turno-card__label">Turno</span>
-                            <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
-                        </div>
-
-                        <div class="turno-card__field">
-                            <span class="turno-card__label">PE/TED</span>
-                            <strong class="turno-card__value">{{ shift.responsavel_pted or '-' }}</strong>
-                        </div>
-                        <div class="turno-card__field">
-                            <span class="turno-card__label">Laboratório</span>
-                            <strong class="turno-card__value">{{ shift.responsavel_lab or '-' }}</strong>
-                        </div>
-                    </div>
-                    <div class="turno-card__side">
-
-                        <a href="/turnos/{{ shift.id }}" class="button-secondary small">Consultar turno</a>
-                    </div>
+            <article class="turno-card turno-card--table turno-card--done panel-card">
+                <div class="turno-table-row turno-table-row--concluded">
+                    <strong class="turno-card__value">{{ shift.data_label }}</strong>
+                    <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ shift.responsavel_pted or '-' }}</strong>
+                    <strong class="turno-card__value">{{ shift.responsavel_lab or '-' }}</strong>
+                    <a href="/turnos/{{ shift.id }}" class="button-secondary small">Consultar turno</a>
                 </div>
             </article>
             {% endfor %}
@@ -110,7 +99,7 @@
                 <span class="turnos-page__kicker">Novo turno mestre</span>
                 <h2 class="turnos-modal__title">Iniciar turno</h2>
             </div>
-            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">x</button>
+            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">×</button>
         </div>
 
         {% if error_message %}

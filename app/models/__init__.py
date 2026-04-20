@@ -29,6 +29,7 @@ from app.models.reference import Modelo, Responsavel, Setor, Turno
 from app.models.rugosidade import RugosidadeItem, RugosidadeLancamento
 from app.models.tensao_retificadores import TensaoRetificadoresItem, TensaoRetificadoresLancamento
 from app.models.temperatura_forno import TemperaturaFornoItem, TemperaturaFornoLancamento
+from app.models.user import User
 
 __all__ = [
     "Base",
@@ -69,4 +70,5 @@ __all__ = [
     "TensaoRetificadoresItem",
     "TemperaturaFornoLancamento",
     "TemperaturaFornoItem",
+    "User",
 ]

@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Modelo, OperationalModuleItem, Responsavel, Setor, Turno
 
@@ -17,6 +17,7 @@ class FieldConfig:
     input_type: str = "text"
     placeholder: str = ""
     rows: int | None = None
+    options_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -32,14 +33,13 @@ class EntityConfig:
 ADMIN_ENTITIES: dict[str, EntityConfig] = {
     "responsaveis": EntityConfig(
         key="responsaveis",
-        title="Responsáveis",
+        title="Responsaveis",
         model=Responsavel,
         fields=(
-            FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Laboratório"),
-            FieldConfig("descricao", "Descrição", input_type="textarea", placeholder="Detalhes do papel operacional.", rows=3),
-            FieldConfig("ativo", "Ativo", input_type="checkbox"),
+            FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Joao da Silva"),
+            FieldConfig("setor_id", "Setor", required=True, input_type="select", options_key="setores"),
         ),
-        list_fields=("nome", "descricao", "ativo"),
+        list_fields=("nome", "setor_nome"),
         default_sort=("nome",),
     ),
     "modelos": EntityConfig(
@@ -47,8 +47,8 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
         title="Modelos",
         model=Modelo,
         fields=(
-            FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Capô H1"),
-            FieldConfig("codigo", "Código", placeholder="Ex.: H1"),
+            FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Capo H1"),
+            FieldConfig("codigo", "Codigo", placeholder="Ex.: H1"),
             FieldConfig("ativo", "Ativo", input_type="checkbox"),
         ),
         list_fields=("nome", "codigo", "ativo"),
@@ -72,7 +72,7 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
         model=Turno,
         fields=(
             FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Turno 1"),
-            FieldConfig("codigo", "Código", placeholder="Ex.: 1"),
+            FieldConfig("codigo", "Codigo", placeholder="Ex.: 1"),
             FieldConfig("ativo", "Ativo", input_type="checkbox"),
         ),
         list_fields=("nome", "codigo", "ativo"),
@@ -80,25 +80,25 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
     ),
     "modulos-itens": EntityConfig(
         key="modulos-itens",
-        title="Itens dos módulos",
+        title="Itens dos modulos",
         model=OperationalModuleItem,
         fields=(
-            FieldConfig("module_code", "Módulo", required=True, placeholder="Ex.: ed"),
+            FieldConfig("module_code", "Modulo", required=True, placeholder="Ex.: ed"),
             FieldConfig("setor_tipo", "Setor", required=True, placeholder="PTED, LABORATORIO ou AMBOS"),
-            FieldConfig("operacao", "Operação"),
+            FieldConfig("operacao", "Operacao"),
             FieldConfig("controle", "Controle", required=True),
             FieldConfig("norma", "Norma"),
-            FieldConfig("parametro", "Parâmetro"),
+            FieldConfig("parametro", "Parametro"),
             FieldConfig("unidade", "Unidade"),
-            FieldConfig("valor_min", "Valor mínimo", input_type="number"),
-            FieldConfig("valor_max", "Valor máximo", input_type="number"),
+            FieldConfig("valor_min", "Valor minimo", input_type="number"),
+            FieldConfig("valor_max", "Valor maximo", input_type="number"),
             FieldConfig("ordem", "Ordem", input_type="number"),
-            FieldConfig("frequencia", "Frequência"),
-            FieldConfig("responsavel_padrao", "Responsável padrão"),
-            FieldConfig("turno_padrao", "Turno padrão"),
-            FieldConfig("numero_coleta", "Número da coleta", input_type="number"),
-            FieldConfig("observacao", "Observação", input_type="textarea", rows=3),
-            FieldConfig("obrigatorio", "Obrigatório", input_type="checkbox"),
+            FieldConfig("frequencia", "Frequencia"),
+            FieldConfig("responsavel_padrao", "Responsavel padrao"),
+            FieldConfig("turno_padrao", "Turno padrao"),
+            FieldConfig("numero_coleta", "Numero da coleta", input_type="number"),
+            FieldConfig("observacao", "Observacao", input_type="textarea", rows=3),
+            FieldConfig("obrigatorio", "Obrigatorio", input_type="checkbox"),
             FieldConfig("ativo", "Ativo", input_type="checkbox"),
         ),
         list_fields=("module_code", "setor_tipo", "controle", "parametro", "turno_padrao", "ordem", "ativo"),
@@ -119,6 +119,8 @@ def list_records(session: Session, entity: str, filters: dict | None = None) -> 
     model = config.model
     statement: Select = select(model)
     filters = filters or {}
+    if entity == "responsaveis":
+        statement = statement.options(selectinload(Responsavel.setor))
     if entity == "modulos-itens":
         module_code = str(filters.get("module_code") or "").strip()
         if module_code:
@@ -141,6 +143,8 @@ def _normalize_value(field: FieldConfig, raw_value: str | None):
     value = raw_value.strip()
     if value == "":
         return None if field.input_type != "number" else None
+    if field.input_type == "select":
+        return int(value)
     if field.input_type == "number":
         if any(marker in value for marker in [".", ","]):
             return float(value.replace(",", "."))
@@ -153,7 +157,10 @@ def payload_from_form(config: EntityConfig, form_data) -> dict:
     for field in config.fields:
         payload[field.name] = form_data.get(field.name)
     normalized = {field.name: _normalize_value(field, payload.get(field.name)) for field in config.fields}
-    if "ativo" in normalized and normalized["ativo"] is None:
+    if config.key == "responsaveis":
+        normalized["ativo"] = True
+        normalized["descricao"] = None
+    elif "ativo" in normalized and normalized["ativo"] is None:
         normalized["ativo"] = False
     if "obrigatorio" in normalized and normalized["obrigatorio"] is None:
         normalized["obrigatorio"] = False
@@ -193,4 +200,6 @@ def delete_record(session: Session, entity: str, record_id: int) -> bool:
 
 def field_labels(fields: Iterable[str], config: EntityConfig) -> dict[str, str]:
     mapping = {field.name: field.label for field in config.fields}
+    if config.key == "responsaveis":
+        mapping["setor_nome"] = "Setor"
     return {field: mapping.get(field, field.replace("_", " ").title()) for field in fields}

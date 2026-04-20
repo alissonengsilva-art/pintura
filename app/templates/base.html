@@ -4,16 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ page_title }} | CONTROL PLAN</title>
+    <link rel="icon" type="image/svg+xml" href="{{ request.url_for('static', path='favicon.svg') }}">
+    <link rel="shortcut icon" href="{{ request.url_for('static', path='favicon.svg') }}">
     <link rel="stylesheet" href="{{ request.url_for('static', path='css/main.css') }}">
 </head>
 <body>
     <div class="app-shell">
         <aside class="sidebar">
-            <div>
-                <div class="brand-block">
-                    <h1>CONTROL PLAN</h1>
-                    <p>Pintura</p>
-                </div>
+            <div class="sidebar-shell">
+                <div class="sidebar-main">
+                    <div class="brand-block">
+                        <h1>CONTROL PLAN</h1> <br>
+                        <p>Pintura • Processo</p>
+                    </div>
 
                 <nav class="nav-group nav-group--primary">
                     <h2>Operação</h2>
@@ -28,25 +31,35 @@
                     </ul>
                 </nav>
 
+                {% if request.session.get('is_admin') %}
                 <nav class="nav-group nav-group-secondary">
-                    <h2>Administrador</h2>
+                    <h2>Administração</h2>
                     <ul>
-                        <li>
-                            <a href="/cadastros" class="{% if active_path == '/cadastros' %}active{% endif %}">
-                                <span class="nav-label">Configuração</span>
-                            </a>
-                        </li>
-                        {% for item in cadastro_links %}
-                        {% if item.title not in ['Visão geral', 'Pendências', 'Responsáveis', 'Modelos', 'Setores', 'Turnos'] %}
+                        {% for item in admin_links %}
                         <li>
                             <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
                                 <span class="nav-label">{{ item.title }}</span>
                             </a>
                         </li>
-                        {% endif %}
                         {% endfor %}
                     </ul>
                 </nav>
+                {% endif %}
+                </div>
+
+                <div class="sidebar-session">
+                    <div class="sidebar-user-card">
+                        {% if request.session.get('username') %}
+                        <span class="sidebar-user-card__label">Sessão atual</span>
+                        <strong>{{ request.session.get('username') }}</strong>
+                        <small>{% if request.session.get('is_admin') %}Administrador{% else %}Usuario interno{% endif %}</small>
+                        <a href="/logout" class="sidebar-user-card__link">Sair</a>
+                        {% else %}
+                        <span class="sidebar-user-card__label">Acesso interno</span>
+                        <a href="/login?next=/turno-atual" class="sidebar-user-card__link">Entrar</a>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </aside>
 

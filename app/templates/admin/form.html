@@ -6,7 +6,10 @@
         <div>
             <span class="page-kicker">Formulário de cadastro</span>
         </div>
-        <a class="button-secondary" href="/cadastros/{{ entity }}">Voltar</a>
+        <div class="hero-actions">
+            <a class="button-secondary" href="/configuracoes">Voltar</a>
+            <a class="button-secondary" href="/cadastros/{{ entity }}">Abrir lista</a>
+        </div>
     </div>
 
     {% if error_message %}
@@ -21,6 +24,15 @@
                     <input type="checkbox" name="{{ field.name }}" {% if record and (record[field.name] if record is mapping else record|attr(field.name)) %}checked{% endif %}>
                     <span>{{ field.label }}</span>
                 </label>
+            {% elif field.input_type == 'select' %}
+                {% set field_value = record[field.name] if record is mapping else (record|attr(field.name) if record else '') %}
+                <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
+                <select id="{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
+                    <option value="">Selecione</option>
+                    {% for option in available_setores %}
+                    <option value="{{ option.id }}" {% if field_value and field_value|int == option.id %}selected{% endif %}>{{ option.nome }}</option>
+                    {% endfor %}
+                </select>
             {% else %}
                 <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
                 {% set field_value = record[field.name] if record is mapping else (record|attr(field.name) if record else '') %}

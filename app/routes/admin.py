@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.models import OperationalModuleItem
-from app.services.navigation import layout_context
+from app.services.auth_service import require_admin
+from app.services.navigation import SETTINGS_HUB_ITEMS, layout_context
 from app.services.reference_service import (
-    ADMIN_ENTITIES,
     create_record,
     delete_record,
     field_labels,
@@ -23,44 +23,74 @@ from app.services.reference_service import (
 
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
-router = APIRouter(prefix="/cadastros", tags=["cadastros"])
+router = APIRouter(tags=["cadastros"])
 
 
 def _format_temperature_parameter(valor_min: float | None, valor_max: float | None) -> str | None:
     if valor_min is not None and valor_max is not None:
-        return f"{valor_min:g} a {valor_max:g} °C"
+        return f"{valor_min:g} a {valor_max:g} C"
     if valor_min is not None:
-        return f">= {valor_min:g} °C"
+        return f">= {valor_min:g} C"
     if valor_max is not None:
-        return f"<= {valor_max:g} °C"
+        return f"<= {valor_max:g} C"
     return None
 
 
-@router.get("", name="cadastros_home")
-def cadastros_home(request: Request):
-    featured_cards = [
-        {
-            "title": "Faixas - Temperatura Forno ED",
-            "description": "Edite rapidamente os valores minimo e maximo das zonas termicas usadas no turno.",
-            "url": "/cadastros/modulos-itens/temperatura-forno-ed/faixas",
-            "tag": "Faixas editaveis",
-        }
-    ]
+def _admin_list_context(
+    request: Request,
+    entity: str,
+    db: Session,
+    *,
+    form_record=None,
+    form_error_message: str | None = None,
+):
+    config = get_entity_config(entity)
+    active_filters = {}
+    available_setores = []
+    if entity == "modulos-itens":
+        active_filters["module_code"] = request.query_params.get("module_code", "")
+    if entity == "responsaveis":
+        available_setores = list_records(db, "setores")
+
+    records = list_records(db, entity, active_filters)
+    return {
+        "page_title": config.title,
+        "page_description": f"Gerencie os registros de {config.title.lower()}.",
+        "entity": entity,
+        "entity_config": config,
+        "records": records,
+        "column_labels": field_labels(config.list_fields, config),
+        "active_filters": active_filters,
+        "inline_form_record": form_record,
+        "inline_form_error_message": form_error_message,
+        "available_setores": available_setores,
+        "open_responsavel_modal": bool(form_error_message),
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
+    }
+
+
+@router.get("/configuracoes", name="configuracoes_home")
+def configuracoes_home(request: Request, _admin=Depends(require_admin)):
     context = {
-        "page_title": "Cadastros fixos",
-        "page_description": "Estruturas iniciais para apoiar o crescimento do painel operacional.",
-        "entities": ADMIN_ENTITIES.values(),
-        "featured_cards": featured_cards,
-        **layout_context(str(request.url.path)),
+        "page_title": "Configurações",
+        "page_description": "Central administrativa para ajustes estruturais do sistema.",
+        "settings_items": SETTINGS_HUB_ITEMS,
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/index.html", context=context)
 
 
-@router.get("/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas")
+@router.get("/cadastros", name="cadastros_home")
+def cadastros_home(_admin=Depends(require_admin)):
+    return RedirectResponse(url="/configuracoes", status_code=302)
+
+
+@router.get("/cadastros/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas")
 def admin_temperatura_faixas(
     request: Request,
     db: Session = Depends(get_db),
     status: str | None = None,
+    _admin=Depends(require_admin),
 ):
     items = list(
         db.scalars(
@@ -75,13 +105,17 @@ def admin_temperatura_faixas(
         "items": items,
         "error_message": None,
         "success_message": "Faixas atualizadas com sucesso." if status == "saved" else None,
-        **layout_context(str(request.url.path)),
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/temperature_ranges.html", context=context)
 
 
-@router.post("/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas_salvar")
-async def admin_temperatura_faixas_salvar(request: Request, db: Session = Depends(get_db)):
+@router.post("/cadastros/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas_salvar")
+async def admin_temperatura_faixas_salvar(
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
     form = await request.form()
     items = list(
         db.scalars(
@@ -113,7 +147,7 @@ async def admin_temperatura_faixas_salvar(request: Request, db: Session = Depend
             "items": items,
             "error_message": "Existem faixas invalidas. O valor minimo nao pode ser maior que o valor maximo.",
             "success_message": None,
-            **layout_context(str(request.url.path)),
+            **layout_context(str(request.url.path), active_path="/configuracoes"),
         }
         return templates.TemplateResponse(
             request=request,
@@ -126,37 +160,26 @@ async def admin_temperatura_faixas_salvar(request: Request, db: Session = Depend
     return RedirectResponse(url="/cadastros/modulos-itens/temperatura-forno-ed/faixas?status=saved", status_code=303)
 
 
-@router.get("/{entity}", name="admin_list")
-def admin_list(entity: str, request: Request, db: Session = Depends(get_db)):
+@router.get("/cadastros/{entity}", name="admin_list")
+def admin_list(entity: str, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     try:
-        config = get_entity_config(entity)
+        get_entity_config(entity)
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Cadastro nao encontrado") from error
 
-    active_filters = {}
-    if entity == "modulos-itens":
-        active_filters["module_code"] = request.query_params.get("module_code", "")
-
-    records = list_records(db, entity, active_filters)
-    context = {
-        "page_title": config.title,
-        "page_description": f"Gerencie os registros de {config.title.lower()}.",
-        "entity": entity,
-        "entity_config": config,
-        "records": records,
-        "column_labels": field_labels(config.list_fields, config),
-        "active_filters": active_filters,
-        **layout_context(str(request.url.path)),
-    }
+    context = _admin_list_context(request, entity, db)
     return templates.TemplateResponse(request=request, name="admin/list.html", context=context)
 
 
-@router.get("/{entity}/novo", name="admin_create_form")
-def admin_create_form(entity: str, request: Request):
+@router.get("/cadastros/{entity}/novo", name="admin_create_form")
+def admin_create_form(entity: str, request: Request, _admin=Depends(require_admin)):
     try:
         config = get_entity_config(entity)
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Cadastro nao encontrado") from error
+
+    if entity == "responsaveis":
+        return RedirectResponse(url=f"/cadastros/{entity}", status_code=303)
 
     context = {
         "page_title": f"Novo registro - {config.title}",
@@ -165,13 +188,19 @@ def admin_create_form(entity: str, request: Request):
         "entity_config": config,
         "record": None,
         "error_message": None,
-        **layout_context(str(request.url.path)),
+        "available_setores": [],
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/form.html", context=context)
 
 
-@router.post("/{entity}/novo", name="admin_create")
-async def admin_create(entity: str, request: Request, db: Session = Depends(get_db)):
+@router.post("/cadastros/{entity}/novo", name="admin_create")
+async def admin_create(
+    entity: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
     try:
         config = get_entity_config(entity)
     except KeyError as error:
@@ -183,6 +212,16 @@ async def admin_create(entity: str, request: Request, db: Session = Depends(get_
         create_record(db, entity, payload)
     except IntegrityError:
         db.rollback()
+        if entity == "responsaveis":
+            context = _admin_list_context(
+                request,
+                entity,
+                db,
+                form_record=payload,
+                form_error_message="Nao foi possivel salvar. Verifique duplicidade ou campos obrigatorios.",
+            )
+            return templates.TemplateResponse(request=request, name="admin/list.html", context=context, status_code=400)
+
         context = {
             "page_title": f"Novo registro - {config.title}",
             "page_description": f"Crie um novo registro para {config.title.lower()}.",
@@ -190,15 +229,22 @@ async def admin_create(entity: str, request: Request, db: Session = Depends(get_
             "entity_config": config,
             "record": payload,
             "error_message": "Nao foi possivel salvar. Verifique duplicidade ou campos obrigatorios.",
-            **layout_context(str(request.url.path)),
+            "available_setores": [],
+            **layout_context(str(request.url.path), active_path="/configuracoes"),
         }
         return templates.TemplateResponse(request=request, name="admin/form.html", context=context, status_code=400)
 
     return RedirectResponse(url=f"/cadastros/{entity}", status_code=303)
 
 
-@router.get("/{entity}/{record_id}/editar", name="admin_edit_form")
-def admin_edit_form(entity: str, record_id: int, request: Request, db: Session = Depends(get_db)):
+@router.get("/cadastros/{entity}/{record_id}/editar", name="admin_edit_form")
+def admin_edit_form(
+    entity: str,
+    record_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
     try:
         config = get_entity_config(entity)
     except KeyError as error:
@@ -215,13 +261,20 @@ def admin_edit_form(entity: str, record_id: int, request: Request, db: Session =
         "entity_config": config,
         "record": record,
         "error_message": None,
-        **layout_context(str(request.url.path)),
+        "available_setores": list_records(db, "setores") if entity == "responsaveis" else [],
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/form.html", context=context)
 
 
-@router.post("/{entity}/{record_id}/editar", name="admin_edit")
-async def admin_edit(entity: str, record_id: int, request: Request, db: Session = Depends(get_db)):
+@router.post("/cadastros/{entity}/{record_id}/editar", name="admin_edit")
+async def admin_edit(
+    entity: str,
+    record_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
     try:
         config = get_entity_config(entity)
     except KeyError as error:
@@ -245,15 +298,16 @@ async def admin_edit(entity: str, record_id: int, request: Request, db: Session 
             "entity_config": config,
             "record": merged_record,
             "error_message": "Nao foi possivel atualizar. Verifique duplicidade ou campos obrigatorios.",
-            **layout_context(str(request.url.path)),
+            "available_setores": list_records(db, "setores") if entity == "responsaveis" else [],
+            **layout_context(str(request.url.path), active_path="/configuracoes"),
         }
         return templates.TemplateResponse(request=request, name="admin/form.html", context=context, status_code=400)
 
     return RedirectResponse(url=f"/cadastros/{entity}", status_code=303)
 
 
-@router.post("/{entity}/{record_id}/excluir", name="admin_delete")
-def admin_delete(entity: str, record_id: int, db: Session = Depends(get_db)):
+@router.post("/cadastros/{entity}/{record_id}/excluir", name="admin_delete")
+def admin_delete(entity: str, record_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     try:
         get_entity_config(entity)
     except KeyError as error:
