@@ -10,26 +10,26 @@ PRIMARY_LINKS = [
 SECTIONS: list[dict] = []
 
 ADMIN_LINKS = [
-    {"slug": "configuracoes", "title": "Configurações", "url": "/configuracoes"},
+    {"slug": "configuracoes", "title": "Configuracoes", "url": "/configuracoes"},
 ]
 
 SETTINGS_HUB_ITEMS = [
     {
         "slug": "responsaveis",
-        "title": "Responsáveis",
+        "title": "Responsaveis",
         "description": "Cadastre e mantenha os colaboradores vinculados aos setores operacionais.",
         "url": "/cadastros/responsaveis",
     },
     {
         "slug": "modelos",
         "title": "Modelos",
-        "description": "Gerencie os modelos usados nos lançamentos e nas consultas operacionais.",
+        "description": "Gerencie os modelos usados nos lancamentos e nas consultas operacionais.",
         "url": "/cadastros/modelos",
     },
     {
         "slug": "setores",
         "title": "Setores",
-        "description": "Ajuste os setores disponíveis para cadastros, filtros e contexto operacional.",
+        "description": "Ajuste os setores disponiveis para cadastros, filtros e contexto operacional.",
         "url": "/cadastros/setores",
     },
     {
@@ -40,14 +40,14 @@ SETTINGS_HUB_ITEMS = [
     },
     {
         "slug": "modulos-itens",
-        "title": "Itens dos módulos",
-        "description": "Configure os itens base de cada modulo operacional em um único ponto central.",
-        "url": "/cadastros/modulos-itens",
+        "title": "Itens dos modulos",
+        "description": "Cadastre, edite e organize os itens e sua periodicidade operacional.",
+        "url": "/configuracoes/modulos-itens",
     },
     {
         "slug": "temperatura-faixas",
         "title": "Faixas de Temperatura Forno ED",
-        "description": "Edite rapidamente os limites mínimos e máximos das zonas térmicas do forno ED.",
+        "description": "Edite rapidamente os limites minimos e maximos das zonas termicas do forno ED.",
         "url": "/cadastros/modulos-itens/temperatura-forno-ed/faixas",
     },
 ]

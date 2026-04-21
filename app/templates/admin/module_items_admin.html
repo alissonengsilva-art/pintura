@@ -1,0 +1,396 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="section-header-inline">
+    <div>
+        <h1>Itens dos M&oacute;dulos</h1>
+        <p>Cadastre, edite e organize os itens e sua periodicidade operacional.</p>
+    </div>
+    <div class="hero-actions">
+        <button type="button" class="button-primary" data-add-item>Novo item</button>
+        <button type="button" class="button-primary" data-save-module>Salvar altera&ccedil;&otilde;es</button>
+        <a class="button-secondary" href="/configuracoes">Voltar</a>
+    </div>
+</section>
+
+<div class="panel-grid" data-module-admin-page data-selected-module="{{ selected_module }}">
+    <section class="panel-card table-panel">
+        <div class="section-header-inline compact">
+            <div>
+                <h3>M&oacute;dulos</h3>
+                <p>Selecione uma aba para ajustar os itens do m&oacute;dulo.</p>
+            </div>
+        </div>
+        <div>
+            {% for module in modules %}
+            <button
+                type="button"
+                class="{% if module.code == selected_module %}button-primary{% else %}button-secondary{% endif %} small"
+                data-module-tab
+                data-module-code="{{ module.code }}"
+            >
+                {{ module.title }}
+            </button>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div id="module-items-table-container">
+        {% include 'admin/_module_items_table.html' %}
+    </div>
+</div>
+
+<div data-admin-toast hidden style="position: fixed; right: 24px; bottom: 24px; z-index: 50; padding: 10px 14px; border-radius: 12px; background: #1f7a45; color: #fff; font-size: 14px; box-shadow: var(--shadow-card);">
+    Altera&ccedil;&otilde;es salvas com sucesso
+</div>
+
+<style>
+    [data-module-admin-page] .table-panel {
+        padding: 14px;
+    }
+
+    [data-module-admin-page] th,
+    [data-module-admin-page] td {
+        padding: 9px 12px;
+    }
+
+    [data-module-admin-page] [data-col-item] {
+        width: 34%;
+    }
+
+    [data-module-admin-page] [data-col-setor] {
+        width: 12%;
+    }
+
+    [data-module-admin-page] [data-col-parametro] {
+        width: 18%;
+    }
+
+    [data-module-admin-page] [data-col-frequencia] {
+        width: 12%;
+    }
+
+    [data-module-admin-page] [data-col-dia] {
+        width: 10%;
+    }
+
+    [data-module-admin-page] [data-col-ordem] {
+        width: 7%;
+    }
+
+    [data-module-admin-page] [data-col-ativo] {
+        width: 5%;
+        text-align: center;
+    }
+
+    [data-module-admin-page] [data-col-acoes] {
+        width: 12%;
+    }
+
+    [data-module-admin-page] [data-inline-input],
+    [data-module-admin-page] [data-inline-select] {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    [data-module-admin-page] [data-inline-select="frequencia"] {
+        max-width: 180px;
+    }
+
+    [data-module-admin-page] [data-day-weekly] select,
+    [data-module-admin-page] [data-day-monthly] input {
+        width: 100%;
+        max-width: 140px;
+    }
+
+    [data-module-admin-page] [data-day-static] {
+        color: var(--text-muted);
+    }
+
+    [data-module-admin-page] [data-day-static][hidden],
+    [data-module-admin-page] [data-day-weekly][hidden],
+    [data-module-admin-page] [data-day-monthly][hidden] {
+        display: none !important;
+    }
+
+    [data-module-admin-page] [data-operacao-label] {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    [data-module-admin-page] tr[data-editing="true"] {
+        background: rgba(25, 91, 166, 0.04);
+    }
+
+    [data-module-admin-page] .actions-cell {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    [data-module-admin-page] [data-checkbox-cell] {
+        text-align: center;
+    }
+</style>
+
+<script>
+(() => {
+    const page = document.querySelector('[data-module-admin-page]');
+    if (!page) return;
+
+    const container = document.querySelector('#module-items-table-container');
+    const saveButton = document.querySelector('[data-save-module]');
+    const addButton = document.querySelector('[data-add-item]');
+    const toast = document.querySelector('[data-admin-toast]');
+    const sectorOptions = {{ sector_options|tojson }};
+    const frequencyOptions = {{ frequency_options|tojson }};
+    const weekdayOptions = {{ weekday_options|tojson }};
+
+    let selectedModule = page.dataset.selectedModule;
+    let deletedIds = new Set();
+    let hasUnsavedChanges = false;
+    let newRowSequence = 0;
+    let toastTimer = null;
+
+    function showToast(message, tone = 'success') {
+        if (!toast) return;
+        if (toastTimer) window.clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.style.background = tone === 'error' ? '#b93838' : '#1f7a45';
+        toast.hidden = false;
+        toastTimer = window.setTimeout(() => {
+            toast.hidden = true;
+        }, 1800);
+    }
+
+    function setModuleButtons(activeCode) {
+        page.querySelectorAll('[data-module-tab]').forEach((button) => {
+            const isActive = button.getAttribute('data-module-code') === activeCode;
+            button.classList.toggle('button-primary', isActive);
+            button.classList.toggle('button-secondary', !isActive);
+        });
+        page.dataset.selectedModule = activeCode;
+        selectedModule = activeCode;
+    }
+
+    function confirmDiscardIfNeeded() {
+        if (!hasUnsavedChanges) return true;
+        return window.confirm('Existem alteracoes nao salvas nesta aba. Deseja descartar e continuar?');
+    }
+
+    function markUnsaved() {
+        hasUnsavedChanges = true;
+    }
+
+    function resetModuleDraftState() {
+        deletedIds = new Set();
+        hasUnsavedChanges = false;
+        newRowSequence = 0;
+    }
+
+    function renderOptions(options, selectedValue) {
+        return options.map((option) => {
+            const selected = String(option.value) === String(selectedValue ?? '') ? ' selected' : '';
+            return `<option value="${option.value}"${selected}>${option.label}</option>`;
+        }).join('');
+    }
+
+    function toggleDayInputs(row) {
+        const frequency = row.querySelector('[data-field="frequencia_tipo"]')?.value || 'diario';
+        const weekly = row.querySelector('[data-day-weekly]');
+        const monthly = row.querySelector('[data-day-monthly]');
+        const staticLabel = row.querySelector('[data-day-static]');
+        if (weekly) weekly.hidden = frequency !== 'semanal';
+        if (monthly) monthly.hidden = frequency !== 'mensal';
+        if (staticLabel) staticLabel.hidden = frequency === 'semanal' || frequency === 'mensal';
+    }
+
+    function setRowEditing(row, editing) {
+        row.dataset.editing = editing ? 'true' : 'false';
+        row.querySelectorAll('[data-editable]').forEach((field) => {
+            field.disabled = !editing;
+        });
+        const editButton = row.querySelector('[data-row-edit]');
+        if (editButton) {
+            editButton.textContent = editing ? 'Fechar' : 'Editar';
+        }
+        toggleDayInputs(row);
+    }
+
+    function buildNewRowMarkup() {
+        const rowKey = `new-${Date.now()}-${newRowSequence++}`;
+        return `
+            <tr data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true">
+                <td data-col-item>
+                    <input type="hidden" data-field="operacao" value="">
+                    <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do item">
+                </td>
+                <td data-col-setor>
+                    <select data-field="setor_tipo" data-editable data-inline-select>
+                        ${renderOptions(sectorOptions, 'PTED')}
+                    </select>
+                </td>
+                <td data-col-parametro>
+                    <input type="text" data-field="parametro" data-editable data-inline-input value="" placeholder="Parametro">
+                </td>
+                <td data-col-frequencia>
+                    <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia">
+                        ${renderOptions(frequencyOptions, 'diario')}
+                    </select>
+                </td>
+                <td data-col-dia>
+                    <span data-day-static>&mdash;</span>
+                    <div data-day-weekly hidden>
+                        <select data-field="dia_semana" data-editable>
+                            <option value="">Selecione</option>
+                            ${renderOptions(weekdayOptions, '')}
+                        </select>
+                    </div>
+                    <div data-day-monthly hidden>
+                        <input type="number" min="1" max="31" data-field="dia_mes" data-editable value="">
+                    </div>
+                </td>
+                <td data-col-ordem>
+                    <input type="number" data-field="ordem" data-editable data-inline-input value="0" min="0">
+                </td>
+                <td data-col-ativo data-checkbox-cell>
+                    <input type="checkbox" data-field="ativo" data-editable checked>
+                </td>
+                <td data-col-acoes class="actions-cell">
+                    <button type="button" class="button-secondary small" data-row-edit>Fechar</button>
+                    <button type="button" class="button-danger small" data-row-delete>Excluir</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    function serializeRow(row) {
+        const rowKey = row.dataset.rowKey || '';
+        const itemId = /^\d+$/.test(rowKey) ? Number(rowKey) : null;
+        const frequency = row.querySelector('[data-field="frequencia_tipo"]')?.value || 'diario';
+        const weekday = row.querySelector('[data-field="dia_semana"]')?.value || '';
+        const monthday = row.querySelector('[data-field="dia_mes"]')?.value || '';
+        return {
+            id: itemId,
+            operacao: row.querySelector('[data-field="operacao"]')?.value || '',
+            controle: row.querySelector('[data-field="controle"]')?.value || '',
+            setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
+            parametro: row.querySelector('[data-field="parametro"]')?.value || '',
+            frequencia_tipo: frequency,
+            dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
+            dia_mes: frequency === 'mensal' && monthday !== '' ? Number(monthday) : null,
+            ordem: Number(row.querySelector('[data-field="ordem"]')?.value || 0),
+            ativo: Boolean(row.querySelector('[data-field="ativo"]')?.checked),
+        };
+    }
+
+    async function loadModule(moduleCode) {
+        const response = await fetch(`/configuracoes/modulos-itens/${moduleCode}`, {
+            headers: { 'X-Requested-With': 'fetch' }
+        });
+        if (!response.ok) {
+            showToast('Erro ao carregar modulo', 'error');
+            return;
+        }
+        container.innerHTML = await response.text();
+        setModuleButtons(moduleCode);
+        resetModuleDraftState();
+        container.querySelectorAll('[data-admin-row]').forEach((row) => {
+            setRowEditing(row, false);
+        });
+    }
+
+    async function saveCurrentModule() {
+        const rows = Array.from(container.querySelectorAll('[data-admin-row]')).map(serializeRow);
+        if (!rows.length && !deletedIds.size) {
+            showToast('Nenhuma alteracao para salvar');
+            return;
+        }
+
+        if (saveButton) saveButton.disabled = true;
+        try {
+            const response = await fetch(`/configuracoes/modulos-itens/${selectedModule}/batch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rows,
+                    delete_ids: Array.from(deletedIds),
+                }),
+            });
+            const payload = await response.json().catch(() => ({ success: false, message: 'Erro ao salvar alteracoes.' }));
+            if (!response.ok || !payload.success) {
+                showToast(payload.message || 'Erro ao salvar alteracoes', 'error');
+                return;
+            }
+            showToast('Alteracoes salvas com sucesso');
+            await loadModule(selectedModule);
+        } finally {
+            if (saveButton) saveButton.disabled = false;
+        }
+    }
+
+    page.addEventListener('click', (event) => {
+        const moduleButton = event.target.closest('[data-module-tab]');
+        if (moduleButton) {
+            const moduleCode = moduleButton.getAttribute('data-module-code');
+            if (!confirmDiscardIfNeeded()) return;
+            loadModule(moduleCode);
+            return;
+        }
+
+        const editButton = event.target.closest('[data-row-edit]');
+        if (editButton) {
+            const row = editButton.closest('[data-admin-row]');
+            if (!row) return;
+            setRowEditing(row, row.dataset.editing !== 'true');
+            return;
+        }
+
+        const deleteButton = event.target.closest('[data-row-delete]');
+        if (deleteButton) {
+            const row = deleteButton.closest('[data-admin-row]');
+            if (!row) return;
+            if (!window.confirm('Excluir este item?')) return;
+            const rowKey = row.dataset.rowKey || '';
+            if (/^\d+$/.test(rowKey)) {
+                deletedIds.add(Number(rowKey));
+            }
+            row.remove();
+            markUnsaved();
+        }
+    });
+
+    container.addEventListener('change', (event) => {
+        const row = event.target.closest('[data-admin-row]');
+        if (!row) return;
+        if (event.target.matches('[data-field="frequencia_tipo"]')) {
+            toggleDayInputs(row);
+        }
+        if (event.target.matches('[data-editable], [data-field]')) {
+            markUnsaved();
+        }
+    });
+
+    addButton?.addEventListener('click', () => {
+        const tbody = container.querySelector('tbody');
+        if (!tbody) return;
+        tbody.insertAdjacentHTML('afterbegin', buildNewRowMarkup());
+        const row = tbody.querySelector('[data-new-row="true"]');
+        if (row) {
+            row.removeAttribute('data-new-row');
+            toggleDayInputs(row);
+        }
+        markUnsaved();
+    });
+
+    saveButton?.addEventListener('click', saveCurrentModule);
+    container.querySelectorAll('[data-admin-row]').forEach((row) => {
+        setRowEditing(row, false);
+    });
+})();
+</script>
+{% endblock %}

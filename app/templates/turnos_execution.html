@@ -93,7 +93,7 @@
 
     <nav class="turno-browser-tabs" aria-label="Modulos do turno">
         {% for module in shift.modules %}
-        <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}">
+        <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
             <span class="turno-browser-tab__icon" aria-hidden="true">
                 {% set module_code = module.code %}
                 {% include 'modules/_module_icon.html' %}
@@ -108,11 +108,16 @@
                     </span>
                 </span>
                 <span class="turno-browser-tab__status-band">
-                    <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ module.status_geral|lower|replace('_', '-') }}">{{ module.status_badge_label }}</span>
+                    <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ module.status_badge_tone|lower|replace('_', '-') }}" data-module-status>{{ module.status_badge_label }}</span>
                 </span>
-                <span class="turno-browser-tab__progress-band turno-browser-tab__meta">
-                    <span>P: {{ module.pted_progress.preenchidos }}/{{ module.pted_progress.total }}</span>
-                    <span>L: {{ module.lab_progress.preenchidos }}/{{ module.lab_progress.total }}</span>
+                <span class="turno-browser-tab__progress-band turno-browser-tab__meta" data-module-progress-band>
+                    <span data-module-progress-pted>P: {{ module.pted_progress.preenchidos }}/{{ module.pted_progress.total }}</span>
+                    {% if module.lab_enabled %}
+                    <span data-module-progress-lab>L: {{ module.lab_progress.preenchidos }}/{{ module.lab_progress.total }}</span>
+                    {% endif %}
+                    {% if module.non_applicable_count > 0 %}
+                    <span data-module-non-applicable>{{ module.non_applicable_count }} não aplicáveis</span>
+                    {% endif %}
                 </span>
             </span>
         </a>

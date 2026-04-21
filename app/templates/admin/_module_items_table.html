@@ -1,0 +1,83 @@
+<section class="panel-card table-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <h3>{{ module_title }}</h3>
+            <p>Edite os itens e a periodicidade deste m&oacute;dulo.</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th data-col-item>Item</th>
+                    <th data-col-setor>Setor</th>
+                    <th data-col-parametro>Par&acirc;metro</th>
+                    <th data-col-frequencia>Frequ&ecirc;ncia</th>
+                    <th data-col-dia>Dia</th>
+                    <th data-col-ordem>Ordem</th>
+                    <th data-col-ativo>Ativo</th>
+                    <th data-col-acoes>A&ccedil;&otilde;es</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr data-admin-row data-row-key="{{ row.id }}" data-editing="false">
+                    <td data-col-item>
+                        <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
+                        {% if row.operacao %}
+                        <span data-operacao-label>{{ row.operacao }}</span>
+                        {% endif %}
+                        <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled>
+                    </td>
+                    <td data-col-setor>
+                        <select data-field="setor_tipo" data-editable data-inline-select disabled>
+                            {% for option in sector_options %}
+                            <option value="{{ option.value }}" {% if row.setor_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-col-parametro>
+                        <input type="text" data-field="parametro" data-editable data-inline-input value="{{ row.parametro or '' }}" disabled>
+                    </td>
+                    <td data-col-frequencia>
+                        <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia" disabled>
+                            {% for option in frequency_options %}
+                            <option value="{{ option.value }}" {% if row.frequencia_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-col-dia>
+                        <span data-day-static {% if row.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>&mdash;</span>
+                        <div data-day-weekly {% if row.frequencia_tipo != 'semanal' %}hidden{% endif %}>
+                            <select data-field="dia_semana" data-editable disabled>
+                                <option value="">Selecione</option>
+                                {% for option in weekday_options %}
+                                <option value="{{ option.value }}" {% if row.dia_semana == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div data-day-monthly {% if row.frequencia_tipo != 'mensal' %}hidden{% endif %}>
+                            <input type="number" min="1" max="31" data-field="dia_mes" data-editable value="{{ row.dia_mes if row.dia_mes is not none else '' }}" disabled>
+                        </div>
+                    </td>
+                    <td data-col-ordem>
+                        <input type="number" data-field="ordem" data-editable data-inline-input value="{{ row.ordem }}" min="0" disabled>
+                    </td>
+                    <td data-col-ativo data-checkbox-cell>
+                        <input type="checkbox" data-field="ativo" data-editable {% if row.ativo %}checked{% endif %} disabled>
+                    </td>
+                    <td data-col-acoes class="actions-cell">
+                        <button type="button" class="button-secondary small" data-row-edit>Editar</button>
+                        <button type="button" class="button-danger small" data-row-delete>Excluir</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="empty-state">Nenhum item encontrado para este m&oacute;dulo.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -61,7 +61,7 @@ def build_module_router(module_key: str) -> APIRouter:
             "module_config": config,
             "page_title": config.title,
             "page_description": config.description,
-            "setor_sequence": SETOR_SEQUENCE,
+            "setor_sequence": config.sector_sequence,
             "setor_labels": SETOR_LABELS,
             **layout_context(str(request.url.path), active_path=f"/{config.slug}", scope_source=request.query_params),
             **extra,
@@ -129,7 +129,7 @@ def build_module_router(module_key: str) -> APIRouter:
 
     @router.post("/setores/{setor_tipo}/salvar")
     async def module_save_sector(setor_tipo: str, request: Request, db: Session = Depends(get_db)):
-        if setor_tipo not in SETOR_SEQUENCE:
+        if setor_tipo not in config.sector_sequence:
             raise HTTPException(status_code=404, detail="Setor inválido")
         form = await request.form()
         error_message = None
@@ -156,7 +156,7 @@ def build_module_router(module_key: str) -> APIRouter:
             master = get_master_by_context(db, config, parsed_context)
             error_message = str(error)
         options = resolve_context_defaults(config, db, form)[1]
-        setor_views = [build_sector_view(db, config, parsed_context, master, setor) for setor in SETOR_SEQUENCE]
+        setor_views = [build_sector_view(db, config, parsed_context, master, setor) for setor in config.sector_sequence]
         return templates.TemplateResponse(
             request=request,
             name="modules/index.html",

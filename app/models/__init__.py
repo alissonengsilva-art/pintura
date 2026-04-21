@@ -8,6 +8,13 @@ from app.models.operational_module import (
     OperationalModuleSectorEntry,
     OperationalModuleSectorRecord,
 )
+from app.models.operational_item_applicability_override import (
+    OperationalItemApplicabilityOverride,
+    OVERRIDE_STATUS_APPLICABLE,
+    OVERRIDE_STATUS_AUTOMATIC,
+    OVERRIDE_STATUS_DISPENSED,
+    OVERRIDE_STATUS_NOT_APPLICABLE,
+)
 from app.models.operational_module_item import OperationalModuleItem
 from app.models.operational_shift import (
     OperationalShift,
@@ -41,6 +48,11 @@ __all__ = [
     "OperationalModuleSectorRecord",
     "OperationalModuleSectorEntry",
     "OperationalModuleItem",
+    "OperationalItemApplicabilityOverride",
+    "OVERRIDE_STATUS_AUTOMATIC",
+    "OVERRIDE_STATUS_APPLICABLE",
+    "OVERRIDE_STATUS_NOT_APPLICABLE",
+    "OVERRIDE_STATUS_DISPENSED",
     "OperationalShift",
     "OperationalShiftModule",
     "SHIFT_STATUS_NAO_INICIADO",

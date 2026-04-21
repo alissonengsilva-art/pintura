@@ -40,6 +40,7 @@ from app.services.operational_module_service import (
     SETOR_LAB,
     SETOR_STATUS_NAO_INICIADO,
     FREQUENCY_LABELS,
+    build_sector_view,
     operational_schema_available,
 )
 
@@ -78,6 +79,12 @@ def _build_sector_progress(
     if total <= 0:
         total = len(config.default_rows_builder(session, context, setor_tipo))
     return {"preenchidos": preenchidos, "total": total}
+
+
+def _effective_module_status(status_geral: str, total_items: int) -> str:
+    if total_items == 0:
+        return MODULE_STATUS_CONCLUIDO
+    return status_geral
 
 
 def shift_schema_available(session: Session) -> bool:
@@ -360,6 +367,7 @@ def build_shift_detail(
     shift_context = {"data_referencia": shift.data_referencia}
     if shift.turno:
         shift_context["turno"] = shift.turno
+    shift_context["shift_id"] = shift.id
     
     # Monta lista de módulos
     modules_list = []
@@ -381,7 +389,7 @@ def build_shift_detail(
             lab = next((s for s in record.setores if s.setor_tipo == SETOR_LAB), None)
             
             status_pted = pted.status_setor if pted else SETOR_STATUS_NAO_INICIADO
-            status_lab = lab.status_setor if lab else SETOR_STATUS_NAO_INICIADO
+            status_lab = lab.status_setor if lab and SETOR_LAB in config.sector_sequence else SETOR_STATUS_NAO_INICIADO
             
             desvios = sum(
                 int((s.metricas or {}).get("flag_count", 0))
@@ -394,21 +402,41 @@ def build_shift_detail(
             status_lab = SETOR_STATUS_NAO_INICIADO
             desvios = 0
 
-        pted_progress = _build_sector_progress(session, config, shift_context, pted if record else None, SETOR_PTED)
-        lab_progress = _build_sector_progress(session, config, shift_context, lab if record else None, SETOR_LAB)
+        pted_view = build_sector_view(session, config, shift_context, record, SETOR_PTED)
+        pted_progress = {
+            "preenchidos": int(pted_view["summary"]["preenchidos"]),
+            "total": int(pted_view["summary"]["total"]),
+        }
+        lab_view = (
+            build_sector_view(session, config, shift_context, record, SETOR_LAB)
+            if SETOR_LAB in config.sector_sequence
+            else None
+        )
+        lab_progress = {
+            "preenchidos": int(lab_view["summary"]["preenchidos"]),
+            "total": int(lab_view["summary"]["total"]),
+        } if lab_view is not None else {"preenchidos": 0, "total": 0}
         total_items = pted_progress["total"] + lab_progress["total"]
         total_filled = pted_progress["preenchidos"] + lab_progress["preenchidos"]
-        progress_percent = round((total_filled / total_items) * 100) if total_items > 0 else 0
+        progress_percent = round((total_filled / total_items) * 100) if total_items > 0 else 100
+        has_applicable_items = total_items > 0
+        non_applicable_count = int(pted_view["summary"].get("not_applicable_count", 0)) + int(
+            lab_view["summary"].get("not_applicable_count", 0) if lab_view else 0
+        )
+        on_demand_count = int(pted_view["summary"].get("on_demand_count", 0)) + int(
+            lab_view["summary"].get("on_demand_count", 0) if lab_view else 0
+        )
+        effective_status_geral = _effective_module_status(status_geral, total_items)
         
         # Determina ação principal
         previsao = prev_info["previsao"]
         if previsao in (MODULE_PREVISAO_NAO_PREVISTO, MODULE_PREVISAO_SEM_EXECUCAO):
             action = "nao_previsto"
             action_label = "Não previsto"
-        elif record_id is None:
+        elif record_id is None and has_applicable_items:
             action = "iniciar"
             action_label = "Iniciar"
-        elif status_geral == MODULE_STATUS_CONCLUIDO:
+        elif effective_status_geral == MODULE_STATUS_CONCLUIDO:
             action = "visualizar"
             action_label = "Visualizar"
         else:
@@ -424,17 +452,22 @@ def build_shift_detail(
             "frequency_label": FREQUENCY_LABELS.get(config.frequency, config.frequency),
             "supports_turno": config.supports_turno,
             "record_id": record_id,
-            "status_geral": status_geral,
-            "status_badge_label": _status_badge_label(status_geral),
-            "status_geral_label": STATUS_LABELS.get(status_geral, "Não iniciado"),
+            "status_geral": effective_status_geral,
+            "status_badge_label": "Sem itens aplicáveis" if not has_applicable_items else _status_badge_label(effective_status_geral),
+            "status_geral_label": "Sem itens aplicáveis hoje" if not has_applicable_items else STATUS_LABELS.get(effective_status_geral, "Não iniciado"),
+            "status_badge_tone": MODULE_STATUS_CONCLUIDO if not has_applicable_items else effective_status_geral,
             "status_pted": status_pted,
             "status_pted_label": STATUS_LABELS.get(status_pted, "Não iniciado"),
             "status_lab": status_lab,
+            "lab_enabled": SETOR_LAB in config.sector_sequence,
             "pted_progress": pted_progress,
             "lab_progress": lab_progress,
             "progress_percent": progress_percent,
             "has_alert": desvios > 0,
-            "status_lab_label": STATUS_LABELS.get(status_lab, "Não iniciado"),
+            "has_applicable_items": has_applicable_items,
+            "non_applicable_count": non_applicable_count,
+            "on_demand_count": on_demand_count,
+            "status_lab_label": STATUS_LABELS.get(status_lab, "Não iniciado") if SETOR_LAB in config.sector_sequence else "-",
             "previsao": previsao,
             "previsao_label": prev_info["previsao_label"],
             "previsao_observacao": prev_info["observacao"],
@@ -461,6 +494,13 @@ def build_shift_detail(
         if m["status_geral"] != MODULE_STATUS_CONCLUIDO
     ]
 
+    display_shift_status = (
+        SHIFT_STATUS_CONCLUIDO
+        if total_previstos and concluidos == total_previstos
+        else SHIFT_STATUS_PARCIAL if concluidos > 0
+        else SHIFT_STATUS_EM_ANDAMENTO
+    )
+
     return {
         "id": shift.id,
         "data": shift.data_referencia,
@@ -468,8 +508,8 @@ def build_shift_detail(
         "turno": shift.turno,
         "responsavel_pted": shift.responsavel_pted,
         "responsavel_lab": shift.responsavel_lab,
-        "status_geral": shift.status_geral,
-        "status_geral_label": SHIFT_STATUS_LABELS.get(shift.status_geral, "Não iniciado"),
+        "status_geral": display_shift_status,
+        "status_geral_label": SHIFT_STATUS_LABELS.get(display_shift_status, "Não iniciado"),
         "observacoes": shift.observacoes,
         "modules": modules_list,
         "total_modules": len(modules_list),

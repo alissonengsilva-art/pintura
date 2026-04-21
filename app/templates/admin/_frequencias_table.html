@@ -1,0 +1,54 @@
+<section class="panel-card table-panel">
+    <div class="section-header-inline compact">
+        <div>
+            <h3>{{ module_title }}</h3>
+            <p>Ajuste a periodicidade dos itens deste m&oacute;dulo.</p>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Setor</th>
+                    <th>Frequ&ecirc;ncia</th>
+                    <th>Dia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr data-frequency-row data-item-id="{{ item.id }}">
+                    <td>{{ item.nome }}</td>
+                    <td>{{ item.responsavel }}</td>
+                    <td>
+                        <select data-frequency-select>
+                            {% for option in frequency_options %}
+                            <option value="{{ option.value }}" {% if item.frequencia_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <span data-day-static {% if item.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>&mdash;</span>
+                        <div data-day-weekly {% if item.frequencia_tipo != 'semanal' %}hidden{% endif %}>
+                            <select data-weekday-select>
+                                <option value="">Selecione</option>
+                                {% for option in weekday_options %}
+                                <option value="{{ option.value }}" {% if item.dia_semana == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div data-day-monthly {% if item.frequencia_tipo != 'mensal' %}hidden{% endif %}>
+                            <input type="number" min="1" max="31" value="{{ item.dia_mes if item.dia_mes is not none else '' }}" data-monthday-input>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4">Nenhum item encontrado para este m&oacute;dulo.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

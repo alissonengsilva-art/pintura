@@ -18,6 +18,7 @@ from app.models import (
 from app.services import aspecto_service
 from app.services import ed_service
 from app.services import espessura_ed_service
+from app.services import item_frequency_runtime_service
 from app.services import operational_module_item_service
 from app.services import poder_penetracao_service
 from app.services import pressao_filtros_service
@@ -92,6 +93,7 @@ class ModuleConfig:
     legacy_history_builder: Callable[[Session], list[dict[str, Any]]]
     legacy_detail_loader: Callable[[Session, int], Any | None]
     legacy_detail_template: str
+    sector_sequence: tuple[str, ...] = (SETOR_PTED, SETOR_LAB)
     supports_turno: bool = False
     frequency: str = "daily"  # "daily" | "weekly" | "conditional"
 
@@ -267,7 +269,7 @@ def get_or_create_master(
         )
         session.add(master)
         session.flush()
-        for setor_tipo in SETOR_SEQUENCE:
+        for setor_tipo in config.sector_sequence:
             session.add(
                 OperationalModuleSectorRecord(
                     registro_mestre_id=master.id,
@@ -364,6 +366,8 @@ def save_sector(
 ) -> OperationalModuleRecord:
     if not operational_schema_available(session):
         raise OperationalModuleValidationError(MISSING_SCHEMA_MESSAGE)
+    if setor_tipo not in config.sector_sequence:
+        raise OperationalModuleValidationError(f"Setor inválido para o módulo {config.title}.")
     if shift_id is not None:
         master = get_or_create_master(session, config, context, shift_id=shift_id)
     else:
@@ -406,7 +410,7 @@ def save_sector(
             )
         )
 
-    master.status_geral = _calculate_module_status(master.setores)
+    master.status_geral = _calculate_module_status(master.setores, config.sector_sequence)
     master.updated_at = now
     session.commit()
     refreshed = get_master(session, master.id)
@@ -432,6 +436,7 @@ def build_history_row(config: ModuleConfig, master: OperationalModuleRecord) -> 
     lab = _find_sector(master, SETOR_LAB)
     total_flags = sum(int((sector.metricas or {}).get("flag_count", 0)) for sector in master.setores)
     turno_url = f"/turnos/{master.shift_id}?modulo={config.code}" if master.shift_id else None
+    lab_enabled = SETOR_LAB in config.sector_sequence
     return {
         "id": master.id,
         "context_label": context_label(config, master.context_data),
@@ -440,10 +445,10 @@ def build_history_row(config: ModuleConfig, master: OperationalModuleRecord) -> 
         "status_geral_label": STATUS_LABELS[master.status_geral],
         "status_pted": pted.status_setor if pted else SETOR_STATUS_NAO_INICIADO,
         "status_pted_label": STATUS_LABELS[pted.status_setor] if pted else STATUS_LABELS[SETOR_STATUS_NAO_INICIADO],
-        "status_lab": lab.status_setor if lab else SETOR_STATUS_NAO_INICIADO,
-        "status_lab_label": STATUS_LABELS[lab.status_setor] if lab else STATUS_LABELS[SETOR_STATUS_NAO_INICIADO],
+        "status_lab": lab.status_setor if lab and lab_enabled else SETOR_STATUS_NAO_INICIADO,
+        "status_lab_label": STATUS_LABELS[lab.status_setor] if lab and lab_enabled else "-",
         "responsavel_pted": pted.responsavel_nome if pted and pted.responsavel_nome else "-",
-        "responsavel_lab": lab.responsavel_nome if lab and lab.responsavel_nome else "-",
+        "responsavel_lab": lab.responsavel_nome if lab and lab.responsavel_nome and lab_enabled else "-",
         "desvios": total_flags,
         "detail_url": f"/{config.slug}/registros/{master.id}",
         "report_url": f"/{config.slug}/registros/{master.id}/relatorio",
@@ -478,7 +483,7 @@ def build_detail_context(
     if not operational_schema_available(session):
         raise OperationalModuleValidationError(MISSING_SCHEMA_MESSAGE)
     context = _deserialize_context(config, master.context_data)
-    setor_views = [build_sector_view(session, config, context, master, setor) for setor in SETOR_SEQUENCE]
+    setor_views = [build_sector_view(session, config, context, master, setor) for setor in config.sector_sequence]
     if report_setor:
         setor_views = [view for view in setor_views if view["setor_tipo"] == report_setor]
     return {
@@ -583,25 +588,39 @@ def _entry_map(sector_record: OperationalModuleSectorRecord | None) -> dict[str,
     return {entry.referencia: dict(entry.dados or {}) for entry in sector_record.respostas}
 
 
+def _override_map_for_context(session: Session, context: dict[str, Any]) -> dict[int, Any]:
+    override_map = context.get("_override_map")
+    if isinstance(override_map, dict):
+        return override_map
+    override_map = item_frequency_runtime_service.get_override_map(session, int(context.get("shift_id") or 0) or None)
+    context["_override_map"] = override_map
+    return override_map
+
+
+def _runtime_item_state(session: Session, context: dict[str, Any], item: Any) -> dict[str, Any]:
+    override = _override_map_for_context(session, context).get(int(item.id))
+    return item_frequency_runtime_service.resolve_item_applicability(
+        item,
+        context["data_referencia"],
+        override.override_status if override else None,
+        override.reason if override else None,
+    )
+
+
 def _hydrate_rows(rows: list[dict[str, Any]], stored: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     hydrated: list[dict[str, Any]] = []
     for row in rows:
         current = dict(row)
         current.update(stored.get(str(row.get("reference")), {}))
+        if not current.get("is_applicable", True):
+            current["status_label"] = current.get("applicability_label", current.get("status_label"))
+            current["flag"] = False
         hydrated.append(current)
     return hydrated
 
 
 def _summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    total = len(rows)
-    preenchidos = sum(1 for row in rows if str(row.get("value") or "").strip())
-    flags = sum(1 for row in rows if row.get("flag"))
-    return {
-        "total": total,
-        "preenchidos": preenchidos,
-        "flag_count": flags,
-        "percentual": int(round((preenchidos / total) * 100)) if total else 0,
-    }
+    return item_frequency_runtime_service.calculate_row_progress(rows)
 
 
 def _find_sector(master: OperationalModuleRecord | None, setor_tipo: str) -> OperationalModuleSectorRecord | None:
@@ -613,13 +632,16 @@ def _find_sector(master: OperationalModuleRecord | None, setor_tipo: str) -> Ope
     return None
 
 
-def _calculate_module_status(setores: list[OperationalModuleSectorRecord]) -> str:
+def _calculate_module_status(
+    setores: list[OperationalModuleSectorRecord],
+    setor_sequence: tuple[str, ...] = tuple(SETOR_SEQUENCE),
+) -> str:
     statuses = {setor.setor_tipo: setor.status_setor for setor in setores}
-    if all(statuses.get(setor, SETOR_STATUS_NAO_INICIADO) == SETOR_STATUS_NAO_INICIADO for setor in SETOR_SEQUENCE):
+    if all(statuses.get(setor, SETOR_STATUS_NAO_INICIADO) == SETOR_STATUS_NAO_INICIADO for setor in setor_sequence):
         return MODULE_STATUS_NAO_INICIADO
-    if all(statuses.get(setor) == SETOR_STATUS_CONCLUIDO for setor in SETOR_SEQUENCE):
+    if all(statuses.get(setor) == SETOR_STATUS_CONCLUIDO for setor in setor_sequence):
         return MODULE_STATUS_CONCLUIDO
-    if any(statuses.get(setor) == SETOR_STATUS_CONCLUIDO for setor in SETOR_SEQUENCE):
+    if any(statuses.get(setor) == SETOR_STATUS_CONCLUIDO for setor in setor_sequence):
         return MODULE_STATUS_PARCIAL
     return MODULE_STATUS_EM_ANDAMENTO
 
@@ -877,11 +899,16 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
             "order": item.ordem or item.id,
             "operacao": item.operacao or "-",
             "descricao": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "parametro": item.parametro or "-",
             "value": "",
             "row_observation": "",
-            "status_label": ed_service.EVALUATION_LABELS["neutral"],
+            "status_label": _runtime_item_state(session, context, item)["applicability_label"]
+            if not _runtime_item_state(session, context, item)["is_applicable"]
+            else ed_service.EVALUATION_LABELS["neutral"],
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, context, item),
         }
         for item in items
     ]
@@ -891,6 +918,9 @@ def _ed_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_d
     rows = _ed_rows(session, context, setor_tipo)
     flagged = 0
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "row_observation": "", "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
@@ -929,10 +959,15 @@ def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_t
             "reference": _module_reference("pressao-filtros-ed", item),
             "order": item.ordem,
             "label": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": item.parametro or "-",
             "value": "",
-            "status_label": "Normal",
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else "Normal",
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "pressao-filtros-ed", setor_tipo)
     ]
@@ -941,6 +976,9 @@ def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_t
 def _pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_pressao_item_rows(session, context, setor_tipo)
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Valor de pressão inválido: '{value}'.")
@@ -954,17 +992,23 @@ def _pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
 def _build_temperatura_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     rows = []
     for item in _module_items(session, "temperatura-forno-ed", setor_tipo):
+        applicability = _runtime_item_state(session, _context, item)
         rows.append(
             {
                 "reference": _module_reference("temperatura-forno-ed", item),
                 "order": item.ordem,
+                "item_id": item.id,
                 "label": item.controle,
+                "item_observation": (item.observacao or "").strip() if item.observacao else "",
                 "expected": item.parametro or "-",
                 "faixa_min": item.valor_min,
                 "faixa_max": item.valor_max,
                 "value": "",
-                "status_label": temperatura_forno_service.STATUS_LABELS["neutral"],
+                "status_label": applicability["applicability_label"]
+                if not applicability["is_applicable"]
+                else temperatura_forno_service.STATUS_LABELS["neutral"],
                 "flag": False,
+                **applicability,
             }
         )
     return rows
@@ -973,6 +1017,9 @@ def _build_temperatura_item_rows(session: Session, _context: dict[str, Any], set
 def _temperatura_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_temperatura_item_rows(session, context, setor_tipo)
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Temperatura inválida: '{value}'.")
@@ -989,10 +1036,15 @@ def _build_tensao_item_rows(session: Session, _context: dict[str, Any], setor_ti
             "reference": _module_reference("tensao-retificadores-ed", item),
             "order": item.ordem,
             "label": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": item.parametro or "-",
             "value": "",
-            "status_label": tensao_retificadores_service.STATUS_LABELS["neutral"],
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else tensao_retificadores_service.STATUS_LABELS["neutral"],
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "tensao-retificadores-ed", setor_tipo)
     ]
@@ -1001,6 +1053,9 @@ def _build_tensao_item_rows(session: Session, _context: dict[str, Any], setor_ti
 def _tensao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_tensao_item_rows(session, context, setor_tipo)
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Valor de tensão inválido: '{value}'.")
@@ -1017,10 +1072,15 @@ def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tip
             "reference": _module_reference("poder-penetracao", item),
             "order": item.ordem,
             "label": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": item.parametro or "-",
             "value": "",
-            "status_label": poder_penetracao_service.STATUS_LABELS["empty"],
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else poder_penetracao_service.STATUS_LABELS["empty"],
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "poder-penetracao", setor_tipo)
     ]
@@ -1031,6 +1091,9 @@ def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, for
     approved = 0
     filled = 0
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Valor inválido no ensaio: '{value}'.")
@@ -1053,10 +1116,15 @@ def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor
             "reference": _module_reference("espessura-ed", item),
             "order": item.ordem,
             "label": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": item.parametro or "-",
             "value": "",
-            "status_label": espessura_ed_service.STATUS_LABELS["empty"],
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else espessura_ed_service.STATUS_LABELS["empty"],
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "espessura-ed", setor_tipo)
     ]
@@ -1065,6 +1133,9 @@ def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor
 def _espessura_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_espessura_item_rows(session, context, setor_tipo)
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Valor de espessura inválido: '{value}'.")
@@ -1081,10 +1152,15 @@ def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], seto
             "reference": _module_reference("rugosidade", item),
             "order": item.ordem,
             "label": item.controle,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": item.parametro or "-",
             "value": "",
-            "status_label": rugosidade_service.STATUS_LABELS["empty"],
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else rugosidade_service.STATUS_LABELS["empty"],
             "flag": False,
+            "item_id": item.id,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "rugosidade", setor_tipo)
     ]
@@ -1093,6 +1169,9 @@ def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], seto
 def _rugosidade_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_rugosidade_item_rows(session, context, setor_tipo)
     for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "value_number": None, "flag": False})
+            continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         parsed = _parse_decimal(value, "Valor inválido de rugosidade: '{value}'.")
@@ -1108,6 +1187,8 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
         {
             "reference": _module_reference("aspecto", item),
             "order": item.ordem,
+            "item_id": item.id,
+            "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "cis": "",
             "cod_posicao": "",
             "local": "",
@@ -1116,8 +1197,11 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
             "geracao": "",
             "quantidade": "1",
             "value": "",
-            "status_label": "Linha vazia",
+            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
+            if not _runtime_item_state(session, _context, item)["is_applicable"]
+            else "Linha vazia",
             "flag": False,
+            **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "aspecto", setor_tipo)
     ]
@@ -1129,6 +1213,9 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
     rows: list[dict[str, Any]] = []
     total_quantidade = 0
     for base_row in base_rows:
+        if not base_row.get("is_applicable"):
+            rows.append(dict(base_row))
+            continue
         reference = base_row["reference"]
         cis = (form_data.get(f"cis_{setor_tipo}_{reference}") or "").strip()
         cod_posicao = (form_data.get(f"cod_posicao_{setor_tipo}_{reference}") or "").strip()
@@ -1177,7 +1264,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "flag": True,
             }
         )
-    if not any(row.get("cis") for row in rows):
+    if not any(row.get("cis") for row in rows) and any(row.get("is_applicable") for row in rows):
         raise OperationalModuleValidationError("Adicione ao menos uma linha para o lote do setor.")
     summary = _summarize_rows(rows)
     summary["flag_count"] = len([row for row in rows if row.get("cis")])
@@ -1232,6 +1319,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_temp_history,
         legacy_detail_loader=temperatura_forno_service.get_lancamento,
         legacy_detail_template="temperatura_forno_ed/detail.html",
+        sector_sequence=(SETOR_PTED,),
     ),
     "pressao-filtros-ed": ModuleConfig(
         code="pressao-filtros-ed",
@@ -1255,6 +1343,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_pressao_history,
         legacy_detail_loader=pressao_filtros_service.get_lancamento,
         legacy_detail_template="pressao_filtros_ed/detail.html",
+        sector_sequence=(SETOR_PTED,),
         supports_turno=True,
     ),
     "tensao-retificadores-ed": ModuleConfig(
@@ -1280,6 +1369,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_tensao_history,
         legacy_detail_loader=tensao_retificadores_service.get_lancamento,
         legacy_detail_template="tensao_retificadores_ed/detail.html",
+        sector_sequence=(SETOR_PTED,),
         supports_turno=True,
     ),
     "poder-penetracao": ModuleConfig(
@@ -1308,6 +1398,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_poder_history,
         legacy_detail_loader=poder_penetracao_service.get_lancamento,
         legacy_detail_template="poder_penetracao/detail.html",
+        sector_sequence=(SETOR_PTED,),
         frequency="weekly",
     ),
     "espessura-ed": ModuleConfig(
@@ -1334,6 +1425,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_espessura_history,
         legacy_detail_loader=espessura_ed_service.get_lancamento,
         legacy_detail_template="espessura_ed/detail.html",
+        sector_sequence=(SETOR_PTED,),
         supports_turno=True,
     ),
     "aspecto": ModuleConfig(
@@ -1362,6 +1454,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_aspecto_history,
         legacy_detail_loader=aspecto_service.get_lancamento,
         legacy_detail_template="aspecto/detail.html",
+        sector_sequence=(SETOR_PTED,),
         supports_turno=True,
     ),
     "rugosidade": ModuleConfig(

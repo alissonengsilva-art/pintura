@@ -2,18 +2,20 @@ from datetime import date
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.models import (
+    OperationalModuleItem,
     SHIFT_STATUS_CONCLUIDO,
     SHIFT_STATUS_EM_ANDAMENTO,
     SHIFT_STATUS_NAO_INICIADO,
     SHIFT_STATUS_PARCIAL,
 )
+from app.services import item_frequency_runtime_service
 from app.services.dashboard_service import (
     DashboardValidationError,
     build_dashboard_snapshot,
@@ -160,7 +162,7 @@ def _build_module_execution_state(
         parsed_context = build_context_from_source(config, defaults)
         context_locked = False
 
-    setor_views = [build_sector_view(db, config, parsed_context, master, setor) for setor in SETOR_SEQUENCE]
+    setor_views = [build_sector_view(db, config, parsed_context, master, setor) for setor in config.sector_sequence]
     module_summary = next((module for module in shift_detail["modules"] if module["code"] == config.code), None)
 
     inherited_context = {
@@ -169,6 +171,7 @@ def _build_module_execution_state(
         "responsavel_pted": shift.responsavel_pted,
         "responsavel_lab": shift.responsavel_lab,
     }
+    parsed_context["shift_id"] = shift.id
 
     extra_context_fields = [
         field
@@ -177,6 +180,9 @@ def _build_module_execution_state(
     ]
     if config.code == "ed":
         extra_context_fields = [field for field in extra_context_fields if field.name != "tipo_dia"]
+
+    status_geral_label = module_summary["status_badge_tone"] if module_summary else (master.status_geral if master else MODULE_STATUS_NAO_INICIADO)
+    status_geral_texto = module_summary["status_geral_label"] if module_summary else (STATUS_LABELS[master.status_geral] if master else STATUS_LABELS[MODULE_STATUS_NAO_INICIADO])
 
     return {
         "module_config": config,
@@ -188,10 +194,10 @@ def _build_module_execution_state(
         "extra_context_fields": extra_context_fields,
         "context_locked": context_locked,
         "setor_views": setor_views,
-        "status_geral_label": master.status_geral if master else MODULE_STATUS_NAO_INICIADO,
-        "status_geral_texto": STATUS_LABELS[master.status_geral] if master else STATUS_LABELS[MODULE_STATUS_NAO_INICIADO],
+        "status_geral_label": status_geral_label,
+        "status_geral_texto": status_geral_texto,
         "error_message": error_message,
-        "active_sector": active_sector if active_sector in SETOR_SEQUENCE else SETOR_SEQUENCE[0],
+        "active_sector": active_sector if active_sector in config.sector_sequence else config.sector_sequence[0],
         "execution_url": _shift_execution_url(shift.id, config.code),
         "execution_save_base_url": f"/turnos/{shift.id}/modulos/{config.code}/setores",
         "turnos_url": "/turno-atual",
@@ -233,7 +239,7 @@ def _render_shift_execution(
         "shift": shift_detail,
         "active_module_code": active_module_code,
         "module_state": module_state,
-        "setor_sequence": SETOR_SEQUENCE,
+        "setor_sequence": module_state["module_config"].sector_sequence,
         "setor_labels": SETOR_LABELS,
         "schema_error_message": None if operational_schema_available(db) and shift_schema_available(db) else MISSING_SCHEMA_MESSAGE,
         **layout_context(str(request.url.path), active_path="/turno-atual", scope_source=request.query_params),
@@ -410,14 +416,14 @@ async def turno_modulo_salvar_setor(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    if setor_tipo not in SETOR_SEQUENCE:
+    config = get_module_config(module_code)
+    if setor_tipo not in config.sector_sequence:
         raise HTTPException(status_code=404, detail="Setor invalido")
 
     shift = get_shift_by_id(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
 
-    config = get_module_config(module_code)
     form = await request.form()
     form_data = dict(form)
     form_data["data_referencia"] = shift.data_referencia.isoformat()
@@ -442,6 +448,51 @@ async def turno_modulo_salvar_setor(
             active_sector=setor_tipo,
             status_code=400,
         )
+
+
+@router.post("/turnos/execution/{shift_id}/items/{item_id}/applicability", name="turno_item_applicability_override")
+async def turno_item_applicability_override(
+    shift_id: int,
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+
+    item = db.get(OperationalModuleItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+
+    payload = await request.json()
+    override_status = str(payload.get("override_status") or "").strip().lower() or item_frequency_runtime_service.OVERRIDE_STATUS_AUTOMATIC
+    reason = str(payload.get("reason") or "").strip() or None
+
+    try:
+        item_frequency_runtime_service.save_item_applicability_override(db, shift_id, item_id, override_status, reason)
+    except ValueError as error:
+        return JSONResponse({"success": False, "message": str(error)}, status_code=400)
+
+    resolved = item_frequency_runtime_service.resolve_item_applicability(
+        item,
+        shift.data_referencia,
+        override_status,
+        reason,
+    )
+    shift_detail = build_shift_detail(db, shift)
+    module_summary = next((module for module in shift_detail["modules"] if module["code"] == item.module_code), None)
+
+    return JSONResponse(
+        {
+            "success": True,
+            "resolved_label": resolved["applicability_label"],
+            "resolved_source": resolved["applicability_source"],
+            "resolved_status": resolved["resolved_status"],
+            "affects_progress": resolved["affects_progress"],
+            "module_progress": module_summary,
+        }
+    )
 
 
 @router.post("/turno-atual/{shift_id}/modulo/{module_code}/previsao", name="turno_modulo_previsao")

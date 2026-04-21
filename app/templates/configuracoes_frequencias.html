@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="section-header-inline">
+    <div>
+        <h1>Periodicidade dos Itens</h1>
+        <p>Configure a frequ&ecirc;ncia de execu&ccedil;&atilde;o dos itens dos m&oacute;dulos operacionais.</p>
+    </div>
+    <div class="hero-actions">
+        <button type="button" class="button-primary" data-save-all>Salvar altera&ccedil;&otilde;es</button>
+        <a class="button-secondary" href="/configuracoes">Voltar</a>
+    </div>
+</section>
+
+<div class="panel-grid" data-frequency-page data-selected-module="{{ selected_module }}">
+    <section class="panel-card table-panel">
+        <div class="section-header-inline compact">
+            <div>
+                <h3>M&oacute;dulos operacionais</h3>
+                <p>Selecione um m&oacute;dulo e ajuste os itens em lote.</p>
+            </div>
+        </div>
+        <div>
+            {% for module in modules %}
+            <button
+                type="button"
+                class="{% if module.code == selected_module %}button-primary{% else %}button-secondary{% endif %} small"
+                data-module-tab
+                data-module-code="{{ module.code }}"
+            >
+                {{ module.title }}
+            </button>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div id="frequencias-table-container">
+        {% include 'admin/_frequencias_table.html' %}
+    </div>
+</div>
+
+<div data-frequency-toast hidden style="position: fixed; right: 24px; bottom: 24px; z-index: 50; padding: 10px 14px; border-radius: 12px; background: #1f7a45; color: #fff; font-size: 14px; box-shadow: var(--shadow-card);">
+    Configura&ccedil;&otilde;es salvas
+</div>
+
+<style>
+    [data-frequency-page] .table-panel {
+        padding: 14px;
+    }
+
+    [data-frequency-page] th,
+    [data-frequency-page] td {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    [data-frequency-page] [data-frequency-select] {
+        width: 100%;
+        max-width: 180px;
+    }
+
+    [data-frequency-page] [data-day-weekly] select,
+    [data-frequency-page] [data-day-monthly] input {
+        width: 100%;
+        max-width: 140px;
+    }
+
+    [data-frequency-page] [data-day-static] {
+        display: inline-block;
+        min-width: 24px;
+        color: var(--text-muted);
+    }
+
+    [data-frequency-page] [data-day-static][hidden],
+    [data-frequency-page] [data-day-weekly][hidden],
+    [data-frequency-page] [data-day-monthly][hidden] {
+        display: none !important;
+    }
+</style>
+
+<script>
+(() => {
+    const page = document.querySelector('[data-frequency-page]');
+    if (!page) return;
+
+    const container = page.querySelector('#frequencias-table-container');
+    const toast = document.querySelector('[data-frequency-toast]');
+    const saveButton = document.querySelector('[data-save-all]');
+    const dirtyItems = new Map();
+    let toastTimer = null;
+
+    function showToast(message, tone = 'success') {
+        if (!toast) return;
+        if (toastTimer) {
+            window.clearTimeout(toastTimer);
+        }
+        toast.textContent = message;
+        toast.style.background = tone === 'error' ? '#b93838' : '#1f7a45';
+        toast.hidden = false;
+        toastTimer = window.setTimeout(() => {
+            toast.hidden = true;
+        }, 1800);
+    }
+
+    function setModuleButtons(activeCode) {
+        page.querySelectorAll('[data-module-tab]').forEach((button) => {
+            const isActive = button.getAttribute('data-module-code') === activeCode;
+            button.classList.toggle('button-primary', isActive);
+            button.classList.toggle('button-secondary', !isActive);
+        });
+        page.dataset.selectedModule = activeCode;
+    }
+
+    function toggleDayInputs(row) {
+        const frequency = row.querySelector('[data-frequency-select]')?.value || 'diario';
+        const weekly = row.querySelector('[data-day-weekly]');
+        const monthly = row.querySelector('[data-day-monthly]');
+        const staticLabel = row.querySelector('[data-day-static]');
+
+        if (weekly) weekly.hidden = frequency !== 'semanal';
+        if (monthly) monthly.hidden = frequency !== 'mensal';
+        if (staticLabel) staticLabel.hidden = frequency === 'semanal' || frequency === 'mensal';
+    }
+
+    function buildPayload(row) {
+        const frequency = row.querySelector('[data-frequency-select]')?.value || 'diario';
+        const weekday = row.querySelector('[data-weekday-select]')?.value || '';
+        const monthday = row.querySelector('[data-monthday-input]')?.value || '';
+        return {
+            frequencia_tipo: frequency,
+            dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
+            dia_mes: frequency === 'mensal' && monthday !== '' ? Number(monthday) : null
+        };
+    }
+
+    function markDirty(row) {
+        const itemId = row.getAttribute('data-item-id');
+        if (!itemId) return;
+        toggleDayInputs(row);
+        dirtyItems.set(itemId, buildPayload(row));
+        row.dataset.dirty = 'true';
+    }
+
+    function applyDrafts() {
+        container.querySelectorAll('[data-frequency-row]').forEach((row) => {
+            const itemId = row.getAttribute('data-item-id');
+            const draft = itemId ? dirtyItems.get(itemId) : null;
+            if (draft) {
+                const frequencySelect = row.querySelector('[data-frequency-select]');
+                const weekdaySelect = row.querySelector('[data-weekday-select]');
+                const monthdayInput = row.querySelector('[data-monthday-input]');
+                if (frequencySelect) frequencySelect.value = draft.frequencia_tipo;
+                if (weekdaySelect) weekdaySelect.value = draft.dia_semana ?? '';
+                if (monthdayInput) monthdayInput.value = draft.dia_mes ?? '';
+                row.dataset.dirty = 'true';
+            } else {
+                delete row.dataset.dirty;
+            }
+            toggleDayInputs(row);
+        });
+    }
+
+    async function loadModule(moduleCode) {
+        const response = await fetch(`/configuracoes/frequencias/${moduleCode}`, {
+            headers: { 'X-Requested-With': 'fetch' }
+        });
+        if (!response.ok) return;
+        container.innerHTML = await response.text();
+        setModuleButtons(moduleCode);
+        applyDrafts();
+    }
+
+    async function saveAllChanges() {
+        if (!dirtyItems.size) {
+            showToast('Nenhuma altera\u00e7\u00e3o para salvar');
+            return;
+        }
+
+        if (saveButton) saveButton.disabled = true;
+        try {
+            const entries = Array.from(dirtyItems.entries());
+            const results = await Promise.all(entries.map(async ([itemId, payload]) => {
+                const response = await fetch(`/configuracoes/frequencias/${itemId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json().catch(() => ({ success: false }));
+                return { itemId, ok: response.ok && data.success };
+            }));
+
+            const failed = results.filter((result) => !result.ok);
+            if (failed.length) {
+                showToast('Erro ao salvar configura\u00e7\u00f5es', 'error');
+                return;
+            }
+
+            dirtyItems.clear();
+            container.querySelectorAll('[data-frequency-row]').forEach((row) => {
+                delete row.dataset.dirty;
+            });
+            showToast('Configura\u00e7\u00f5es salvas');
+        } finally {
+            if (saveButton) saveButton.disabled = false;
+        }
+    }
+
+    page.addEventListener('click', (event) => {
+        const moduleButton = event.target.closest('[data-module-tab]');
+        if (moduleButton) {
+            loadModule(moduleButton.getAttribute('data-module-code'));
+        }
+    });
+
+    page.addEventListener('change', (event) => {
+        const row = event.target.closest('[data-frequency-row]');
+        if (!row) return;
+        if (
+            event.target.matches('[data-frequency-select]') ||
+            event.target.matches('[data-weekday-select]') ||
+            event.target.matches('[data-monthday-input]')
+        ) {
+            markDirty(row);
+        }
+    });
+
+    saveButton?.addEventListener('click', saveAllChanges);
+    applyDrafts();
+})();
+</script>
+{% endblock %}

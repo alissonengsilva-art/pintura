@@ -23,12 +23,9 @@
                     <p class="turno-module-editor__description">{{ module_state.module_config.description }}</p>
                 </div>
             </div>
-
         </section>
 
         <section class="turno-module-context">
-
-
             {% if module_state.extra_context_fields %}
             <form id="module-context-form" class="turno-module-context__form">
                 <div class="turno-module-context__grid">
@@ -67,6 +64,7 @@
         </div>
         {% endif %}
 
+        {% if setor_views|length > 1 %}
         <div class="op-tabs turno-sector-tabs">
             <div class="op-tabs__list" role="tablist">
                 {% for setor_view in setor_views %}
@@ -82,11 +80,12 @@
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
 
         {% for setor_view in setor_views %}
         {% set setor_concluido = setor_view.status_setor == 'CONCLUIDO' %}
         {% set responsavel_turno = module_state.inherited_context.responsavel_pted if setor_view.setor_tipo == 'PTED' else module_state.inherited_context.responsavel_lab %}
-        <div class="op-sector turno-sector-panel {% if setor_view.setor_tipo == active_sector %}op-sector--active{% endif %} {% if setor_concluido %}op-sector--done{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
+        <div class="op-sector turno-sector-panel {% if setor_views|length == 1 or setor_view.setor_tipo == active_sector %}op-sector--active{% endif %} {% if setor_concluido %}op-sector--done{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
             <form method="post" action="{{ module_state.execution_save_base_url }}/{{ setor_view.setor_tipo }}/salvar" class="op-sector__form turno-sector-form" data-sector-form>
                 {% for field in module_state.context_fields %}
                 <input type="hidden" name="{{ field.name }}" value="{{ module_state.context_values[field.name] }}">
@@ -104,6 +103,7 @@
                         </thead>
                         <tbody>
                             {% for row in setor_view.rows %}
+                            {% if row.is_applicable %}
                             <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
                                 {% for column in module_state.module_config.columns %}
                                 <td class="op-table__col--{{ column.key }}">
@@ -138,13 +138,21 @@
                                         >
                                         {% endif %}
                                     {% elif column.kind == 'status' %}
-                                    <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('_', '-') }}">{{ row[column.key] }}</span>
+                                    <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('_', '-') }} turno-item-status__badge">{{ row[column.key] }}</span>
+                                    {% else %}
+                                    {% if column.key in ["label", "descricao"] and row.item_observation %}
+                                    <div class="op-table__cell-stack">
+                                        <span class="op-table__text op-table__text--primary">{{ row[column.key] }}</span>
+                                        <span class="op-table__text op-table__text--muted turno-item-note" title="{{ row.item_observation }}">{{ row.item_observation }}</span>
+                                    </div>
                                     {% else %}
                                     <span class="op-table__text">{{ row[column.key] }}</span>
+                                    {% endif %}
                                     {% endif %}
                                 </td>
                                 {% endfor %}
                             </tr>
+                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -165,6 +173,9 @@
                 <div class="op-sector__actions turno-sector-actions">
                     <div class="op-sector__actions-info">
                         <span class="op-sector__progress">{{ setor_view.summary.preenchidos }} de {{ setor_view.summary.total }} preenchidos</span>
+                        {% if setor_view.summary.status_text %}
+                        <span class="op-sector__progress">{{ setor_view.summary.status_text }}</span>
+                        {% endif %}
                     </div>
                     {% if not setor_concluido %}
                     <div class="op-sector__actions-buttons">

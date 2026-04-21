@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -15,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import get_db
 from app.main import app
+from app.services.auth_service import require_admin
 from app.models import (
     Base,
     ItemED,
@@ -26,8 +28,12 @@ from app.models import (
     Setor,
     TemperaturaFornoLancamento,
     Turno,
+    User,
 )
+from app.services.auth_service import hash_password
 from app.services.ed_seed_data import DEFAULT_RESPONSAVEIS, DEFAULT_SETORES, DEFAULT_TURNOS, build_seed_items
+from app.services import item_frequency_runtime_service
+from app.services import operational_module_item_service
 from app.services.operational_module_seed import build_operational_module_seed_items_runtime
 from app.services.operational_module_service import (
     MODULE_STATUS_CONCLUIDO,
@@ -35,6 +41,7 @@ from app.services.operational_module_service import (
     get_module_config,
     get_or_create_master,
 )
+from app.services.shift_service import build_shift_detail
 
 
 @pytest.fixture()
@@ -52,6 +59,15 @@ def test_env() -> Generator[tuple[TestClient, sessionmaker], None, None]:
         session.add(Modelo(nome="HB20", codigo="HB20", ativo=True))
         session.add_all(Setor(**row) for row in DEFAULT_SETORES)
         session.add_all(Turno(**row) for row in DEFAULT_TURNOS)
+        session.add(
+            User(
+                username="admin",
+                full_name="Admin",
+                password_hash=hash_password("123456"),
+                is_admin=True,
+                is_active=True,
+            )
+        )
         session.add_all(ItemED(**row) for row in build_seed_items())
         session.add_all(OperationalModuleItem(**row) for row in build_operational_module_seed_items_runtime())
         session.commit()
@@ -103,6 +119,19 @@ def _get_shift_id(session_factory: sessionmaker, *, data_referencia: str, turno:
         return shift.id
 
 
+def _login_admin(client: TestClient) -> None:
+    response = client.post(
+        "/login",
+        data={"username": "admin", "password": "123456", "next_url": "/configuracoes"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+
+def _enable_admin_override() -> None:
+    app.dependency_overrides[require_admin] = lambda: object()
+
+
 def _temperatura_payload(setor: str, *, data_referencia: str = "2026-04-17", outlier: bool = False) -> dict[str, str]:
     payload = {
         "data_referencia": data_referencia,
@@ -152,6 +181,399 @@ def test_module_hubs_are_history_only(test_env: tuple[TestClient, sessionmaker],
     assert "Conclu" in response.text
     assert "Em andamento" in response.text
     assert "Iniciar ciclo" not in response.text
+
+
+def test_operational_module_item_frequency_update_service(test_env: tuple[TestClient, sessionmaker]) -> None:
+    _, session_factory = test_env
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+
+        updated = operational_module_item_service.atualizar_frequencia_item(
+            session,
+            item.id,
+            {"frequencia_tipo": "semanal", "dia_semana": 2, "dia_mes": 18},
+        )
+
+        assert updated.frequencia_tipo == "semanal"
+        assert updated.dia_semana == 2
+        assert updated.dia_mes is None
+
+
+@pytest.mark.parametrize(
+    ("item", "reference_date", "expected"),
+    [
+        (SimpleNamespace(frequencia_tipo="diario", dia_semana=None, dia_mes=None, frequencia=None), date(2026, 4, 21), True),
+        (SimpleNamespace(frequencia_tipo="semanal", dia_semana=1, dia_mes=None, frequencia=None), date(2026, 4, 21), True),
+        (SimpleNamespace(frequencia_tipo="semanal", dia_semana=2, dia_mes=None, frequencia=None), date(2026, 4, 21), False),
+        (SimpleNamespace(frequencia_tipo="mensal", dia_semana=None, dia_mes=21, frequencia=None), date(2026, 4, 21), True),
+        (SimpleNamespace(frequencia_tipo="mensal", dia_semana=None, dia_mes=20, frequencia=None), date(2026, 4, 21), False),
+        (SimpleNamespace(frequencia_tipo="sob_demanda", dia_semana=None, dia_mes=None, frequencia=None), date(2026, 4, 21), False),
+        (SimpleNamespace(frequencia_tipo=None, dia_semana=None, dia_mes=None, frequencia=None), date(2026, 4, 21), True),
+    ],
+)
+def test_is_item_applicable_on_date(item: SimpleNamespace, reference_date: date, expected: bool) -> None:
+    assert item_frequency_runtime_service.is_item_applicable_on_date(item, reference_date) is expected
+
+
+def test_calculate_row_progress_uses_only_applicable_rows() -> None:
+    rows = [
+        {"is_applicable": True, "applicability_state": "applicable", "value": "1", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "2", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "3", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "4", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "", "flag": False},
+        {"is_applicable": True, "applicability_state": "applicable", "value": "", "flag": False},
+        {"is_applicable": False, "applicability_state": "not_applicable", "value": "", "flag": False},
+        {"is_applicable": False, "applicability_state": "not_applicable", "value": "", "flag": False},
+        {"is_applicable": False, "applicability_state": "on_demand", "value": "", "flag": False},
+    ]
+
+    summary = item_frequency_runtime_service.calculate_row_progress(rows)
+
+    assert summary["total"] == 7
+    assert summary["preenchidos"] == 4
+    assert summary["percentual"] == 57
+    assert summary["not_applicable_count"] == 2
+    assert summary["on_demand_count"] == 1
+
+
+def test_calculate_row_progress_handles_no_applicable_rows() -> None:
+    summary = item_frequency_runtime_service.calculate_row_progress(
+        [
+            {"is_applicable": False, "applicability_state": "not_applicable", "value": "", "flag": False},
+            {"is_applicable": False, "applicability_state": "on_demand", "value": "", "flag": False},
+        ]
+    )
+
+    assert summary["total"] == 0
+    assert summary["preenchidos"] == 0
+    assert summary["percentual"] == 100
+    assert summary["status_text"] == "Sem itens aplicáveis hoje"
+
+
+def test_resolve_item_applicability_honors_override_statuses() -> None:
+    reference_date = date(2026, 4, 21)
+
+    diario = SimpleNamespace(frequencia_tipo="diario", dia_semana=None, dia_mes=None, frequencia=None)
+    sob_demanda = SimpleNamespace(frequencia_tipo="sob_demanda", dia_semana=None, dia_mes=None, frequencia=None)
+    semanal_fora = SimpleNamespace(frequencia_tipo="semanal", dia_semana=4, dia_mes=None, frequencia=None)
+
+    resolved_not_applicable = item_frequency_runtime_service.resolve_item_applicability(
+        diario, reference_date, "not_applicable"
+    )
+    resolved_applicable_on_demand = item_frequency_runtime_service.resolve_item_applicability(
+        sob_demanda, reference_date, "applicable"
+    )
+    resolved_applicable_weekly = item_frequency_runtime_service.resolve_item_applicability(
+        semanal_fora, reference_date, "applicable"
+    )
+    resolved_dispensed = item_frequency_runtime_service.resolve_item_applicability(
+        diario, reference_date, "dispensed"
+    )
+
+    assert resolved_not_applicable["is_applicable"] is False
+    assert resolved_not_applicable["affects_progress"] is False
+    assert resolved_not_applicable["applicability_label"] == "Não aplicável neste turno"
+
+    assert resolved_applicable_on_demand["is_applicable"] is True
+    assert resolved_applicable_on_demand["affects_progress"] is True
+    assert resolved_applicable_on_demand["applicability_label"] == "Aplicável neste turno"
+
+    assert resolved_applicable_weekly["is_applicable"] is True
+    assert resolved_dispensed["is_applicable"] is False
+    assert resolved_dispensed["applicability_label"] == "Dispensado no turno"
+
+
+def test_configuracoes_frequencias_page_loads_for_admin(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/frequencias", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/configuracoes/modulos-itens"
+    return
+    assert "Selecione um módulo" in response.text
+    assert response.headers["location"] == "/configuracoes/modulos-itens"
+
+
+def test_unified_module_items_admin_page_loads_for_admin(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens")
+
+    assert response.status_code == 200
+    assert "data-module-admin-page" in response.text
+    assert "Temperatura Forno" in response.text
+    assert "data-save-module" in response.text
+
+
+def test_unified_module_items_partial_changes_module_tab(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens/temperatura-forno-ed")
+
+    assert response.status_code == 200
+    assert "Zona 1" in response.text
+    assert "data-col-frequencia" in response.text
+
+
+def test_configuracoes_frequencias_update_endpoint_saves_item(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item_id = item.id
+
+    response = client.post(
+        f"/configuracoes/frequencias/{item_id}",
+        json={"frequencia_tipo": "mensal", "dia_semana": None, "dia_mes": 12},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.frequencia_tipo == "mensal"
+        assert saved.dia_semana is None
+        assert saved.dia_mes == 12
+
+
+def test_module_items_batch_updates_existing_item_fields(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item_id = item.id
+
+    response = client.post(
+        "/configuracoes/modulos-itens/temperatura-forno-ed/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "controle": "Zona Principal",
+                    "operacao": "",
+                    "setor_tipo": "PTED",
+                    "parametro": "100 a 140 C",
+                    "frequencia_tipo": "mensal",
+                    "dia_semana": None,
+                    "dia_mes": 7,
+                    "ordem": 44,
+                    "ativo": False,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.controle == "Zona Principal"
+        assert saved.parametro == "100 a 140 C"
+        assert saved.frequencia_tipo == "mensal"
+        assert saved.dia_mes == 7
+        assert saved.ordem == 44
+        assert saved.ativo is False
+
+
+def test_module_items_batch_creates_new_item(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    response = client.post(
+        "/configuracoes/modulos-itens/poder-penetracao/batch",
+        json={
+            "rows": [
+                {
+                    "id": None,
+                    "controle": "Novo ponto",
+                    "operacao": "",
+                    "setor_tipo": "PTED",
+                    "parametro": ">= 8,1",
+                    "frequencia_tipo": "semanal",
+                    "dia_semana": 2,
+                    "dia_mes": None,
+                    "ordem": 99,
+                    "ativo": True,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["created_count"] == 1
+
+    with session_factory() as session:
+        created = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "poder-penetracao")
+            .where(OperationalModuleItem.controle == "Novo ponto")
+        ).first()
+        assert created is not None
+        assert created.frequencia_tipo == "semanal"
+        assert created.dia_semana == 2
+
+
+def test_module_items_batch_deletes_item_group(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item_id = item.id
+
+    response = client.post(
+        "/configuracoes/modulos-itens/temperatura-forno-ed/batch",
+        json={"rows": [], "delete_ids": [item_id]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        deleted = session.get(OperationalModuleItem, item_id)
+        assert deleted is None
+
+
+def test_old_modulos_itens_list_redirects_to_unified_page(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/cadastros/modulos-itens?module_code=rugosidade", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/configuracoes/modulos-itens?modulo=rugosidade"
+
+
+def test_shift_detail_excludes_non_applicable_items_from_pending_progress(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-22", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-22", turno="1")
+
+    with session_factory() as session:
+        session.query(OperationalModuleItem).filter(
+            OperationalModuleItem.module_code == "temperatura-forno-ed"
+        ).update(
+            {
+                OperationalModuleItem.frequencia_tipo: "mensal",
+                OperationalModuleItem.dia_mes: 1,
+                OperationalModuleItem.dia_semana: None,
+            },
+            synchronize_session=False,
+        )
+        session.commit()
+
+        shift = session.get(OperationalShift, shift_id)
+        assert shift is not None
+        detail = build_shift_detail(session, shift)
+
+    temperatura = next(module for module in detail["modules"] if module["code"] == "temperatura-forno-ed")
+    assert temperatura["pted_progress"]["total"] == 0
+    assert temperatura["progress_percent"] == 100
+    assert temperatura["status_geral_label"] == "Sem itens aplicáveis hoje"
+    assert all(module["code"] != "temperatura-forno-ed" for module in detail["pending_modules"])
+
+
+def test_shift_detail_uses_override_to_force_applicable_item(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-22", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-22", turno="1")
+
+    with session_factory() as session:
+        session.query(OperationalModuleItem).filter(
+            OperationalModuleItem.module_code == "temperatura-forno-ed"
+        ).update(
+            {
+                OperationalModuleItem.frequencia_tipo: "mensal",
+                OperationalModuleItem.dia_mes: 1,
+                OperationalModuleItem.dia_semana: None,
+            },
+            synchronize_session=False,
+        )
+        session.commit()
+
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+
+        item_frequency_runtime_service.save_item_applicability_override(session, shift_id, item.id, "applicable")
+        shift = session.get(OperationalShift, shift_id)
+        assert shift is not None
+        detail = build_shift_detail(session, shift)
+
+    temperatura = next(module for module in detail["modules"] if module["code"] == "temperatura-forno-ed")
+    assert temperatura["pted_progress"]["total"] == 1
+    assert temperatura["progress_percent"] == 0
+    assert any(module["code"] == "temperatura-forno-ed" for module in detail["pending_modules"])
+
+
+def test_turno_item_applicability_override_route_updates_progress(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-22", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-22", turno="1")
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "poder-penetracao")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item_id = item.id
+        item.frequencia_tipo = "sob_demanda"
+        session.commit()
+
+    response = client.post(
+        f"/turnos/execution/{shift_id}/items/{item_id}/applicability",
+        json={"override_status": "applicable", "reason": "Exigido no turno"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["resolved_label"] == "Aplicável neste turno"
+    assert payload["affects_progress"] is True
+    assert payload["module_progress"]["code"] == "poder-penetracao"
+    assert payload["module_progress"]["pted_progress"]["total"] >= 1
 
 
 def test_module_start_route_redirects_to_turnos_without_creating_record(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -243,6 +665,31 @@ def test_turno_execution_embeds_extra_context_fields_inside_module(test_env: tup
     assert "Iniciar pelo Turno Atual" not in response.text
 
 
+def test_turno_execution_hides_laboratorio_tab_for_pted_only_modules(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-20", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-20", turno="2")
+
+    response = client.get(f"/turnos/{shift_id}?modulo=temperatura-forno-ed")
+
+    assert response.status_code == 200
+    assert 'data-tab-target="LABORATORIO"' not in response.text
+    assert f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/LABORATORIO/salvar" not in response.text
+    assert f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/PTED/salvar" in response.text
+
+
+def test_turno_execution_keeps_dual_tabs_for_rugosidade(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-20", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-20", turno="2")
+
+    response = client.get(f"/turnos/{shift_id}?modulo=rugosidade")
+
+    assert response.status_code == 200
+    assert 'data-tab-target="PTED"' in response.text
+    assert 'data-tab-target="LABORATORIO"' in response.text
+
+
 def test_legacy_shift_module_route_redirects_to_new_execution_workspace(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
     _create_shift(client, data_referencia="2026-04-21", turno="3")
@@ -277,6 +724,28 @@ def test_turno_sector_save_creates_record_with_shift_id(test_env: tuple[TestClie
         assert record.shift_id == shift_id
         assert record.data_referencia == date.fromisoformat("2026-04-22")
         assert record.status_geral == MODULE_STATUS_EM_ANDAMENTO
+
+
+def test_turno_sector_save_concludes_pted_only_module_without_lab(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-22", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-22", turno="1")
+
+    response = client.post(
+        f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/PTED/salvar",
+        data={**_temperatura_payload("PTED", data_referencia="2026-04-22"), "submit_action": "concluir"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    with session_factory() as session:
+        record = session.scalars(
+            select(OperationalModuleRecord)
+            .where(OperationalModuleRecord.module_code == "temperatura-forno-ed")
+            .where(OperationalModuleRecord.shift_id == shift_id)
+        ).first()
+        assert record is not None
+        assert record.status_geral == MODULE_STATUS_CONCLUIDO
 
 
 def test_module_hub_shows_link_back_to_shift_execution(test_env: tuple[TestClient, sessionmaker]) -> None:

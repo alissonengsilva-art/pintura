@@ -1,5 +1,7 @@
+from urllib.parse import quote_plus
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -8,8 +10,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.models import OperationalModuleItem
+from app.services import operational_module_item_admin_service, operational_module_item_service
 from app.services.auth_service import require_admin
 from app.services.navigation import SETTINGS_HUB_ITEMS, layout_context
+from app.services.operational_module_service import MODULE_CONFIGS
 from app.services.reference_service import (
     create_record,
     delete_record,
@@ -69,6 +73,34 @@ def _admin_list_context(
     }
 
 
+def _build_frequency_table_context(db: Session, module_code: str) -> dict:
+    if module_code not in MODULE_CONFIGS:
+        raise HTTPException(status_code=404, detail="Modulo invalido")
+    return {
+        "module_code": module_code,
+        "module_title": MODULE_CONFIGS[module_code].title,
+        "items": operational_module_item_service.get_itens_por_modulo(db, module_code),
+        "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
+        "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
+    }
+
+
+def _build_module_admin_context(db: Session, module_code: str) -> dict:
+    try:
+        module_context = operational_module_item_admin_service.build_module_context(db, module_code)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return {
+        "module_code": module_context.module_code,
+        "module_title": module_context.module_title,
+        "rows": module_context.rows,
+        "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
+        "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
+        "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
+    }
+
+
 @router.get("/configuracoes", name="configuracoes_home")
 def configuracoes_home(request: Request, _admin=Depends(require_admin)):
     context = {
@@ -78,6 +110,96 @@ def configuracoes_home(request: Request, _admin=Depends(require_admin)):
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/index.html", context=context)
+
+
+@router.get("/configuracoes/frequencias", name="configuracoes_frequencias")
+def configuracoes_frequencias(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    selected_module = request.query_params.get("modulo", "")
+    query = f"?modulo={quote_plus(selected_module)}" if selected_module else ""
+    return RedirectResponse(url=f"/configuracoes/modulos-itens{query}", status_code=302)
+
+
+@router.get("/configuracoes/frequencias/{modulo_id}", name="configuracoes_frequencias_modulo", response_class=HTMLResponse)
+def configuracoes_frequencias_modulo(
+    modulo_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    return RedirectResponse(url=f"/configuracoes/modulos-itens/{quote_plus(modulo_id)}", status_code=302)
+
+
+@router.post("/configuracoes/frequencias/{item_id}", name="configuracoes_frequencias_salvar")
+async def configuracoes_frequencias_salvar(
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    payload = await request.json()
+    try:
+        operational_module_item_service.atualizar_frequencia_item(db, item_id, payload)
+    except ValueError as error:
+        return JSONResponse({"success": False, "message": str(error)}, status_code=400)
+    return JSONResponse({"success": True})
+
+
+@router.get("/configuracoes/modulos-itens", name="configuracoes_modulos_itens")
+def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    modules = operational_module_item_admin_service.list_modules()
+    selected_module = request.query_params.get("modulo", "").strip()
+    if not selected_module:
+        selected_module = modules[0]["code"] if modules else next(iter(MODULE_CONFIGS.keys()))
+
+    context = {
+        "page_title": "Itens dos Modulos",
+        "page_description": "Cadastre, edite e organize os itens e sua periodicidade operacional.",
+        "modules": modules,
+        "selected_module": selected_module,
+        **_build_module_admin_context(db, selected_module),
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
+    }
+    return templates.TemplateResponse(request=request, name="admin/module_items_admin.html", context=context)
+
+
+@router.get("/configuracoes/modulos-itens/{modulo_id}", name="configuracoes_modulos_itens_modulo", response_class=HTMLResponse)
+def configuracoes_modulos_itens_modulo(
+    modulo_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    context = {
+        "request": request,
+        **_build_module_admin_context(db, modulo_id),
+    }
+    return templates.TemplateResponse(request=request, name="admin/_module_items_table.html", context=context)
+
+
+@router.post("/configuracoes/modulos-itens/{modulo_id}/batch", name="configuracoes_modulos_itens_batch")
+async def configuracoes_modulos_itens_batch(
+    modulo_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+):
+    try:
+        result = operational_module_item_admin_service.save_module_batch(module_code=modulo_id, session=db, payload=await request.json())
+    except ValueError as error:
+        return JSONResponse({"success": False, "message": str(error)}, status_code=400)
+    return JSONResponse({"success": True, **result})
+
+
+@router.get("/cadastros/modulos-itens", name="admin_modulos_itens_redirect")
+def admin_modulos_itens_redirect(request: Request, _admin=Depends(require_admin)):
+    selected_module = request.query_params.get("module_code", "").strip()
+    query = f"?modulo={quote_plus(selected_module)}" if selected_module else ""
+    return RedirectResponse(url=f"/configuracoes/modulos-itens{query}", status_code=302)
+
+
+@router.get("/cadastros/modulos-itens/novo", name="admin_modulos_itens_new_redirect")
+def admin_modulos_itens_new_redirect(_admin=Depends(require_admin)):
+    return RedirectResponse(url="/configuracoes/modulos-itens", status_code=302)
 
 
 @router.get("/cadastros", name="cadastros_home")
@@ -178,6 +300,9 @@ def admin_create_form(entity: str, request: Request, _admin=Depends(require_admi
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Cadastro nao encontrado") from error
 
+    if entity == "modulos-itens":
+        return RedirectResponse(url="/configuracoes/modulos-itens", status_code=302)
+
     if entity == "responsaveis":
         return RedirectResponse(url=f"/cadastros/{entity}", status_code=303)
 
@@ -249,6 +374,9 @@ def admin_edit_form(
         config = get_entity_config(entity)
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Cadastro nao encontrado") from error
+
+    if entity == "modulos-itens":
+        return RedirectResponse(url="/configuracoes/modulos-itens", status_code=302)
 
     record = get_record(db, entity, record_id)
     if record is None:
