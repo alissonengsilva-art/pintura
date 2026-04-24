@@ -47,7 +47,10 @@ def is_item_applicable_on_date(item: Any, reference_date: date) -> bool:
     if frequency_type == FREQUENCY_DIARIO:
         return True
     if frequency_type == FREQUENCY_SEMANAL:
-        return getattr(item, "dia_semana", None) == reference_date.weekday()
+        stored_day = getattr(item, "dia_semana", None)
+        if stored_day == 7:
+            stored_day = 6
+        return stored_day == reference_date.weekday()
     if frequency_type == FREQUENCY_MENSAL:
         return getattr(item, "dia_mes", None) == reference_date.day
     if frequency_type == FREQUENCY_SOB_DEMANDA:

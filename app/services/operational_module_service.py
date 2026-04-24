@@ -57,6 +57,16 @@ STATUS_LABELS = {
     MODULE_STATUS_CONCLUIDO: "Concluído",
 }
 
+WEEKDAY_LABELS_SHORT = {
+    0: "segunda",
+    1: "terca",
+    2: "quarta",
+    3: "quinta",
+    4: "sexta",
+    5: "sabado",
+    6: "domingo",
+}
+
 
 @dataclass(frozen=True)
 class ContextField:
@@ -451,9 +461,9 @@ def build_history_row(config: ModuleConfig, master: OperationalModuleRecord) -> 
         "responsavel_lab": lab.responsavel_nome if lab and lab.responsavel_nome and lab_enabled else "-",
         "desvios": total_flags,
         "detail_url": f"/{config.slug}/registros/{master.id}",
-        "report_url": f"/{config.slug}/registros/{master.id}/relatorio",
-        "report_pted_url": f"/{config.slug}/registros/{master.id}/relatorio?setor=PTED",
-        "report_lab_url": f"/{config.slug}/registros/{master.id}/relatorio?setor=LABORATORIO",
+        "report_url": f"/relatorios/visualizar/modulos/{config.code}/{master.id}",
+        "report_pted_url": f"/relatorios/visualizar/modulos/{config.code}/{master.id}?setor=PTED",
+        "report_lab_url": f"/relatorios/visualizar/modulos/{config.code}/{master.id}?setor=LABORATORIO",
         "shift_id": master.shift_id,
         "turno_url": turno_url,
         "sort_key": master.data_referencia.isoformat() + f"-{master.id:08d}",
@@ -599,12 +609,35 @@ def _override_map_for_context(session: Session, context: dict[str, Any]) -> dict
 
 def _runtime_item_state(session: Session, context: dict[str, Any], item: Any) -> dict[str, Any]:
     override = _override_map_for_context(session, context).get(int(item.id))
-    return item_frequency_runtime_service.resolve_item_applicability(
+    state = item_frequency_runtime_service.resolve_item_applicability(
         item,
         context["data_referencia"],
         override.override_status if override else None,
         override.reason if override else None,
     )
+    weekday = getattr(item, "dia_semana", None)
+    if weekday == 7:
+        weekday = 6
+    weekday_label = WEEKDAY_LABELS_SHORT.get(int(weekday)) if isinstance(weekday, int) else None
+    day_of_month = getattr(item, "dia_mes", None)
+    scheduled_short = state.get("applicability_label", "")
+    scheduled_tooltip = None
+    if not state.get("is_applicable", True):
+        frequency_type = state.get("frequency_type")
+        if frequency_type == item_frequency_runtime_service.FREQUENCY_SEMANAL and weekday_label:
+            scheduled_short = f"Agendado {weekday_label}"
+            scheduled_tooltip = f"Este item e semanal e so pode ser preenchido na {weekday_label}."
+        elif frequency_type == item_frequency_runtime_service.FREQUENCY_MENSAL and day_of_month:
+            scheduled_short = f"Agendado dia {int(day_of_month)}"
+            scheduled_tooltip = f"Este item e mensal e so pode ser preenchido no dia {int(day_of_month)}."
+        elif frequency_type == item_frequency_runtime_service.FREQUENCY_SOB_DEMANDA:
+            scheduled_short = "Sob demanda"
+            scheduled_tooltip = "Este item so deve ser preenchido quando houver demanda no turno."
+    state["scheduled_weekday_label"] = weekday_label
+    state["scheduled_day_of_month"] = int(day_of_month) if isinstance(day_of_month, int) else None
+    state["scheduled_label_short"] = scheduled_short
+    state["scheduled_tooltip"] = scheduled_tooltip
+    return state
 
 
 def _hydrate_rows(rows: list[dict[str, Any]], stored: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:

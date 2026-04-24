@@ -113,7 +113,7 @@ def get_itens_por_modulo(session: Session, modulo_id: str) -> list[dict[str, obj
             "nome": _item_display_name(group[0]),
             "responsavel": _item_sector_label(group[0]),
             "frequencia_tipo": group[0].frequencia_tipo or FREQUENCY_DIARIO,
-            "dia_semana": group[0].dia_semana,
+            "dia_semana": _normalize_weekday(group[0].dia_semana),
             "dia_mes": group[0].dia_mes,
         }
         for group in grouped_items
@@ -129,7 +129,7 @@ def atualizar_frequencia_item(session: Session, item_id: int, payload: dict[str,
     if frequencia_tipo not in FREQUENCY_TYPES:
         raise ValueError("Frequência inválida.")
 
-    dia_semana = _normalize_nullable_int(payload.get("dia_semana"))
+    dia_semana = _normalize_weekday(_normalize_nullable_int(payload.get("dia_semana")))
     dia_mes = _normalize_nullable_int(payload.get("dia_mes"))
 
     if frequencia_tipo == FREQUENCY_SEMANAL:
@@ -168,6 +168,15 @@ def _normalize_nullable_int(value: object | None) -> int | None:
     if value in (None, ""):
         return None
     return int(str(value))
+
+
+def _normalize_weekday(value: int | None) -> int | None:
+    if value is None:
+        return None
+    # Backward-compatibility: treat legacy Sunday=7 as Sunday=6.
+    if value == 7:
+        return 6
+    return value
 
 
 def _item_sector_label(item: OperationalModuleItem) -> str:

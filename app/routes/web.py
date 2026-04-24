@@ -34,12 +34,10 @@ from app.services.operational_module_service import (
     SETOR_LABELS,
     SETOR_SEQUENCE,
     build_context_from_source,
-    build_general_history,
     build_sector_view,
     context_to_form_values,
     get_master_by_shift,
     get_module_config,
-    list_all_modules,
     operational_schema_available,
     resolve_context_defaults,
     save_sector,
@@ -601,14 +599,11 @@ def relatorio_modulo_detalhe(module_code: str, record_id: int, request: Request,
     detail = build_module_report_detail(db, module_code, record_id, setor=setor)
     if detail is None:
         raise HTTPException(status_code=404, detail="Relatorio nao encontrado")
-    pdf_url = f"/{detail['module_config'].slug}/registros/{record_id}/relatorio"
-    if setor:
-        pdf_url += f"?setor={setor}"
     context = {
         "request": request,
         "page_title": detail["module_config"].report_title,
         "page_description": "Consulta detalhada do modulo.",
-        "pdf_url": pdf_url,
+        "pdf_url": None,
         **detail,
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
@@ -629,67 +624,3 @@ def relatorio_turno_pdf(shift_id: int, request: Request, db: Session = Depends(g
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
     return templates.TemplateResponse(request=request, name="reports_shift_pdf.html", context=context)
-
-
-@router.get("/historico-geral", name="historico_geral")
-def historico_geral(request: Request, db: Session = Depends(get_db)):
-    data_inicio_str = request.query_params.get("data_inicio")
-    data_fim_str = request.query_params.get("data_fim")
-    turno = request.query_params.get("turno") or None
-    status = request.query_params.get("status") or None
-    modulo = request.query_params.get("modulo") or None
-
-    data_inicio = _coerce_date(data_inicio_str, None) if data_inicio_str else None
-    data_fim = _coerce_date(data_fim_str, None) if data_fim_str else None
-
-    if shift_schema_available(db):
-        shifts = build_shifts_history(
-            db,
-            data_inicio=data_inicio,
-            data_fim=data_fim,
-            turno=turno,
-            status=status,
-        )
-        use_shift_history = True
-    else:
-        shifts = build_general_history(
-            db,
-            data_inicio=data_inicio,
-            data_fim=data_fim,
-            turno=turno,
-            module_code=modulo,
-            status=status,
-        )
-        use_shift_history = False
-
-    options = shift_list_options(db)
-    context = {
-        "request": request,
-        "page_title": "Historico Geral",
-        "page_description": "Consulta consolidada de turnos e modulos.",
-        "shifts": shifts,
-        "turnos": options.get("turnos", []),
-        "modulos": list_all_modules(),
-        "selected_data_inicio": data_inicio_str or "",
-        "selected_data_fim": data_fim_str or "",
-        "selected_turno": turno,
-        "selected_status": status,
-        "selected_modulo": modulo,
-        "use_shift_history": use_shift_history,
-        "status_options": [
-            {"value": SHIFT_STATUS_NAO_INICIADO, "label": "Nao iniciado"},
-            {"value": SHIFT_STATUS_EM_ANDAMENTO, "label": "Em andamento"},
-            {"value": SHIFT_STATUS_PARCIAL, "label": "Parcial"},
-            {"value": SHIFT_STATUS_CONCLUIDO, "label": "Concluido"},
-        ],
-        "MODULE_STATUS_NAO_INICIADO": MODULE_STATUS_NAO_INICIADO,
-        "MODULE_STATUS_EM_ANDAMENTO": MODULE_STATUS_EM_ANDAMENTO,
-        "MODULE_STATUS_PARCIAL": MODULE_STATUS_PARCIAL,
-        "MODULE_STATUS_CONCLUIDO": MODULE_STATUS_CONCLUIDO,
-        "SHIFT_STATUS_NAO_INICIADO": SHIFT_STATUS_NAO_INICIADO,
-        "SHIFT_STATUS_EM_ANDAMENTO": SHIFT_STATUS_EM_ANDAMENTO,
-        "SHIFT_STATUS_PARCIAL": SHIFT_STATUS_PARCIAL,
-        "SHIFT_STATUS_CONCLUIDO": SHIFT_STATUS_CONCLUIDO,
-        **layout_context(str(request.url.path), scope_source=request.query_params),
-    }
-    return templates.TemplateResponse(request=request, name="historico_geral.html", context=context)

@@ -46,65 +46,103 @@
 
 <style>
     [data-module-admin-page] .table-panel {
-        padding: 14px;
+        padding: 12px;
     }
 
-    [data-module-admin-page] th,
-    [data-module-admin-page] td {
-        padding: 9px 12px;
+    [data-module-admin-page] .table-wrapper {
+        overflow-x: auto;
+        padding-bottom: 2px;
     }
 
-    [data-module-admin-page] [data-col-item] {
-        width: 34%;
+    [data-module-admin-page] .module-items-grid {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: separate;
+        border-spacing: 0 6px;
     }
 
-    [data-module-admin-page] [data-col-setor] {
-        width: 12%;
+    [data-module-admin-page] .table-row {
+        display: grid;
+        grid-template-columns:
+            3fr
+            1.5fr
+            1.2fr
+            1.2fr
+            0.8fr
+            0.6fr
+            1.2fr;
+        gap: 8px;
+        align-items: center;
     }
 
-    [data-module-admin-page] [data-col-parametro] {
-        width: 18%;
+    [data-module-admin-page] .table-head-row {
+        margin-bottom: 2px;
     }
 
-    [data-module-admin-page] [data-col-frequencia] {
-        width: 12%;
+    [data-module-admin-page] .table-head-row th {
+        padding: 4px 8px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        font-weight: 700;
+        white-space: nowrap;
     }
 
-    [data-module-admin-page] [data-col-dia] {
-        width: 10%;
+    [data-module-admin-page] tbody tr[data-admin-row] {
+        background: #f8fbff;
+        border: 1px solid rgba(20, 44, 78, 0.12);
+        border-radius: 10px;
+        padding: 8px 10px;
     }
 
-    [data-module-admin-page] [data-col-ordem] {
-        width: 7%;
+    [data-module-admin-page] tbody tr[data-admin-row] td {
+        padding: 0;
+        min-width: 0;
     }
 
     [data-module-admin-page] [data-col-ativo] {
-        width: 5%;
         text-align: center;
     }
 
-    [data-module-admin-page] [data-col-acoes] {
-        width: 12%;
+    [data-module-admin-page] [data-col-item] [data-inline-input] {
+        font-weight: 600;
+    }
+
+    [data-module-admin-page] .item-dual-field {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        align-items: center;
+    }
+
+    [data-module-admin-page] .item-dual-field__block {
+        min-width: 0;
     }
 
     [data-module-admin-page] [data-inline-input],
     [data-module-admin-page] [data-inline-select] {
         width: 100%;
         max-width: 100%;
+        min-height: 34px;
+        padding: 6px 8px;
     }
 
     [data-module-admin-page] [data-inline-select="frequencia"] {
-        max-width: 180px;
+        max-width: none;
     }
 
     [data-module-admin-page] [data-day-weekly] select,
     [data-module-admin-page] [data-day-monthly] input {
         width: 100%;
-        max-width: 140px;
+        max-width: none;
+        min-height: 34px;
+        padding: 6px 8px;
     }
 
     [data-module-admin-page] [data-day-static] {
         color: var(--text-muted);
+        font-size: 13px;
     }
 
     [data-module-admin-page] [data-day-static][hidden],
@@ -115,25 +153,41 @@
 
     [data-module-admin-page] [data-operacao-label] {
         display: block;
-        margin-bottom: 4px;
-        font-size: 11px;
+        margin-bottom: 3px;
+        font-size: 10px;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
     }
 
     [data-module-admin-page] tr[data-editing="true"] {
-        background: rgba(25, 91, 166, 0.04);
+        background: #eef5ff;
+        border-color: rgba(25, 91, 166, 0.28);
     }
 
     [data-module-admin-page] .actions-cell {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+    }
+
+    [data-module-admin-page] .actions-cell .button-secondary.small,
+    [data-module-admin-page] .actions-cell .button-danger.small {
+        min-width: 78px;
+        padding: 6px 10px;
+        white-space: nowrap;
     }
 
     [data-module-admin-page] [data-checkbox-cell] {
         text-align: center;
+    }
+
+    @media (max-width: 1100px) {
+        [data-module-admin-page] .module-items-grid {
+            min-width: 920px;
+        }
     }
 </style>
 
@@ -223,19 +277,32 @@
 
     function buildNewRowMarkup() {
         const rowKey = `new-${Date.now()}-${newRowSequence++}`;
+        const itemFieldMarkup = selectedModule === 'ed'
+            ? `
+                <div class="item-dual-field">
+                    <div class="item-dual-field__block">
+                        <span data-operacao-label>Operação</span>
+                        <input type="text" data-field="operacao" data-editable data-inline-input value="" placeholder="Nome da operação">
+                    </div>
+                    <div class="item-dual-field__block">
+                        <span data-operacao-label>Controle</span>
+                        <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do controle">
+                    </div>
+                </div>
+            `
+            : `
+                <input type="hidden" data-field="operacao" value="">
+                <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do item">
+            `;
         return `
-            <tr data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true">
+            <tr class="table-row" data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true">
                 <td data-col-item>
-                    <input type="hidden" data-field="operacao" value="">
-                    <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do item">
+                    ${itemFieldMarkup}
                 </td>
                 <td data-col-setor>
                     <select data-field="setor_tipo" data-editable data-inline-select>
                         ${renderOptions(sectorOptions, 'PTED')}
                     </select>
-                </td>
-                <td data-col-parametro>
-                    <input type="text" data-field="parametro" data-editable data-inline-input value="" placeholder="Parametro">
                 </td>
                 <td data-col-frequencia>
                     <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia">
@@ -279,7 +346,6 @@
             operacao: row.querySelector('[data-field="operacao"]')?.value || '',
             controle: row.querySelector('[data-field="controle"]')?.value || '',
             setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
-            parametro: row.querySelector('[data-field="parametro"]')?.value || '',
             frequencia_tipo: frequency,
             dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
             dia_mes: frequency === 'mensal' && monthday !== '' ? Number(monthday) : null,

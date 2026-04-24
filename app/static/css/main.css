@@ -3104,14 +3104,30 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 
 .op-context-info {
     display: flex;
-    align-items: center;
-    gap: var(--space-4);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
 }
 
-.op-context-label {
+.op-context-title {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
     color: var(--text-primary);
+}
+
+.op-context-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.op-context-meta__item {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    background: var(--neutral-100);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-pill);
+    padding: 2px var(--space-2);
 }
 
 .op-context-type {
@@ -4005,6 +4021,22 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     margin: 0 0 1rem 0;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--gray-200, #e5e7eb);
+}
+
+.op-table--summary-sector th:nth-child(1) { width: 140px; }
+.op-table--summary-sector th:nth-child(2) { width: 220px; }
+.op-table--summary-sector th:nth-child(3),
+.op-table--summary-sector td:nth-child(3) {
+    width: 100px;
+    text-align: center;
+}
+
+.op-summary-sector__obs-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .op-summary-sectors__grid {
@@ -6051,6 +6083,20 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     gap: 0.75rem;
 }
 
+.turno-overview__progress-copy {
+    display: grid;
+    gap: 0.12rem;
+    min-width: 92px;
+}
+
+.turno-overview__progress-total {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .turno-overview__metric--progress .turno-overview__progress {
     flex: 1 1 auto;
 }
@@ -6081,8 +6127,8 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     align-items: flex-start;
     gap: 0.8rem;
     min-width: 190px;
-    height: 116px;
-    padding: 1rem 1rem 0.95rem;
+    min-height: 134px;
+    padding: 0.85rem 0.9rem 0.8rem;
     background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
     border: 2px solid #d6e1ed;
     border-radius: 16px;
@@ -6092,16 +6138,32 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 
 .turno-browser-tab:hover {
     background: linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
-    border-color: #3b82f6;
+    border-color: #c9d6e6;
     box-shadow: 0 4px 10px rgba(18, 45, 69, 0.06);
     transform: translateY(-1px);
 }
 
-.turno-browser-tab--active {
-    background: linear-gradient(180deg, #ffffff 0%, #fafdff 100%);
-    border-color: #3b82f6;
-    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
-    transform: none;
+.turno-browser-tab--active,
+.tab--active {
+    background: #ffffff;
+    border: 1px solid #3b82f6;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+    transform: translateY(-1px);
+}
+
+.turno-browser-tab--state-concluido {
+    background: linear-gradient(180deg, #f9fdfb 0%, #f2faf6 100%);
+    border-color: #d4e8db;
+}
+
+.turno-browser-tab--state-em-andamento {
+    background: linear-gradient(180deg, #fffdf7 0%, #fbf6e8 100%);
+    border-color: #eadfbf;
+}
+
+.turno-browser-tab--state-nao-iniciado {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    border-color: #d6e1ed;
 }
 
 .turno-browser-tab__icon {
@@ -6155,7 +6217,7 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     line-height: 1.16;
     font-weight: 700;
     color: var(--blue-950);
@@ -6172,10 +6234,10 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 }
 
 .turno-browser-tab__status {
-    height: 23px;
+    min-height: 22px;
     padding: 0 0.55rem;
     border-radius: 999px;
-    font-size: 0.64rem;
+    font-size: 0.62rem;
     font-weight: 600;
     letter-spacing: 0.03em;
     align-self: flex-start;
@@ -6192,12 +6254,6 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     border-color: #e3ebf3;
 }
 
-.turno-browser-tab__status--parcial {
-    background: #fff6e4;
-    color: #9d7a36;
-    border-color: #f4e4be;
-}
-
 .turno-browser-tab__status--concluido {
     background: #eaf7ef;
     color: #5f9572;
@@ -6206,24 +6262,53 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 
 .turno-browser-tab__status--em-andamento,
 .turno-browser-tab__status--em_andamento {
-    background: #edf4ff;
-    color: #5e7fa6;
-    border-color: #dbe8f8;
+    background: #fff3d8;
+    color: #94723b;
+    border-color: #f0ddb3;
 }
 
 .turno-browser-tab__meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 0.55rem;
-    font-size: 0.82rem;
+    font-size: 0.74rem;
     font-weight: 600;
     color: var(--blue-900);
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    line-height: 1.2;
 }
 
 .turno-browser-tab__meta span {
     white-space: nowrap;
+}
+
+.turno-browser-tab__progress {
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #e5edf6;
+    margin-top: 0.1rem;
+}
+
+.turno-browser-tab__progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2e9e5a 0%, #3eb569 100%);
+    width: 0;
+    transition: width 180ms ease;
+}
+
+.turno-browser-tab__status--nao-iniciado + .turno-browser-tab__progress .turno-browser-tab__progress-fill,
+.turno-browser-tab__status--nao_iniciado + .turno-browser-tab__progress .turno-browser-tab__progress-fill {
+    background: linear-gradient(90deg, #94a6ba 0%, #7f93a8 100%);
+}
+
+.turno-browser-tab__status--em-andamento + .turno-browser-tab__progress .turno-browser-tab__progress-fill,
+.turno-browser-tab__status--em_andamento + .turno-browser-tab__progress .turno-browser-tab__progress-fill {
+    background: linear-gradient(90deg, #d9ab59 0%, #e7ba68 100%);
 }
 
 .turno-module-editor__shell {
@@ -6480,6 +6565,15 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     word-break: break-word;
 }
 
+.turno-sector-table tr.check-row--scheduled td {
+    background: #f7fafc;
+    opacity: 0.9;
+}
+
+.turno-sector-table tr.check-row--scheduled:hover td {
+    background: #f3f8fd;
+}
+
 .turno-workspace .op-table-wrapper {
     overflow-x: hidden;
 }
@@ -6500,6 +6594,13 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     border-color: #d5dfeb;
     background: #fff;
     box-shadow: none;
+}
+
+.turno-sector-table .field--disabled-scheduled {
+    background: #f2f5f8 !important;
+    border-color: #d8e2ed !important;
+    color: #7a8da3 !important;
+    cursor: not-allowed;
 }
 
 .turno-sector-table .op-input--value {
@@ -6528,6 +6629,27 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 
 .turno-item-status__badge {
     display: inline-flex;
+}
+
+.status-badge--scheduled {
+    background: #edf3fb;
+    color: #56779d;
+    border: 1px solid #d7e4f2;
+    min-width: 126px;
+}
+
+.turno-item-scheduled-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 0.35rem;
+    border-radius: 999px;
+    background: #edf3fb;
+    color: #4c6f96;
+    font-size: 0.66rem;
+    vertical-align: text-top;
 }
 
 .turno-sector-table td.op-table__col--status_label {

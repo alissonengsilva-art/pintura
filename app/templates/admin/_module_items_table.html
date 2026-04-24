@@ -7,12 +7,11 @@
     </div>
 
     <div class="table-wrapper">
-        <table>
+        <table class="module-items-grid">
             <thead>
-                <tr>
+                <tr class="table-row table-head-row">
                     <th data-col-item>Item</th>
                     <th data-col-setor>Setor</th>
-                    <th data-col-parametro>Par&acirc;metro</th>
                     <th data-col-frequencia>Frequ&ecirc;ncia</th>
                     <th data-col-dia>Dia</th>
                     <th data-col-ordem>Ordem</th>
@@ -22,13 +21,26 @@
             </thead>
             <tbody>
                 {% for row in rows %}
-                <tr data-admin-row data-row-key="{{ row.id }}" data-editing="false">
+                <tr class="table-row" data-admin-row data-row-key="{{ row.id }}" data-editing="false">
                     <td data-col-item>
+                        {% if module_code == 'ed' %}
+                        <div class="item-dual-field">
+                            <div class="item-dual-field__block">
+                                <span data-operacao-label>Operação</span>
+                                <input type="text" data-field="operacao" data-editable data-inline-input value="{{ row.operacao or '' }}" disabled>
+                            </div>
+                            <div class="item-dual-field__block">
+                                <span data-operacao-label>Controle</span>
+                                <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled>
+                            </div>
+                        </div>
+                        {% else %}
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
                         {% if row.operacao %}
                         <span data-operacao-label>{{ row.operacao }}</span>
                         {% endif %}
                         <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled>
+                        {% endif %}
                     </td>
                     <td data-col-setor>
                         <select data-field="setor_tipo" data-editable data-inline-select disabled>
@@ -36,9 +48,6 @@
                             <option value="{{ option.value }}" {% if row.setor_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
                             {% endfor %}
                         </select>
-                    </td>
-                    <td data-col-parametro>
-                        <input type="text" data-field="parametro" data-editable data-inline-input value="{{ row.parametro or '' }}" disabled>
                     </td>
                     <td data-col-frequencia>
                         <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia" disabled>
@@ -74,7 +83,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" class="empty-state">Nenhum item encontrado para este m&oacute;dulo.</td>
+                    <td colspan="7" class="empty-state">Nenhum item encontrado para este m&oacute;dulo.</td>
                 </tr>
                 {% endfor %}
             </tbody>

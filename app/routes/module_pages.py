@@ -197,18 +197,6 @@ def build_module_router(module_key: str) -> APIRouter:
             context=_base_context(request, db, turno_atual_url=_turno_atual_url(master), **detail),
         )
 
-    @router.get("/registros/{record_id}/relatorio")
-    def module_report(record_id: int, request: Request, setor: str | None = None, db: Session = Depends(get_db)):
-        master = get_master(db, record_id)
-        if master is None or master.module_code != config.code:
-            raise HTTPException(status_code=404, detail="Registro não encontrado")
-        detail = build_detail_context(db, config, master, report_setor=setor)
-        return templates.TemplateResponse(
-            request=request,
-            name="modules/report.html",
-            context=_base_context(request, db, page_title=config.report_title, report_setor=setor, **detail),
-        )
-
     @router.get("/registros/{record_id}/checklist")
     def module_record_checklist(record_id: int, request: Request, db: Session = Depends(get_db)):
         """Compatibilidade: registros vinculados ao turno executam pela tela do turno."""

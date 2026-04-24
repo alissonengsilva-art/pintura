@@ -79,9 +79,9 @@ def save_module_batch(session: Session, module_code: str, payload: dict[str, obj
     for raw_row in payload.get("rows") or []:
         if not isinstance(raw_row, dict):
             continue
-        normalized = _normalize_row_payload(module_code, raw_row)
         row_id = _normalize_nullable_int(raw_row.get("id"))
         group = groups_by_representative_id.get(row_id) if row_id is not None else None
+        normalized = _normalize_row_payload(module_code, raw_row, existing_item=group[0] if group else None)
         if group:
             for item in group:
                 _apply_row_payload(item, normalized)
@@ -131,9 +131,8 @@ def _serialize_group(group: list[OperationalModuleItem]) -> dict[str, object | N
         "operacao": item.operacao,
         "setor_tipo": item.setor_tipo,
         "setor_label": operational_module_item_service.SETOR_LABELS.get(item.setor_tipo, item.setor_tipo),
-        "parametro": item.parametro,
         "frequencia_tipo": item.frequencia_tipo or operational_module_item_service.FREQUENCY_DIARIO,
-        "dia_semana": item.dia_semana,
+        "dia_semana": _normalize_weekday(item.dia_semana),
         "dia_mes": item.dia_mes,
         "ordem": item.ordem,
         "ativo": bool(item.ativo),
@@ -163,7 +162,12 @@ def _group_key(item: OperationalModuleItem) -> tuple[str, str, str, str]:
     )
 
 
-def _normalize_row_payload(module_code: str, payload: dict[str, object]) -> dict[str, object | None]:
+def _normalize_row_payload(
+    module_code: str,
+    payload: dict[str, object],
+    *,
+    existing_item: OperationalModuleItem | None = None,
+) -> dict[str, object | None]:
     controle = str(payload.get("controle") or "").strip()
     if not controle:
         raise ValueError("Informe o nome do item.")
@@ -176,9 +180,19 @@ def _normalize_row_payload(module_code: str, payload: dict[str, object]) -> dict
     if frequencia_tipo not in operational_module_item_service.FREQUENCY_TYPES:
         raise ValueError("Frequencia invalida.")
 
-    dia_semana = _normalize_nullable_int(payload.get("dia_semana"))
+    dia_semana = _normalize_weekday(_normalize_nullable_int(payload.get("dia_semana")))
     dia_mes = _normalize_nullable_int(payload.get("dia_mes"))
+    if existing_item is not None:
+        if dia_semana is None:
+            dia_semana = _normalize_weekday(existing_item.dia_semana)
+        if dia_mes is None:
+            dia_mes = existing_item.dia_mes
+
     if frequencia_tipo == operational_module_item_service.FREQUENCY_SEMANAL:
+        if dia_semana is None and existing_item is not None:
+            # Legacy records may have weekly frequency without weekday configured.
+            # Default to Monday so batch updates do not fail unexpectedly.
+            dia_semana = 0
         if dia_semana is None or not 0 <= dia_semana <= 6:
             raise ValueError("Dia da semana invalido.")
         dia_mes = None
@@ -195,7 +209,6 @@ def _normalize_row_payload(module_code: str, payload: dict[str, object]) -> dict
         "controle": controle,
         "operacao": str(payload.get("operacao") or "").strip() or None,
         "setor_tipo": setor_tipo,
-        "parametro": str(payload.get("parametro") or "").strip() or None,
         "frequencia_tipo": frequencia_tipo,
         "dia_semana": dia_semana,
         "dia_mes": dia_mes,
@@ -209,7 +222,6 @@ def _apply_row_payload(item: OperationalModuleItem, payload: dict[str, object | 
     item.controle = str(payload["controle"])
     item.operacao = payload["operacao"]
     item.setor_tipo = str(payload["setor_tipo"])
-    item.parametro = payload["parametro"]
     item.frequencia_tipo = str(payload["frequencia_tipo"])
     item.dia_semana = payload["dia_semana"]
     item.dia_mes = payload["dia_mes"]
@@ -219,9 +231,18 @@ def _apply_row_payload(item: OperationalModuleItem, payload: dict[str, object | 
 
 
 def _normalize_nullable_int(value: object | None) -> int | None:
-    if value in (None, "", False):
+    if value in (None, ""):
         return None
     return int(str(value))
+
+
+def _normalize_weekday(value: int | None) -> int | None:
+    if value is None:
+        return None
+    # Backward-compatibility: treat legacy Sunday=7 as Sunday=6.
+    if value == 7:
+        return 6
+    return value
 
 
 def _normalize_bool(value: object | None) -> bool:

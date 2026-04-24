@@ -10,7 +10,9 @@
                 <p class="op-header__description">{{ context_label }}</p>
             </div>
             <div class="op-header__actions">
+                {% if pdf_url %}
                 <a href="{{ pdf_url }}" class="button-primary" target="_blank" rel="noopener">Gerar PDF</a>
+                {% endif %}
             </div>
         </div>
     </header>

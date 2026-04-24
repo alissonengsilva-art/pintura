@@ -103,8 +103,8 @@
                         </thead>
                         <tbody>
                             {% for row in setor_view.rows %}
-                            {% if row.is_applicable %}
-                            <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
+                            {% set row_scheduled = not row.is_applicable %}
+                            <tr class="{% if row.flag %}op-table__row--flagged{% endif %} {% if row_scheduled %}check-row--scheduled{% endif %}">
                                 {% for column in module_state.module_config.columns %}
                                 <td class="op-table__col--{{ column.key }}">
                                     {% if column.kind == 'input' %}
@@ -113,59 +113,74 @@
                                             type="text"
                                             name="{{ column.key }}_{{ setor_view.setor_tipo }}_{{ row.reference }}"
                                             value="{{ row[column.key] }}"
-                                            class="op-input op-input--compact"
+                                            class="op-input op-input--compact {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
-                                            {% if setor_concluido %}disabled readonly{% endif %}
+                                            {% if setor_concluido or row_scheduled %}disabled readonly{% endif %}
                                         >
                                         {% elif column.key == 'row_observation' %}
                                         <input
                                             type="text"
                                             name="obs_{{ setor_view.setor_tipo }}_{{ row.reference }}"
                                             value="{{ row[column.key] }}"
-                                            class="op-input op-input--compact op-input--obs"
+                                            class="op-input op-input--compact op-input--obs {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             placeholder="Obs."
-                                            {% if setor_concluido %}disabled readonly{% endif %}
+                                            {% if setor_concluido or row_scheduled %}disabled readonly{% endif %}
                                         >
                                         {% else %}
                                         <input
                                             type="text"
                                             name="value_{{ setor_view.setor_tipo }}_{{ row.reference }}"
                                             value="{{ row[column.key] if column.key == 'value' else row[column.key] }}"
-                                            class="op-input op-input--compact op-input--value"
+                                            class="op-input op-input--compact op-input--value {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             {% if column.key != 'value' %}readonly{% endif %}
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
-                                            {% if setor_concluido %}disabled{% endif %}
+                                            {% if setor_concluido or row_scheduled %}disabled{% endif %}
                                         >
                                         {% endif %}
                                     {% elif column.kind == 'status' %}
+                                    {% if row_scheduled %}
+                                    <span class="op-badge turno-item-status__badge status-badge--scheduled" title="{{ row.scheduled_tooltip or 'Item agendado para outro dia.' }}">
+                                        {{ row.scheduled_label_short or 'Agendado' }}
+                                    </span>
+                                    {% else %}
                                     <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('_', '-') }} turno-item-status__badge">{{ row[column.key] }}</span>
+                                    {% endif %}
                                     {% else %}
                                     {% if column.key in ["label", "descricao"] and row.item_observation %}
                                     <div class="op-table__cell-stack">
-                                        <span class="op-table__text op-table__text--primary">{{ row[column.key] }}</span>
+                                        <span class="op-table__text op-table__text--primary">
+                                            {% if row_scheduled %}
+                                            <span class="turno-item-scheduled-indicator" title="{{ row.scheduled_tooltip or 'Item agendado para outro dia.' }}">&#128197;</span>
+                                            {% endif %}
+                                            {{ row[column.key] }}
+                                        </span>
                                         <span class="op-table__text op-table__text--muted turno-item-note" title="{{ row.item_observation }}">{{ row.item_observation }}</span>
                                     </div>
                                     {% else %}
-                                    <span class="op-table__text">{{ row[column.key] }}</span>
+                                    <span class="op-table__text">
+                                        {% if row_scheduled and column.key in ["label", "descricao"] %}
+                                        <span class="turno-item-scheduled-indicator" title="{{ row.scheduled_tooltip or 'Item agendado para outro dia.' }}">&#128197;</span>
+                                        {% endif %}
+                                        {{ row[column.key] }}
+                                    </span>
                                     {% endif %}
                                     {% endif %}
                                 </td>
                                 {% endfor %}
                             </tr>
-                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
 
                 <div class="turno-sector-notes">
-                    <label for="observacoes_setor_{{ setor_view.setor_tipo }}">Observacoes</label>
+                    <label for="observacoes_setor_{{ setor_view.setor_tipo }}">Observações</label>
                     <input
                         type="text"
                         id="observacoes_setor_{{ setor_view.setor_tipo }}"
                         name="observacoes_setor_{{ setor_view.setor_tipo }}"
                         value="{{ setor_view.observacoes_setor }}"
-                        placeholder="Observacoes do setor"
+                        placeholder="Observações do setor"
                         {% if setor_concluido %}disabled readonly{% endif %}
                     >
                 </div>

@@ -494,12 +494,17 @@ def build_shift_detail(
         if m["status_geral"] != MODULE_STATUS_CONCLUIDO
     ]
 
-    display_shift_status = (
-        SHIFT_STATUS_CONCLUIDO
-        if total_previstos and concluidos == total_previstos
-        else SHIFT_STATUS_PARCIAL if concluidos > 0
-        else SHIFT_STATUS_EM_ANDAMENTO
-    )
+    # If the shift was manually closed, preserve persisted status.
+    # Otherwise derive the status from module progress for UI feedback.
+    if shift.status_geral == SHIFT_STATUS_CONCLUIDO:
+        display_shift_status = SHIFT_STATUS_CONCLUIDO
+    else:
+        display_shift_status = (
+            SHIFT_STATUS_CONCLUIDO
+            if total_previstos and concluidos == total_previstos
+            else SHIFT_STATUS_PARCIAL if concluidos > 0
+            else SHIFT_STATUS_EM_ANDAMENTO
+        )
 
     return {
         "id": shift.id,

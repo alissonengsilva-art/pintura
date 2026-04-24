@@ -13,7 +13,7 @@
             {% if turno_atual_url %}
             <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">Central histórica</a>
             {% endif %}
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="op-btn op-btn--secondary op-btn--sm">
+            <a href="/relatorios/visualizar/modulos/{{ module_config.code }}/{{ master.id }}" class="op-btn op-btn--secondary op-btn--sm">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                 Imprimir
             </a>
@@ -23,7 +23,13 @@
     <!-- Cabeçalho de contexto -->
     <div class="op-context-card op-context-card--readonly op-context-card--{{ master.status_geral|lower|replace('_', '-') }}">
         <div class="op-context-info">
-            <span class="op-context-label">{{ context_label }}</span>
+            <span class="op-context-title">{{ context_label }}</span>
+            <div class="op-context-meta">
+                <span class="op-context-meta__item">Data: {{ master.data_referencia.strftime('%d/%m/%Y') }}</span>
+                {% if master.turno %}
+                <span class="op-context-meta__item">Turno {{ master.turno }}</span>
+                {% endif %}
+            </div>
         </div>
         <div class="op-context-status">
             <span class="op-status-badge op-status-badge--{{ master.status_geral|lower|replace('_', '-') }} op-status-badge--lg">
@@ -76,55 +82,93 @@
                     <span class="op-summary-card__label">Desvios detectados</span>
                 </div>
             </div>
-            
-            <div class="op-summary-card">
-                <div class="op-summary-card__icon op-summary-card__icon--info">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <div class="op-summary-card__content">
-                    <span class="op-summary-card__value">{{ master.data_referencia.strftime('%d/%m/%Y') }}</span>
-                    <span class="op-summary-card__label">Data de referência</span>
-                </div>
-            </div>
         </div>
 
-        <!-- Status por setor -->
-        <div class="op-summary-sectors">
-            <h3 class="op-summary-sectors__title">Status por Setor</h3>
-            <div class="op-summary-sectors__grid">
-                {% for setor_view in setor_views %}
-                <div class="op-summary-sector-card op-summary-sector-card--{{ setor_view.status_setor|lower|replace('_', '-') }}">
-                    <div class="op-summary-sector-card__header">
-                        <h4>{{ setor_view.setor_label }}</h4>
-                        <span class="op-status-badge op-status-badge--{{ setor_view.status_setor|lower|replace('_', '-') }}">
-                            {% if setor_view.status_setor == 'CONCLUIDO' %}
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                            {% endif %}
-                            {{ setor_view.status_label }}
-                        </span>
-                    </div>
-                    <div class="op-summary-sector-card__body">
-                        <div class="op-summary-sector-card__stat">
-                            <span class="op-summary-sector-card__stat-value">{{ setor_view.responsavel_nome or '—' }}</span>
-                            <span class="op-summary-sector-card__stat-label">Responsável</span>
-                        </div>
-                        <div class="op-summary-sector-card__stat">
-                            <span class="op-summary-sector-card__stat-value">{{ setor_view.summary.preenchidos }}/{{ setor_view.summary.total }}</span>
-                            <span class="op-summary-sector-card__stat-label">Preenchidos</span>
-                        </div>
-                        <div class="op-summary-sector-card__stat {% if setor_view.summary.flag_count > 0 %}op-summary-sector-card__stat--warning{% endif %}">
-                            <span class="op-summary-sector-card__stat-value">{{ setor_view.summary.flag_count }}</span>
-                            <span class="op-summary-sector-card__stat-label">Desvios</span>
-                        </div>
-                    </div>
-                    {% if setor_view.observacoes_setor %}
-                    <div class="op-summary-sector-card__obs">
-                        <span class="op-summary-sector-card__obs-label">Observações:</span>
-                        <span class="op-summary-sector-card__obs-text">{{ setor_view.observacoes_setor }}</span>
-                    </div>
-                    {% endif %}
+        {% if total_desvios > 0 %}
+        {% set ns = namespace(rows=[]) %}
+        {% for setor_view in setor_views %}
+            {% for row in setor_view.rows %}
+                {% if row.flag %}
+                    {% set item_nome = row.descricao if row.descricao is defined else (row.label if row.label is defined else row.reference) %}
+                    {% set item_valor = row.value if row.value is defined and row.value else "—" %}
+                    {% set item_limite = row.parametro if row.parametro is defined else (row.expected if row.expected is defined else "—") %}
+                    {% set ns.rows = ns.rows + [{
+                        "setor": setor_view.setor_label,
+                        "item": item_nome,
+                        "valor": item_valor,
+                        "limite": item_limite,
+                        "status": row.status_label
+                    }] %}
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
+
+        <div class="panel-card">
+            <div class="section-header-inline compact">
+                <div>
+                    <h3>Itens em desvio</h3>
+                    <p>{{ ns.rows|length }} item(ns) fora do esperado neste registro.</p>
                 </div>
-                {% endfor %}
+            </div>
+            <div class="op-table-wrapper">
+                <table class="op-table op-table--history">
+                    <thead>
+                        <tr>
+                            <th>Setor</th>
+                            <th>Item</th>
+                            <th>Valor</th>
+                            <th>Limite/Referência</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in ns.rows %}
+                        <tr>
+                            <td><span class="op-table__text">{{ item.setor }}</span></td>
+                            <td><span class="op-table__text op-table__text--primary">{{ item.item }}</span></td>
+                            <td><span class="op-table__text">{{ item.valor }}</span></td>
+                            <td><span class="op-table__text">{{ item.limite }}</span></td>
+                            <td><span class="op-badge op-badge--alarme">{{ item.status }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Panorama por setor -->
+        <div class="op-summary-sectors">
+            <h3 class="op-summary-sectors__title">Panorama por setor</h3>
+            <div class="op-table-wrapper">
+                <table class="op-table op-table--history op-table--summary-sector">
+                    <thead>
+                        <tr>
+                            <th>Setor</th>
+                            <th>Responsável</th>
+                            <th>Desvios</th>
+                            <th>Observação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for setor_view in setor_views %}
+                        <tr>
+                            <td><span class="op-table__text op-table__text--primary">{{ setor_view.setor_label }}</span></td>
+                            <td><span class="op-table__text">{{ setor_view.responsavel_nome or '—' }}</span></td>
+                            <td>
+                                <span class="op-badge {% if setor_view.summary.flag_count > 0 %}op-badge--alarme{% else %}op-badge--ok{% endif %}">
+                                    {{ setor_view.summary.flag_count }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="op-table__text op-summary-sector__obs-text" title="{{ setor_view.observacoes_setor or '—' }}">
+                                    {{ setor_view.observacoes_setor or '—' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -137,12 +181,6 @@
                 <div class="op-sector__header">
                     <div class="op-sector__title">
                         <h3>{{ setor_view.setor_label }}</h3>
-                        <span class="op-status-badge op-status-badge--{{ setor_view.status_setor|lower|replace('_', '-') }}">
-                            {% if setor_view.status_setor == 'CONCLUIDO' %}
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                            {% endif %}
-                            {{ setor_view.status_label }}
-                        </span>
                     </div>
                     {% if setor_view.summary.flag_count > 0 %}
                     <div class="op-sector__alert">

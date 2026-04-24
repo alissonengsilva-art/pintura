@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 <div class="op-module op-hub">
@@ -6,7 +6,7 @@
         <div class="op-hub-toolbar__tabs">
             <button type="button" class="op-hub-tabs__tab {% if active_tab == 'concluidos' %}op-hub-tabs__tab--active{% endif %}" data-hub-tab="concluidos">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Concluídos
+                ConcluÃ­dos
                 <span class="op-hub-tabs__count">{{ rows_concluidos|length }}</span>
             </button>
             <button type="button" class="op-hub-tabs__tab {% if active_tab == 'andamento' %}op-hub-tabs__tab--active{% endif %}" data-hub-tab="andamento">
@@ -15,7 +15,7 @@
                 <span class="op-hub-tabs__count">{{ rows_andamento|length }}</span>
             </button>
         </div>
-        <a href="/historico-geral" class="op-btn op-btn--ghost">Histórico geral</a>
+        <a href="/relatorios" class="op-btn op-btn--ghost">Relatórios</a>
     </div>
 
     {% if error_message %}
@@ -28,8 +28,8 @@
     {% if turno_atual_url %}
     <div class="op-alert op-alert--info">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Esta central é apenas histórica. A execução do módulo acontece na tela principal do turno.
-        <a href="{{ turno_atual_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execução do turno</a>
+        Esta central Ã© apenas histÃ³rica. A execuÃ§Ã£o do mÃ³dulo acontece na tela principal do turno.
+        <a href="{{ turno_atual_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execuÃ§Ã£o do turno</a>
     </div>
     {% endif %}
 
@@ -43,11 +43,11 @@
                             <th class="op-table__col--origem">Origem</th>
                             <th class="op-table__col--contexto">Contexto</th>
                             <th class="op-table__col--setor">PT/ED</th>
-                            <th class="op-table__col--setor">Laboratório</th>
+                            <th class="op-table__col--setor">LaboratÃ³rio</th>
                             <th class="op-table__col--resp">Resp. PT/ED</th>
                             <th class="op-table__col--resp">Resp. Lab</th>
                             <th class="op-table__col--desvios">Desvios</th>
-                            <th class="op-table__col--acoes">Ações</th>
+                            <th class="op-table__col--acoes">AÃ§Ãµes</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -71,7 +71,7 @@
                                     <a href="{{ row.detail_url }}" class="op-table__action" title="Ver detalhes">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                     </a>
-                                    <a href="{{ row.report_url }}" class="op-table__action" title="Relatório consolidado">
+                                    <a href="{{ row.report_url }}" class="op-table__action" title="RelatÃ³rio consolidado">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                     </a>
                                 </div>
@@ -85,7 +85,7 @@
         {% else %}
         <div class="op-empty-state op-empty-state--compact">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <p class="op-empty-state__text">Nenhum registro concluído</p>
+            <p class="op-empty-state__text">Nenhum registro concluÃ­do</p>
         </div>
         {% endif %}
     </div>
@@ -99,11 +99,11 @@
                         <tr>
                             <th class="op-table__col--contexto">Contexto</th>
                             <th class="op-table__col--setor">PTED</th>
-                            <th class="op-table__col--setor">Laboratório</th>
+                            <th class="op-table__col--setor">LaboratÃ³rio</th>
                             <th class="op-table__col--status">Status</th>
                             <th class="op-table__col--resp">Resp. PT/ED</th>
                             <th class="op-table__col--resp">Resp. Lab</th>
-                            <th class="op-table__col--acoes">Ações</th>
+                            <th class="op-table__col--acoes">AÃ§Ãµes</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -120,11 +120,11 @@
                                     <a href="{{ row.detail_url }}" class="op-table__action" title="Ver detalhes">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                     </a>
-                                    <a href="{{ row.report_url }}" class="op-table__action" title="Relatório">
+                                    <a href="{{ row.report_url }}" class="op-table__action" title="RelatÃ³rio">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                     </a>
                                     {% if row.shift_id and row.turno_url %}
-                                    <a href="{{ row.turno_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execução do turno</a>
+                                    <a href="{{ row.turno_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execuÃ§Ã£o do turno</a>
                                     {% endif %}
                                 </div>
                             </td>
@@ -170,3 +170,5 @@
 })();
 </script>
 {% endblock %}
+
+

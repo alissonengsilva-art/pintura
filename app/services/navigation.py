@@ -4,32 +4,32 @@ from app.services.access_control import SECTOR_OPTIONS, resolve_access_scope
 PRIMARY_LINKS = [
     {"slug": "dashboard", "title": "Dashboard", "url": "/dashboard"},
     {"slug": "turnos", "title": "Turnos", "url": "/turno-atual"},
-    {"slug": "relatorios", "title": "Relatorios", "url": "/relatorios"},
+    {"slug": "relatorios", "title": "Relatórios", "url": "/relatorios"},
 ]
 
 SECTIONS: list[dict] = []
 
 ADMIN_LINKS = [
-    {"slug": "configuracoes", "title": "Configuracoes", "url": "/configuracoes"},
+    {"slug": "configuracoes", "title": "Configurações", "url": "/configuracoes"},
 ]
 
 SETTINGS_HUB_ITEMS = [
     {
         "slug": "responsaveis",
-        "title": "Responsaveis",
+        "title": "Responsáveis",
         "description": "Cadastre e mantenha os colaboradores vinculados aos setores operacionais.",
         "url": "/cadastros/responsaveis",
     },
     {
         "slug": "modelos",
         "title": "Modelos",
-        "description": "Gerencie os modelos usados nos lancamentos e nas consultas operacionais.",
+        "description": "Gerencie os modelos usados nos lançamentos e nas consultas operacionais.",
         "url": "/cadastros/modelos",
     },
     {
         "slug": "setores",
         "title": "Setores",
-        "description": "Ajuste os setores disponiveis para cadastros, filtros e contexto operacional.",
+        "description": "Ajuste os setores disponíveis para cadastros, filtros e contexto operacional.",
         "url": "/cadastros/setores",
     },
     {
@@ -40,14 +40,14 @@ SETTINGS_HUB_ITEMS = [
     },
     {
         "slug": "modulos-itens",
-        "title": "Itens dos modulos",
+        "title": "Controles",
         "description": "Cadastre, edite e organize os itens e sua periodicidade operacional.",
         "url": "/configuracoes/modulos-itens",
     },
     {
         "slug": "temperatura-faixas",
-        "title": "Faixas de Temperatura Forno ED",
-        "description": "Edite rapidamente os limites minimos e maximos das zonas termicas do forno ED.",
+        "title": "Faixas de Temperatura Forno",
+        "description": "Edite rapidamente os limites mínimos e máximos das zonas térmicas do forno ED.",
         "url": "/cadastros/modulos-itens/temperatura-forno-ed/faixas",
     },
 ]

@@ -29,6 +29,7 @@ from app.models import (
     TemperaturaFornoLancamento,
     Turno,
     User,
+    SHIFT_STATUS_CONCLUIDO,
 )
 from app.services.auth_service import hash_password
 from app.services.ed_seed_data import DEFAULT_RESPONSAVEIS, DEFAULT_SETORES, DEFAULT_TURNOS, build_seed_items
@@ -211,6 +212,7 @@ def test_operational_module_item_frequency_update_service(test_env: tuple[TestCl
         (SimpleNamespace(frequencia_tipo="diario", dia_semana=None, dia_mes=None, frequencia=None), date(2026, 4, 21), True),
         (SimpleNamespace(frequencia_tipo="semanal", dia_semana=1, dia_mes=None, frequencia=None), date(2026, 4, 21), True),
         (SimpleNamespace(frequencia_tipo="semanal", dia_semana=2, dia_mes=None, frequencia=None), date(2026, 4, 21), False),
+        (SimpleNamespace(frequencia_tipo="semanal", dia_semana=7, dia_mes=None, frequencia=None), date(2026, 4, 26), True),
         (SimpleNamespace(frequencia_tipo="mensal", dia_semana=None, dia_mes=21, frequencia=None), date(2026, 4, 21), True),
         (SimpleNamespace(frequencia_tipo="mensal", dia_semana=None, dia_mes=20, frequencia=None), date(2026, 4, 21), False),
         (SimpleNamespace(frequencia_tipo="sob_demanda", dia_semana=None, dia_mes=None, frequencia=None), date(2026, 4, 21), False),
@@ -325,6 +327,19 @@ def test_unified_module_items_partial_changes_module_tab(test_env: tuple[TestCli
     assert response.status_code == 200
     assert "Zona 1" in response.text
     assert "data-col-frequencia" in response.text
+    assert "Par&acirc;metro" not in response.text
+    assert 'data-col-parametro' not in response.text
+
+
+def test_unified_module_items_ed_shows_operacao_and_controle_inputs(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens/ed")
+
+    assert response.status_code == 200
+    assert 'data-field="operacao" data-editable data-inline-input' in response.text
+    assert 'data-field="controle" data-editable data-inline-input' in response.text
 
 
 def test_configuracoes_frequencias_update_endpoint_saves_item(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -368,6 +383,7 @@ def test_module_items_batch_updates_existing_item_fields(test_env: tuple[TestCli
         ).first()
         assert item is not None
         item_id = item.id
+        parametro_original = item.parametro
 
     response = client.post(
         "/configuracoes/modulos-itens/temperatura-forno-ed/batch",
@@ -397,11 +413,160 @@ def test_module_items_batch_updates_existing_item_fields(test_env: tuple[TestCli
         saved = session.get(OperationalModuleItem, item_id)
         assert saved is not None
         assert saved.controle == "Zona Principal"
-        assert saved.parametro == "100 a 140 C"
+        assert saved.parametro == parametro_original
         assert saved.frequencia_tipo == "mensal"
         assert saved.dia_mes == 7
         assert saved.ordem == 44
         assert saved.ativo is False
+
+
+def test_module_items_batch_accepts_legacy_sunday_weekday_value(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item_id = item.id
+
+    response = client.post(
+        "/configuracoes/modulos-itens/temperatura-forno-ed/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "controle": "Zona Principal",
+                    "operacao": "",
+                    "setor_tipo": "PTED",
+                    "parametro": "100 a 140 C",
+                    "frequencia_tipo": "semanal",
+                    "dia_semana": 7,
+                    "dia_mes": None,
+                    "ordem": 44,
+                    "ativo": True,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.frequencia_tipo == "semanal"
+        assert saved.dia_semana == 6
+
+
+def test_module_items_batch_can_update_weekday_to_monday(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item.frequencia_tipo = "semanal"
+        item.dia_semana = 1
+        item.dia_mes = None
+        session.commit()
+        item_id = item.id
+        setor_tipo = item.setor_tipo
+        operacao = item.operacao or ""
+        controle = item.controle
+        ordem = item.ordem
+        ativo = item.ativo
+
+    response = client.post(
+        "/configuracoes/modulos-itens/ed/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "controle": controle,
+                    "operacao": operacao,
+                    "setor_tipo": setor_tipo,
+                    "frequencia_tipo": "semanal",
+                    "dia_semana": 0,
+                    "dia_mes": None,
+                    "ordem": ordem,
+                    "ativo": ativo,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.frequencia_tipo == "semanal"
+        assert saved.dia_semana == 0
+
+
+def test_module_items_batch_ed_weekly_without_weekday_does_not_fail(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == "ed")
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).first()
+        assert item is not None
+        item.frequencia_tipo = "semanal"
+        item.dia_semana = None
+        item.dia_mes = None
+        session.commit()
+        item_id = item.id
+        setor_tipo = item.setor_tipo
+        operacao = item.operacao or ""
+        controle = item.controle
+        ordem = item.ordem
+        ativo = item.ativo
+
+    response = client.post(
+        "/configuracoes/modulos-itens/ed/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "controle": controle,
+                    "operacao": operacao,
+                    "setor_tipo": setor_tipo,
+                    "frequencia_tipo": "semanal",
+                    "dia_semana": None,
+                    "dia_mes": None,
+                    "ordem": ordem,
+                    "ativo": ativo,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.frequencia_tipo == "semanal"
+        assert saved.dia_semana == 0
+        assert saved.dia_mes is None
 
 
 def test_module_items_batch_creates_new_item(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -481,6 +646,40 @@ def test_old_modulos_itens_list_redirects_to_unified_page(test_env: tuple[TestCl
     assert response.headers["location"] == "/configuracoes/modulos-itens?modulo=rugosidade"
 
 
+def test_historico_geral_page_is_removed(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/historico-geral")
+
+    assert response.status_code == 404
+
+
+def test_legacy_module_report_route_is_removed(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-25", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-25", turno="1")
+
+    save_response = client.post(
+        f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/PTED/salvar",
+        data={**_temperatura_payload("PTED", data_referencia="2026-04-25"), "submit_action": "salvar"},
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    with session_factory() as session:
+        record = session.scalars(
+            select(OperationalModuleRecord)
+            .where(OperationalModuleRecord.module_code == "temperatura-forno-ed")
+            .where(OperationalModuleRecord.shift_id == shift_id)
+        ).first()
+        assert record is not None
+        record_id = record.id
+
+    response = client.get(f"/temperatura-forno-ed/registros/{record_id}/relatorio")
+
+    assert response.status_code == 404
+
+
 def test_shift_detail_excludes_non_applicable_items_from_pending_progress(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
     _create_shift(client, data_referencia="2026-04-22", turno="1")
@@ -546,6 +745,22 @@ def test_shift_detail_uses_override_to_force_applicable_item(test_env: tuple[Tes
     assert any(module["code"] == "temperatura-forno-ed" for module in detail["pending_modules"])
 
 
+def test_shift_detail_preserves_manually_concluded_status(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-22", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-22", turno="2")
+
+    with session_factory() as session:
+        shift = session.get(OperationalShift, shift_id)
+        assert shift is not None
+        shift.status_geral = SHIFT_STATUS_CONCLUIDO
+        session.commit()
+
+        detail = build_shift_detail(session, shift)
+
+    assert detail["status_geral"] == SHIFT_STATUS_CONCLUIDO
+
+
 def test_turno_item_applicability_override_route_updates_progress(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
     _create_shift(client, data_referencia="2026-04-22", turno="1")
@@ -574,6 +789,22 @@ def test_turno_item_applicability_override_route_updates_progress(test_env: tupl
     assert payload["affects_progress"] is True
     assert payload["module_progress"]["code"] == "poder-penetracao"
     assert payload["module_progress"]["pted_progress"]["total"] >= 1
+
+
+def test_turno_execution_hides_conclude_shift_controls_when_shift_is_concluded(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-23", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-23", turno="2")
+
+    conclude_response = client.post(f"/turnos/{shift_id}/concluir", follow_redirects=False)
+    assert conclude_response.status_code == 303
+
+    response = client.get(f"/turnos/{shift_id}")
+
+    assert response.status_code == 200
+    assert "Concluir turno" not in response.text
+    assert "data-open-close-shift-modal" not in response.text
+    assert "closeShiftModal" not in response.text
 
 
 def test_module_start_route_redirects_to_turnos_without_creating_record(test_env: tuple[TestClient, sessionmaker]) -> None:
