@@ -149,18 +149,12 @@
                                     {% if column.key in ["label", "descricao"] and row.item_observation %}
                                     <div class="op-table__cell-stack">
                                         <span class="op-table__text op-table__text--primary">
-                                            {% if row_scheduled %}
-                                            <span class="turno-item-scheduled-indicator" title="{{ row.scheduled_tooltip or 'Item agendado para outro dia.' }}">&#128197;</span>
-                                            {% endif %}
                                             {{ row[column.key] }}
                                         </span>
                                         <span class="op-table__text op-table__text--muted turno-item-note" title="{{ row.item_observation }}">{{ row.item_observation }}</span>
                                     </div>
                                     {% else %}
                                     <span class="op-table__text">
-                                        {% if row_scheduled and column.key in ["label", "descricao"] %}
-                                        <span class="turno-item-scheduled-indicator" title="{{ row.scheduled_tooltip or 'Item agendado para outro dia.' }}">&#128197;</span>
-                                        {% endif %}
                                         {{ row[column.key] }}
                                     </span>
                                     {% endif %}

@@ -5,9 +5,11 @@
     <header class="op-header">
         <div class="op-header__content">
             <div class="op-header__info">
-                <span class="op-header__kicker">Exportacao</span>
-                <h1 class="op-header__title">Relatorios</h1>
-                <p class="op-header__description">Resultado filtrado pronto para impressao ou salvar como PDF.</p>
+                <span class="op-header__kicker">Exportação Analítica</span>
+                <h1 class="op-header__title">Relatório de Medições</h1>
+                <p class="op-header__description">
+                    Período: {{ filters.data_inicio.strftime('%d/%m/%Y') if filters.data_inicio else '—' }} até {{ filters.data_fim.strftime('%d/%m/%Y') if filters.data_fim else '—' }}
+                </p>
             </div>
             <div class="op-header__actions no-print">
                 <button type="button" class="button-primary" onclick="window.print()">Imprimir / PDF</button>
@@ -15,32 +17,69 @@
         </div>
     </header>
 
+    <section class="reports-metrics">
+        {% for metric in metrics %}
+        <article class="reports-metric panel-card">
+            <span class="reports-metric__label">{{ metric.label }}</span>
+            <strong class="reports-metric__value">{{ metric.value }}</strong>
+        </article>
+        {% endfor %}
+    </section>
+
+    <section class="panel-card reports-group-panel">
+        <div class="section-header-inline compact">
+            <div>
+                <h3>Agrupamento por módulo</h3>
+            </div>
+        </div>
+        <div class="reports-group-list">
+            {% for item in grouped_modulo %}
+            <article class="reports-group-item">
+                <strong>{{ item.label }}</strong>
+                <span>{{ item.total }} medições</span>
+                <span>{{ item.dentro }} dentro</span>
+                <span>{{ item.fora }} fora</span>
+                <span>{{ item.percentual_desvio }}% desvio</span>
+            </article>
+            {% else %}
+            <p class="text-muted">Sem dados agrupados por módulo.</p>
+            {% endfor %}
+        </div>
+    </section>
+
     <section class="panel-card">
+        <div class="section-header-inline compact">
+            <div>
+                <h3>Lista de desvios</h3>
+            </div>
+        </div>
         <div class="op-table-wrapper">
-            <table class="op-table op-table--history reports-table">
+            <table class="op-table op-table--history reports-table reports-table--analytics">
                 <thead>
                     <tr>
                         <th>Data</th>
                         <th>Turno</th>
-                        <th>Modulo</th>
-                        <th>Setor</th>
-                        <th>Responsavel</th>
-                        <th>Status</th>
-                        <th>Itens</th>
-                        <th>Desvios</th>
+                        <th>Módulo</th>
+                        <th>Controle</th>
+                        <th>Parâmetro</th>
+                        <th>Valor</th>
+                        <th>Responsável</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in rows %}
+                    {% for row in desvios %}
                     <tr>
-                        <td><span class="op-table__text op-table__text--primary">{{ row.data_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.data_label }}</span></td>
                         <td><span class="op-table__text">{{ row.turno_label }}</span></td>
-                        <td><span class="op-table__text op-table__text--primary">{{ row.modulo_label }}</span></td>
-                        <td><span class="op-table__text">{{ row.setor_label }}</span></td>
-                        <td><span class="op-table__text">{{ row.responsavel_label }}</span></td>
-                        <td><span class="op-status-badge op-status-badge--{{ row.status_geral|lower|replace('_', '-') }}">{{ row.status_label }}</span></td>
-                        <td><span class="op-table__text">{{ row.preenchidos }}/{{ row.total }}</span></td>
-                        <td><span class="op-table__text">{{ row.desvios }}</span></td>
+                        <td><span class="op-table__text">{{ row.modulo_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.controle }}</span></td>
+                        <td><span class="op-table__text">{{ row.parametro }}</span></td>
+                        <td><span class="op-table__text">{{ row.valor }}</span></td>
+                        <td><span class="op-table__text">{{ row.responsavel }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="op-table__empty">Nenhum desvio encontrado no período.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

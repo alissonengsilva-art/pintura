@@ -5,12 +5,12 @@
     <header class="op-header">
         <div class="op-header__content">
             <div class="op-header__info">
-                <span class="op-header__kicker">Central Operacional</span>
-                <h1 class="op-header__title">Relatórios</h1>
-                <p class="op-header__description">Consulte turnos completos, módulos e setores com exportação em PDF.</p>
+                <span class="op-header__kicker">Central Analítica</span>
+                <h1 class="op-header__title">Relatórios Operacionais</h1>
+                <p class="op-header__description">Análise técnica das medições dos controles com foco em desvio e tendência.</p>
             </div>
             <div class="op-header__actions">
-                <a href="{{ pdf_export_url }}" class="button-primary">Exportar PDF</a>
+                <a href="{{ pdf_export_url }}" class="button-primary" target="_blank" rel="noopener">Exportar PDF</a>
             </div>
         </div>
     </header>
@@ -19,15 +19,7 @@
         {% if validation_error %}
         <div class="op-alert op-alert--error">{{ validation_error }}</div>
         {% endif %}
-        <form method="get" action="/relatorios" class="op-filters__form">
-            <div class="op-filters__group">
-                <label class="op-filters__label" for="visao">Visão</label>
-                <select id="visao" name="visao" class="op-filters__select">
-                    {% for item in visoes %}
-                    <option value="{{ item.value }}" {% if filters.visao == item.value %}selected{% endif %}>{{ item.label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <form method="get" action="/relatorios" class="op-filters__form reports-analytics-filters">
             <div class="op-filters__group">
                 <label class="op-filters__label" for="data_inicio">Data inicial</label>
                 <input type="date" id="data_inicio" name="data_inicio" class="op-filters__input" value="{{ filters.data_inicio.isoformat() if filters.data_inicio else '' }}" required>
@@ -37,20 +29,20 @@
                 <input type="date" id="data_fim" name="data_fim" class="op-filters__input" value="{{ filters.data_fim.isoformat() if filters.data_fim else '' }}" required>
             </div>
             <div class="op-filters__group">
-                <label class="op-filters__label" for="turno">Turno</label>
-                <select id="turno" name="turno" class="op-filters__select">
-                    <option value="">Todos</option>
-                    {% for item in turnos %}
-                    <option value="{{ item.codigo }}" {% if filters.turno == item.codigo %}selected{% endif %}>{{ item.nome }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="op-filters__group">
-                <label class="op-filters__label" for="modulo">Controles</label>
+                <label class="op-filters__label" for="modulo">Módulo</label>
                 <select id="modulo" name="modulo" class="op-filters__select">
                     <option value="">Todos</option>
                     {% for item in modulos %}
                     <option value="{{ item.code }}" {% if filters.modulo == item.code %}selected{% endif %}>{{ item.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="op-filters__group">
+                <label class="op-filters__label" for="parametro">Parâmetro</label>
+                <select id="parametro" name="parametro" class="op-filters__select" data-selected-parametro="{{ filters.parametro or '' }}">
+                    <option value="">Todos</option>
+                    {% for item in parametros %}
+                    <option value="{{ item }}" {% if filters.parametro == item %}selected{% endif %}>{{ item }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -63,25 +55,50 @@
                 </select>
             </div>
             <div class="op-filters__group">
-                <label class="op-filters__label" for="responsavel">Responsável</label>
-                <select id="responsavel" name="responsavel" class="op-filters__select">
-                    <option value="">Todos</option>
-                    {% for item in responsaveis %}
-                    <option value="{{ item.nome }}" {% if filters.responsavel == item.nome %}selected{% endif %}>{{ item.nome }}</option>
+                <label class="op-filters__label" for="agrupamento">Visualização</label>
+                <select id="agrupamento" name="agrupamento" class="op-filters__select">
+                    {% for item in agrupamentos %}
+                    <option value="{{ item.value }}" {% if filters.agrupamento == item.value %}selected{% endif %}>{{ item.label }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="op-filters__group">
-                <label class="op-filters__label" for="status">Status</label>
-                <select id="status" name="status" class="op-filters__select">
-                    <option value="">Todos</option>
-                    {% for item in status_options %}
-                    <option value="{{ item.value }}" {% if filters.status == item.value %}selected{% endif %}>{{ item.label }}</option>
-                    {% endfor %}
-                </select>
+
+            <details class="reports-secondary-filters">
+                <summary>Filtros avançados (opcional)</summary>
+                <div class="reports-secondary-filters__grid">
+                    <div class="op-filters__group">
+                        <label class="op-filters__label" for="turno">Turno</label>
+                        <select id="turno" name="turno" class="op-filters__select">
+                            <option value="">Todos</option>
+                            {% for item in turnos %}
+                            <option value="{{ item.codigo }}" {% if filters.turno == item.codigo %}selected{% endif %}>{{ item.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="op-filters__group">
+                        <label class="op-filters__label" for="responsavel">Responsável</label>
+                        <select id="responsavel" name="responsavel" class="op-filters__select">
+                            <option value="">Todos</option>
+                            {% for item in responsaveis %}
+                            <option value="{{ item.nome }}" {% if filters.responsavel == item.nome %}selected{% endif %}>{{ item.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="op-filters__group">
+                        <label class="op-filters__label" for="status">Status analítico</label>
+                        <select id="status" name="status" class="op-filters__select">
+                            <option value="">Todos</option>
+                            <option value="dentro" {% if filters.status == 'dentro' %}selected{% endif %}>Dentro do padrão</option>
+                            <option value="fora" {% if filters.status == 'fora' %}selected{% endif %}>Fora do padrão</option>
+                        </select>
+                    </div>
+                </div>
+            </details>
+
+            <div class="reports-filter-actions">
+                <button type="submit" class="button-primary">Filtrar</button>
+                <a href="/relatorios" class="button-secondary">Limpar</a>
             </div>
-            <button type="submit" class="button-primary">Filtrar</button>
-            <a href="/relatorios" class="button-secondary">Limpar</a>
         </form>
     </section>
 
@@ -94,47 +111,64 @@
         {% endfor %}
     </section>
 
+    <section class="panel-card reports-group-panel">
+        <div class="section-header-inline compact">
+            <div>
+                <h3>Agrupamento {{ filters.agrupamento }}</h3>
+                <p>Resumo comparativo para leitura rápida do processo.</p>
+            </div>
+        </div>
+        <div class="reports-group-list">
+            {% for item in grouped %}
+            <article class="reports-group-item">
+                <strong>{{ item.label }}</strong>
+                <span>{{ item.total }} medições</span>
+                <span>{{ item.dentro }} dentro</span>
+                <span>{{ item.fora }} fora</span>
+                <span>{{ item.percentual_desvio }}% desvio</span>
+            </article>
+            {% else %}
+            <p class="text-muted">Sem dados para agrupar.</p>
+            {% endfor %}
+        </div>
+    </section>
+
     <section class="panel-card">
         <div class="op-table-wrapper">
-            <table class="op-table op-table--history reports-table">
+            <table class="op-table op-table--history reports-table reports-table--analytics">
                 <thead>
                     <tr>
                         <th>Data</th>
                         <th>Turno</th>
-                        <th>Modulo</th>
-                        <th>Setor</th>
-                        <th>Responsável</th>
+                        <th>Módulo</th>
+                        <th>Operação</th>
+                        <th>Controle</th>
+                        <th>Parâmetro</th>
+                        <th>Valor</th>
                         <th>Status</th>
-                        <th>Itens</th>
-                        <th>Desvios</th>
-                        <th>Ações</th>
+                        <th>Desvio</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in rows %}
-                    <tr>
+                    <tr class="reports-table__row-clickable" data-report-detail="{{ row.detail_payload | tojson | forceescape }}">
                         <td><span class="op-table__text op-table__text--primary">{{ row.data_label }}</span></td>
                         <td><span class="op-table__text">{{ row.turno_label }}</span></td>
                         <td><span class="op-table__text op-table__text--primary">{{ row.modulo_label }}</span></td>
-                        <td><span class="op-table__text">{{ row.setor_label }}</span></td>
-                        <td><span class="op-table__text">{{ row.responsavel_label }}</span></td>
+                        <td><span class="op-table__text">{{ row.operacao }}</span></td>
+                        <td><span class="op-table__text">{{ row.controle }}</span></td>
+                        <td><span class="op-table__text">{{ row.parametro }}</span></td>
+                        <td><span class="op-table__text">{{ row.valor }}</span></td>
                         <td>
-                            <span class="op-status-badge op-status-badge--{{ row.status_geral|lower|replace('_', '-') }}">{{ row.status_label }}</span>
+                            <span class="op-status-badge {% if row.desvio %}op-status-badge--parcial{% else %}op-status-badge--concluido{% endif %}">
+                                {{ row.status_label }}
+                            </span>
                         </td>
-                        <td><span class="op-table__text">{{ row.preenchidos }}/{{ row.total }}</span></td>
-                        <td><span class="op-table__text">{{ row.desvios }}</span></td>
-                        <td>
-                            <div class="op-table__actions">
-                                <a href="{{ row.detail_url }}" class="op-table__action" title="Abrir relatorio" target="_blank" rel="noopener">Abrir</a>
-                                {% if row.pdf_url %}
-                                <a href="{{ row.pdf_url }}" class="op-table__action" title="PDF" target="_blank" rel="noopener">PDF</a>
-                                {% endif %}
-                            </div>
-                        </td>
+                        <td><span class="op-table__text">{{ row.desvio_label }}</span></td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="9" class="op-table__empty">Nenhum registro encontrado com os filtros selecionados.</td>
+                        <td colspan="9" class="op-table__empty">Nenhuma medição encontrada com os filtros selecionados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -142,4 +176,160 @@
         </div>
     </section>
 </section>
+
+<div class="op-modal" id="reportDetailModal" hidden>
+    <div class="op-modal__backdrop" data-close-report-modal></div>
+    <div class="op-modal__content report-detail-modal">
+        <button type="button" class="report-detail-modal__close" data-close-report-modal aria-label="Fechar">×</button>
+        <h3 class="op-modal__title">Detalhe da medição</h3>
+        <div class="report-detail-modal__meta">
+            <span id="reportDetailData">—</span>
+            <span id="reportDetailTurno">—</span>
+            <span id="reportDetailModulo">—</span>
+            <span id="reportDetailSetor">—</span>
+        </div>
+        <div class="report-detail-modal__grid">
+            <div><label>Operação</label><strong id="reportDetailOperacao">—</strong></div>
+            <div><label>Controle</label><strong id="reportDetailControle">—</strong></div>
+            <div><label>Parâmetro</label><strong id="reportDetailParametro">—</strong></div>
+            <div><label>Valor informado</label><strong id="reportDetailValor">—</strong></div>
+            <div><label>Limites esperados</label><strong id="reportDetailExpected">—</strong></div>
+            <div><label>Status</label><strong id="reportDetailStatus">—</strong></div>
+            <div><label>Desvio</label><strong id="reportDetailDesvio">—</strong></div>
+            <div><label>Responsável</label><strong id="reportDetailResponsavel">—</strong></div>
+            <div><label>Observação</label><strong id="reportDetailObs">—</strong></div>
+            <div><label>Atualização</label><strong id="reportDetailUpdated">—</strong></div>
+        </div>
+        <div class="report-detail-modal__history">
+            <h4>Histórico do item</h4>
+            <div class="op-table-wrapper">
+                <table class="op-table op-table--history">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Turno</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Desvio</th>
+                            <th>Responsável</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportDetailHistoryBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('reportDetailModal');
+    if (!modal) return;
+
+    var map = {
+        data: document.getElementById('reportDetailData'),
+        turno: document.getElementById('reportDetailTurno'),
+        modulo: document.getElementById('reportDetailModulo'),
+        setor: document.getElementById('reportDetailSetor'),
+        operacao: document.getElementById('reportDetailOperacao'),
+        controle: document.getElementById('reportDetailControle'),
+        parametro: document.getElementById('reportDetailParametro'),
+        valor: document.getElementById('reportDetailValor'),
+        expected: document.getElementById('reportDetailExpected'),
+        status: document.getElementById('reportDetailStatus'),
+        desvio: document.getElementById('reportDetailDesvio'),
+        responsavel: document.getElementById('reportDetailResponsavel'),
+        obs: document.getElementById('reportDetailObs'),
+        updated: document.getElementById('reportDetailUpdated'),
+        historyBody: document.getElementById('reportDetailHistoryBody')
+    };
+
+    function openModal(detail) {
+        map.data.textContent = detail.data || '—';
+        map.turno.textContent = detail.turno || '—';
+        map.modulo.textContent = detail.modulo || '—';
+        map.setor.textContent = detail.setor || '—';
+        map.operacao.textContent = detail.operacao || '—';
+        map.controle.textContent = detail.controle || '—';
+        map.parametro.textContent = detail.parametro || '—';
+        map.valor.textContent = detail.valor || '—';
+        map.expected.textContent = detail.expected_limits || '—';
+        map.status.textContent = detail.status || '—';
+        map.desvio.textContent = detail.desvio || '—';
+        map.responsavel.textContent = detail.responsavel || '—';
+        map.obs.textContent = detail.observacao || '—';
+        map.updated.textContent = detail.atualizado_em || '—';
+
+        map.historyBody.innerHTML = '';
+        (detail.historico || []).forEach(function (item) {
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td><span class="op-table__text">' + (item.data || '—') + '</span></td>' +
+                '<td><span class="op-table__text">' + (item.turno || '—') + '</span></td>' +
+                '<td><span class="op-table__text">' + (item.valor || '—') + '</span></td>' +
+                '<td><span class="op-table__text">' + (item.status || '—') + '</span></td>' +
+                '<td><span class="op-table__text">' + (item.desvio || '—') + '</span></td>' +
+                '<td><span class="op-table__text">' + (item.responsavel || '—') + '</span></td>';
+            map.historyBody.appendChild(tr);
+        });
+
+        modal.hidden = false;
+        modal.classList.add('op-modal--open');
+    }
+
+    function closeModal() {
+        modal.classList.remove('op-modal--open');
+        modal.hidden = true;
+    }
+
+    document.querySelectorAll('.reports-table__row-clickable').forEach(function (row) {
+        row.addEventListener('click', function () {
+            var raw = row.getAttribute('data-report-detail');
+            if (!raw) return;
+            try {
+                openModal(JSON.parse(raw));
+            } catch (error) {
+                console.error('Falha ao abrir modal de relatório', error);
+            }
+        });
+    });
+
+    modal.querySelectorAll('[data-close-report-modal]').forEach(function (node) {
+        node.addEventListener('click', closeModal);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeModal();
+    });
+})();
+
+(function () {
+    var moduloSelect = document.getElementById('modulo');
+    var parametroSelect = document.getElementById('parametro');
+    if (!moduloSelect || !parametroSelect) return;
+
+    var allParams = {{ parametros | tojson }};
+    var byModule = {{ parametros_por_modulo | tojson }};
+    var selectedParametro = parametroSelect.getAttribute('data-selected-parametro') || '';
+
+    function renderParametroOptions(moduleCode, preserveValue) {
+        var params = moduleCode ? (byModule[moduleCode] || []) : allParams;
+        var current = preserveValue || '';
+        var options = ['<option value="">Todos</option>'];
+        params.forEach(function (p) {
+            var selected = current === p ? ' selected' : '';
+            options.push('<option value="' + p.replace(/"/g, '&quot;') + '"' + selected + '>' + p + '</option>');
+        });
+        parametroSelect.innerHTML = options.join('');
+        if (current && params.indexOf(current) === -1) {
+            parametroSelect.value = '';
+        }
+    }
+
+    renderParametroOptions(moduloSelect.value, selectedParametro);
+    moduloSelect.addEventListener('change', function () {
+        renderParametroOptions(moduloSelect.value, '');
+    });
+})();
+</script>
 {% endblock %}

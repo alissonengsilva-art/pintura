@@ -3,7 +3,8 @@ from app.services.access_control import SECTOR_OPTIONS, resolve_access_scope
 
 PRIMARY_LINKS = [
     {"slug": "dashboard", "title": "Dashboard", "url": "/dashboard"},
-    {"slug": "turnos", "title": "Turnos", "url": "/turno-atual"},
+    {"slug": "turnos", "title": "ED", "url": "/turno-atual"},
+    {"slug": "turnos-sigilatura", "title": "Sigilatura", "url": "/turnos-sigilatura"},
     {"slug": "relatorios", "title": "Relatórios", "url": "/relatorios"},
 ]
 

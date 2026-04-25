@@ -1,14 +1,6 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block content %}
-{% set progress = namespace(filled=0, total=0) %}
-{% for module in shift.modules %}
-    {% set module_total_all = module.pted_progress.total + module.lab_progress.total + module.non_applicable_count + module.on_demand_count %}
-    {% set module_filled_all = module.pted_progress.preenchidos + module.lab_progress.preenchidos %}
-    {% set progress.total = progress.total + module_total_all %}
-    {% set progress.filled = progress.filled + module_filled_all %}
-{% endfor %}
-{% set overall_progress_percent = ((progress.filled * 100) / progress.total)|round|int if progress.total > 0 else shift.progresso %}
 <section class="turno-workspace">
     <header class="turno-workspace__header">
         <div class="turno-workspace__header-icon" aria-hidden="true">
@@ -20,19 +12,24 @@
         <div class="turno-workspace__heading">
             <span class="turno-workspace__kicker">EXECUÇÃO DO TURNO</span>
             <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} &middot; Turno {{ shift.turno }}{% endif %}</h1>
-            <p class="turno-workspace__subtitle">Os oito controles executam dentro do mesmo turno mestre.</p>
+            <p class="turno-workspace__subtitle">Os módulos de Sigilatura executam dentro do mesmo turno mestre.</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
             {% if shift.status_geral != 'CONCLUIDO' %}
-            <button type="button" class="op-btn op-btn--primary op-btn--sm" data-open-close-shift-modal>Concluir turno</button>
+            <form method="post" action="/turnos-sigilatura/{{ shift.id }}/concluir">
+                <button type="submit" class="op-btn op-btn--primary op-btn--sm">Concluir turno</button>
+            </form>
             {% endif %}
-            <a href="/turno-atual" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
+            <a href="/turnos-sigilatura" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
     </header>
 
     {% if schema_error_message %}
     <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
+    {% endif %}
+    {% if error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
     {% endif %}
 
     <section class="turno-overview panel-card">
@@ -89,12 +86,12 @@
                 <span class="turno-overview__label">Progresso geral</span>
                 <div class="turno-overview__progress-row">
                     <div class="turno-overview__progress-copy">
-                        <strong>{{ overall_progress_percent }}%</strong>
-                        <span class="turno-overview__progress-total">{{ progress.filled }}/{{ progress.total }} itens</span>
+                        <strong>{{ shift.progresso }}%</strong>
+                        <span class="turno-overview__progress-total">{{ shift.total_filled }}/{{ shift.total_items }} itens</span>
                     </div>
                     <div class="turno-overview__progress">
                         <div class="op-shift-summary__progress-bar">
-                            <div class="op-shift-summary__progress-fill" style="width: {{ overall_progress_percent }}%"></div>
+                            <div class="op-shift-summary__progress-fill" style="width: {{ shift.progresso }}%"></div>
                         </div>
                     </div>
                 </div>
@@ -104,20 +101,16 @@
 
     <nav class="turno-browser-tabs" aria-label="Modulos do turno">
         {% for module in shift.modules %}
-        {% set module_total = module.pted_progress.total + module.lab_progress.total + module.non_applicable_count + module.on_demand_count %}
-        {% set module_filled = module.pted_progress.preenchidos + module.lab_progress.preenchidos %}
-        {% set module_progress = (module_filled * 100 / module_total)|round|int if module_total > 0 else 0 %}
         {% set module_state = 'nao-iniciado' %}
         {% set module_status_short = 'Nao iniciado' %}
-        {% if module.status_geral == 'CONCLUIDO' %}
+        {% if module.status == 'CONCLUIDO' %}
             {% set module_state = 'concluido' %}
             {% set module_status_short = 'Concluido' %}
-        {% elif module.status_geral in ['EM_ANDAMENTO', 'PARCIAL'] %}
+        {% elif module.status in ['EM_ANDAMENTO', 'PARCIAL'] %}
             {% set module_state = 'em-andamento' %}
             {% set module_status_short = 'Em andamento' %}
         {% endif %}
-        {% set scheduled_count = module.non_applicable_count + module.on_demand_count %}
-        <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
+        <a href="/turnos-sigilatura/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
             <span class="turno-browser-tab__icon" aria-hidden="true">
                 {% set module_code = module.code %}
                 {% include 'modules/_module_icon.html' %}
@@ -126,7 +119,7 @@
                 <span class="turno-browser-tab__title-band">
                     <span class="turno-browser-tab__title-wrap">
                         <span class="turno-browser-tab__title">{{ module.title }}</span>
-                        {% if module.has_alert %}
+                        {% if module.desvios > 0 %}
                         <span class="turno-browser-tab__alert" aria-label="{{ module.desvios }} desvios">{{ module.desvios }} desvios</span>
                         {% endif %}
                     </span>
@@ -135,119 +128,76 @@
                     <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ module_state }}" data-module-status>{{ module_status_short }}</span>
                 </span>
                 <span class="turno-browser-tab__progress">
-                    <span class="turno-browser-tab__progress-fill" style="width: {{ module_progress }}%"></span>
+                    <span class="turno-browser-tab__progress-fill" style="width: {{ module.percent }}%"></span>
                 </span>
                 <span class="turno-browser-tab__progress-band turno-browser-tab__meta" data-module-progress-band>
-                    <span data-module-progress-pted>{{ module_filled }}/{{ module_total }} itens</span>
-                    {% if scheduled_count > 0 %}
-                    <span data-module-non-applicable>{{ scheduled_count }} agendados</span>
-                    {% endif %}
+                    <span data-module-progress-pted>{{ module.preenchidos }}/{{ module.total }} itens</span>
                 </span>
             </span>
         </a>
         {% endfor %}
     </nav>
 
-    {% include 'modules/_editor.html' %}
-</section>
-
-{% if shift.status_geral != 'CONCLUIDO' %}
-<div class="op-modal" id="closeShiftModal" hidden>
-    <div class="op-modal__backdrop" data-close-shift-modal></div>
-    <div class="op-modal__content turno-close-modal">
-        <div class="turno-close-modal__hero">
-            <span class="turno-close-modal__eyebrow">Encerramento do turno</span>
-            <h2 class="op-modal__title turno-close-modal__title">Confirmar conclusao do turno</h2>
-            {% if shift.pending_count %}
-            <p class="op-modal__subtitle turno-close-modal__subtitle">
-                Ainda existem {{ shift.pending_count }} modulo(s) em aberto. Ao concluir, o turno sera encerrado mesmo com pendencias.
-            </p>
-            {% else %}
-            <p class="op-modal__subtitle turno-close-modal__subtitle">
-                Nao existem itens em aberto. Deseja realmente encerrar este turno agora?
-            </p>
-            {% endif %}
-        </div>
-
-        <div class="op-modal__body turno-close-modal__body">
-            <div class="turno-close-modal__summary">
-                <div class="turno-close-modal__metric">
-                    <span class="turno-close-modal__metric-label">Data</span>
-                    <strong>{{ shift.data_label }}</strong>
+    <section class="turno-module-editor__shell panel-card">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">{{ module_state.summary.title }}</h2>
+                    <span class="op-status-badge op-status-badge--{{ module_state.summary.status|lower|replace('_', '-') }}">{{ module_state.summary.status_label }}</span>
+                    <span class="turno-chip turno-chip--alert">{{ module_state.summary.desvios }} desvio{% if module_state.summary.desvios != 1 %}s{% endif %}</span>
                 </div>
-                <div class="turno-close-modal__metric">
-                    <span class="turno-close-modal__metric-label">Turno</span>
-                    <strong>{{ shift.turno or '-' }}</strong>
-                </div>
-                <div class="turno-close-modal__metric">
-                    <span class="turno-close-modal__metric-label">Concluidos</span>
-                    <strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong>
-                </div>
-                <div class="turno-close-modal__metric">
-                    <span class="turno-close-modal__metric-label">Em aberto</span>
-                    <strong>{{ shift.pending_count }}</strong>
-                </div>
+                <p class="turno-module-editor__description">{{ module_state.summary.description }}</p>
             </div>
+        </section>
 
-            {% if shift.pending_count %}
-            <div class="turno-close-modal__alert">
-                <span class="turno-close-modal__alert-badge">Atencao</span>
-                <p class="turno-close-modal__alert-text">Os modulos abaixo ainda nao foram concluidos:</p>
-                <ul class="turno-close-modal__list">
-                    {% for module in shift.pending_modules %}
-                    <li>
-                        <strong>{{ module.title }}</strong>
-                        <span>{{ module.status_geral_label }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="op-modal__actions turno-close-modal__actions">
-            <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-close-shift-modal>Cancelar</button>
-            <form method="post" action="/turnos/{{ shift.id }}/concluir">
-                <button type="submit" class="op-btn op-btn--primary op-btn--sm">Concluir turno</button>
+        <div class="op-sector turno-sector-panel op-sector--active">
+            <form method="post" action="/turnos-sigilatura/{{ shift.id }}/modulos/{{ active_module_code }}/salvar" class="op-sector__form turno-sector-form">
+                <div class="op-table-wrapper turno-sector-table-wrap">
+                    <table class="op-table turno-sector-table">
+                        <thead>
+                            <tr>
+                                {% for column in module_state.columns %}
+                                <th>{{ column.label }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in module_state.rows %}
+                            <tr>
+                                {% for column in module_state.columns %}
+                                <td>
+                                    {% if column.kind == 'input' %}
+                                    {% set field_name = column.name_prefix ~ '_' ~ row.item_key %}
+                                    <input type="text" name="{{ field_name }}" value="{{ row[column.key] }}" class="op-input op-input--compact">
+                                    {% elif column.kind == 'status' %}
+                                    <span class="op-badge {% if row[column.key] in ['FORA', 'FORA_PADRAO', 'FORA_DO_PADRAO'] %}op-badge--alarme{% elif row[column.key] in ['DENTRO', 'OK', 'CONCLUIDO'] %}op-badge--ok{% else %}op-badge--neutro{% endif %}">{{ row[column.key] }}</span>
+                                    {% else %}
+                                    <span class="op-table__text">{{ row[column.key] }}</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="op-sector__actions turno-sector-actions">
+                    <div class="op-sector__actions-info">
+                        <span class="op-sector__progress">{{ module_state.summary.preenchidos }} de {{ module_state.summary.total }} preenchidos</span>
+                    </div>
+                    {% if module_state.summary.status != 'CONCLUIDO' %}
+                    <div class="op-sector__actions-buttons">
+                        <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
+                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir setor</button>
+                    </div>
+                    {% else %}
+                    <div class="op-sector__actions-done">
+                        <span>Setor finalizado</span>
+                    </div>
+                    {% endif %}
+                </div>
             </form>
         </div>
-    </div>
-</div>
-
-<script>
-(function () {
-    var modal = document.getElementById('closeShiftModal');
-    if (!modal) {
-        return;
-    }
-
-    var openButtons = document.querySelectorAll('[data-open-close-shift-modal]');
-    var closeButtons = document.querySelectorAll('[data-close-shift-modal]');
-
-    function openModal() {
-        modal.hidden = false;
-        modal.classList.add('op-modal--open');
-    }
-
-    function closeModal() {
-        modal.classList.remove('op-modal--open');
-        modal.hidden = true;
-    }
-
-    openButtons.forEach(function(button) {
-        button.addEventListener('click', openModal);
-    });
-
-    closeButtons.forEach(function(button) {
-        button.addEventListener('click', closeModal);
-    });
-
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') {
-            closeModal();
-        }
-    });
-})();
-</script>
-{% endif %}
+    </section>
+</section>
 {% endblock %}

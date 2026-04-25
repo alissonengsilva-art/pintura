@@ -6,7 +6,7 @@
         <div class="op-hub-toolbar__tabs">
             <button type="button" class="op-hub-tabs__tab {% if active_tab == 'concluidos' %}op-hub-tabs__tab--active{% endif %}" data-hub-tab="concluidos">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                ConcluÃ­dos
+                Concluídos
                 <span class="op-hub-tabs__count">{{ rows_concluidos|length }}</span>
             </button>
             <button type="button" class="op-hub-tabs__tab {% if active_tab == 'andamento' %}op-hub-tabs__tab--active{% endif %}" data-hub-tab="andamento">
@@ -28,8 +28,8 @@
     {% if turno_atual_url %}
     <div class="op-alert op-alert--info">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Esta central Ã© apenas histÃ³rica. A execuÃ§Ã£o do mÃ³dulo acontece na tela principal do turno.
-        <a href="{{ turno_atual_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execuÃ§Ã£o do turno</a>
+        Esta central é apenas histórica. A execução do módulo acontece na tela principal do turno.
+        <a href="{{ turno_atual_url }}" class="op-btn op-btn--secondary op-btn--sm">Ir para execução do turno</a>
     </div>
     {% endif %}
 
@@ -43,11 +43,11 @@
                             <th class="op-table__col--origem">Origem</th>
                             <th class="op-table__col--contexto">Contexto</th>
                             <th class="op-table__col--setor">PT/ED</th>
-                            <th class="op-table__col--setor">LaboratÃ³rio</th>
+                            <th class="op-table__col--setor">Laboratório</th>
                             <th class="op-table__col--resp">Resp. PT/ED</th>
                             <th class="op-table__col--resp">Resp. Lab</th>
                             <th class="op-table__col--desvios">Desvios</th>
-                            <th class="op-table__col--acoes">AÃ§Ãµes</th>
+                            <th class="op-table__col--acoes">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -85,7 +85,7 @@
         {% else %}
         <div class="op-empty-state op-empty-state--compact">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <p class="op-empty-state__text">Nenhum registro concluÃ­do</p>
+            <p class="op-empty-state__text">Nenhum registro concluído</p>
         </div>
         {% endif %}
     </div>
@@ -98,12 +98,12 @@
                     <thead>
                         <tr>
                             <th class="op-table__col--contexto">Contexto</th>
-                            <th class="op-table__col--setor">PTED</th>
-                            <th class="op-table__col--setor">LaboratÃ³rio</th>
+                            <th class="op-table__col--setor">PT/ED</th>
+                            <th class="op-table__col--setor">Laboratório</th>
                             <th class="op-table__col--status">Status</th>
                             <th class="op-table__col--resp">Resp. PT/ED</th>
                             <th class="op-table__col--resp">Resp. Lab</th>
-                            <th class="op-table__col--acoes">AÃ§Ãµes</th>
+                            <th class="op-table__col--acoes">Ações</th>
                         </tr>
                     </thead>
                     <tbody>

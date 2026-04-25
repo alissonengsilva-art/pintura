@@ -93,23 +93,25 @@ def _coerce_date(raw_value: str | None, fallback: date | None = None) -> date | 
 def _parse_report_filters(request: Request) -> ReportFilters:
     data_inicio_raw = (request.query_params.get("data_inicio") or "").strip()
     data_fim_raw = (request.query_params.get("data_fim") or "").strip()
-    turno = (request.query_params.get("turno") or "").strip() or None
     modulo = (request.query_params.get("modulo") or "").strip() or None
+    parametro = (request.query_params.get("parametro") or "").strip() or None
     setor = (request.query_params.get("setor") or "").strip() or None
+    agrupamento = (request.query_params.get("agrupamento") or "dia").strip().lower()
+    if agrupamento not in {"dia", "modulo", "parametro"}:
+        agrupamento = "dia"
+    turno = (request.query_params.get("turno") or "").strip() or None
     responsavel = (request.query_params.get("responsavel") or "").strip() or None
     status = (request.query_params.get("status") or "").strip() or None
-    visao = (request.query_params.get("visao") or "modulos").strip().lower()
-    if visao not in {"modulos", "turnos"}:
-        visao = "modulos"
     return ReportFilters(
         data_inicio=_coerce_date(data_inicio_raw, None) if data_inicio_raw else None,
         data_fim=_coerce_date(data_fim_raw, None) if data_fim_raw else None,
-        turno=turno,
         modulo=modulo,
+        parametro=parametro,
         setor=setor,
+        agrupamento=agrupamento,
+        turno=turno,
         responsavel=responsavel,
         status=status,
-        visao=visao,
     )
 
 
@@ -298,14 +300,15 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     context = {
         "request": request,
         "page_title": "Dashboard Operacional",
-        "page_description": "Visao consolidada do modelo operacional.",
+        "page_description": "Acompanhamento operacional por data e turno.",
         "filters": snapshot.filters,
         "has_global_alert": snapshot.has_global_alert,
         "global_alert_message": snapshot.global_alert_message,
         "metrics": snapshot.metrics,
         "module_cards": snapshot.module_cards,
-        "occurrences": snapshot.occurrences,
-        "pending_summary": snapshot.pending_summary,
+        "shift_options": snapshot.shift_options,
+        "selected_shift": snapshot.selected_shift,
+        "empty_state_message": snapshot.empty_state_message,
         "error_message": error_message,
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
@@ -513,14 +516,21 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
     has_query = bool(request.query_params)
     if not has_query:
         today = date.today()
-        filters = ReportFilters(data_inicio=today, data_fim=today, visao="modulos")
+        filters = ReportFilters(data_inicio=today, data_fim=today, agrupamento="dia")
         validation_error = None
         snapshot = build_reports_snapshot(db, filters)
     else:
         filters = _parse_report_filters(request)
         if not filters.data_inicio or not filters.data_fim:
             validation_error = "Informe data inicial e data final para consultar relatorios."
-            snapshot = {"rows": [], "metrics": []}
+            snapshot = {
+                "rows": [],
+                "metrics": [],
+                "grouped": [],
+                "desvios": [],
+                "grouped_modulo": [],
+                "percentual_desvio": 0.0,
+            }
         else:
             validation_error = None
             snapshot = build_reports_snapshot(db, filters)
@@ -530,12 +540,13 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
         for key, value in {
             "data_inicio": request.query_params.get("data_inicio", ""),
             "data_fim": request.query_params.get("data_fim", ""),
-            "turno": filters.turno or "",
             "modulo": filters.modulo or "",
+            "parametro": filters.parametro or "",
             "setor": filters.setor or "",
+            "agrupamento": filters.agrupamento,
+            "turno": filters.turno or "",
             "responsavel": filters.responsavel or "",
             "status": filters.status or "",
-            "visao": filters.visao,
         }.items()
         if value
     }
@@ -546,11 +557,13 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
     context = {
         "request": request,
         "page_title": "Relatorios",
-        "page_description": "Consulta consolidada por turno, modulo, setor e responsavel.",
+        "page_description": "Análise técnica das medições operacionais dos controles.",
         "validation_error": validation_error,
         "filters": filters,
         "rows": snapshot["rows"],
         "metrics": snapshot["metrics"],
+        "grouped": snapshot["grouped"],
+        "percentual_desvio": snapshot["percentual_desvio"],
         "pdf_export_url": pdf_export_url,
         **options,
         **layout_context(str(request.url.path), scope_source=request.query_params),
@@ -571,6 +584,10 @@ def relatorios_pdf(request: Request, db: Session = Depends(get_db)):
         "filters": filters,
         "rows": snapshot["rows"],
         "metrics": snapshot["metrics"],
+        "grouped": snapshot["grouped"],
+        "grouped_modulo": snapshot["grouped_modulo"],
+        "desvios": snapshot["desvios"],
+        "percentual_desvio": snapshot["percentual_desvio"],
         "print_mode": True,
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
