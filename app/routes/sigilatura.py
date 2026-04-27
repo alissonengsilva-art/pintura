@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.services.shift_service import list_shared_options as shift_list_options
 from app.services.sigilatura_service import (
     MODULE_META,
     SigilaturaValidationError,
+    add_escorrimento_image,
     build_module_editor_state,
     build_turno_detail,
     conclude_turno,
@@ -21,6 +22,7 @@ from app.services.sigilatura_service import (
     get_turno_by_id,
     list_turno_options,
     list_turnos_history,
+    remove_escorrimento_image,
     save_module,
     sigilatura_schema_available,
 )
@@ -172,6 +174,62 @@ async def turnos_sigilatura_salvar_modulo(
         return RedirectResponse(url=_shift_exec_url(shift_id, module_code), status_code=303)
     except SigilaturaValidationError as error:
         return _render_execution(request, db, shift_id, module_code, error_message=str(error), status_code=400)
+
+
+@router.post("/turnos-sigilatura/{shift_id}/modulos/escorrimento/imagens", name="turnos_sigilatura_upload_escorrimento_imagem")
+async def turnos_sigilatura_upload_escorrimento_imagem(
+    shift_id: int,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    shift_obj = get_turno_by_id(db, shift_id)
+    if not shift_obj:
+        raise HTTPException(status_code=404, detail="Turno de sigilatura nao encontrado")
+
+    raw = await image.read()
+    try:
+        created = add_escorrimento_image(
+            db,
+            shift_obj,
+            file_bytes=raw,
+            content_type=image.content_type or "",
+        )
+    except SigilaturaValidationError as error:
+        return JSONResponse({"success": False, "message": str(error)}, status_code=400)
+
+    module_state = build_module_editor_state(db, shift_obj, "escorrimento")
+    return JSONResponse(
+        {
+            "success": True,
+            "image": created,
+            "images": module_state.get("escorrimento_images", []),
+            "max_images": module_state.get("escorrimento_max_images", 2),
+        }
+    )
+
+
+@router.post("/turnos-sigilatura/{shift_id}/modulos/escorrimento/imagens/{image_id}/remover", name="turnos_sigilatura_remover_escorrimento_imagem")
+def turnos_sigilatura_remover_escorrimento_imagem(
+    shift_id: int,
+    image_id: int,
+    db: Session = Depends(get_db),
+):
+    shift_obj = get_turno_by_id(db, shift_id)
+    if not shift_obj:
+        raise HTTPException(status_code=404, detail="Turno de sigilatura nao encontrado")
+    try:
+        remove_escorrimento_image(db, shift_obj, image_id)
+    except SigilaturaValidationError as error:
+        return JSONResponse({"success": False, "message": str(error)}, status_code=400)
+
+    module_state = build_module_editor_state(db, shift_obj, "escorrimento")
+    return JSONResponse(
+        {
+            "success": True,
+            "images": module_state.get("escorrimento_images", []),
+            "max_images": module_state.get("escorrimento_max_images", 2),
+        }
+    )
 
 
 @router.post("/turnos-sigilatura/{shift_id}/concluir", name="turnos_sigilatura_concluir")

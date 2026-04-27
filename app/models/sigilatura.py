@@ -65,6 +65,10 @@ class SigilaturaModulo(Base, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="SigilaturaResposta.ordem",
     )
+    escorrimento_imagens: Mapped[list["SigilaturaEscorrimentoImagem"]] = relationship(
+        cascade="all, delete-orphan",
+        order_by="SigilaturaEscorrimentoImagem.id",
+    )
 
 
 class SigilaturaResposta(Base, TimestampMixin):
@@ -141,3 +145,13 @@ class SigilaturaEscorrimento(Base, TimestampMixin):
     acao_corretiva: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="NAO_AVALIADO")
 
+
+class SigilaturaEscorrimentoImagem(Base, TimestampMixin):
+    __tablename__ = "sigilatura_escorrimento_imagens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    turno_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_turnos.id", ondelete="CASCADE"), nullable=False, index=True)
+    modulo_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(260), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(80), nullable=True)

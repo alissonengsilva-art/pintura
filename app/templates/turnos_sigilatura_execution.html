@@ -181,6 +181,56 @@
                         </tbody>
                     </table>
                 </div>
+                {% if active_module_code == 'escorrimento' %}
+                <section class="escorrimento-images" data-escorrimento-images data-max-images="{{ module_state.escorrimento_max_images }}">
+                    <div class="escorrimento-images__header">
+                        <span class="escorrimento-images__kicker">Evidencias Visuais</span>
+                        <h3>Anexos de imagem</h3>
+                        <p>Adicione ate {{ module_state.escorrimento_max_images }} fotos com recorte 1:1. Depois de confirmar o quadro, o upload salva automaticamente.</p>
+                    </div>
+                    <div class="escorrimento-images__grid" data-escorrimento-image-grid>
+                        {% for image in module_state.escorrimento_images %}
+                        <figure class="escorrimento-images__item">
+                            <img src="{{ image.url }}" alt="Imagem de escorrimento {{ loop.index }}" loading="lazy">
+                            <figcaption>Foto {{ loop.index }}</figcaption>
+                            <button type="button" class="escorrimento-images__remove" data-remove-image="{{ image.id }}" aria-label="Remover foto">&times;</button>
+                        </figure>
+                        {% endfor %}
+                    </div>
+                    <div class="escorrimento-images__actions">
+                        <label class="escorrimento-images__attach">
+                            <span>Adicionar foto</span>
+                            <input type="file" accept="image/png,image/jpeg,image/webp" data-escorrimento-file-input hidden>
+                        </label>
+                        <span class="escorrimento-images__feedback" data-escorrimento-feedback></span>
+                    </div>
+                </section>
+                <div class="escorrimento-cropper" data-esc-cropper hidden>
+                    <div class="escorrimento-cropper__backdrop" data-esc-cropper-cancel></div>
+                    <div class="escorrimento-cropper__dialog" role="dialog" aria-modal="true" aria-label="Recorte de imagem 1 para 1">
+                        <header class="escorrimento-cropper__header">
+                            <div>
+                                <span class="escorrimento-cropper__kicker">Recorte 1:1</span>
+                                <h4>Ajustar foto antes do envio</h4>
+                            </div>
+                            <button type="button" class="escorrimento-cropper__close" data-esc-cropper-cancel aria-label="Fechar">&times;</button>
+                        </header>
+                        <div class="escorrimento-cropper__body">
+                            <div class="escorrimento-cropper__canvas-shell">
+                                <canvas width="1200" height="1200" data-esc-cropper-canvas></canvas>
+                                <div class="escorrimento-cropper__frame" data-esc-cropper-frame title="Arraste para reposicionar o recorte">
+                                    <span class="escorrimento-cropper__handle" data-esc-cropper-handle aria-hidden="true"></span>
+                                </div>
+                            </div>
+                            <p class="escorrimento-cropper__hint">Imagem estatica. Arraste o quadro para mover e use a alca no canto para aumentar/reduzir o recorte.</p>
+                        </div>
+                        <footer class="escorrimento-cropper__footer">
+                            <button type="button" class="op-btn op-btn--ghost" data-esc-cropper-cancel>Cancelar</button>
+                            <button type="button" class="op-btn op-btn--primary" data-esc-cropper-confirm>Recortar e salvar</button>
+                        </footer>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="op-sector__actions turno-sector-actions">
                     <div class="op-sector__actions-info">
                         <span class="op-sector__progress">{{ module_state.summary.preenchidos }} de {{ module_state.summary.total }} preenchidos</span>
@@ -200,4 +250,354 @@
         </div>
     </section>
 </section>
+{% if active_module_code == 'escorrimento' %}
+<script>
+(() => {
+    const container = document.querySelector("[data-escorrimento-images]");
+    if (!container) return;
+
+    const input = container.querySelector("[data-escorrimento-file-input]");
+    const grid = container.querySelector("[data-escorrimento-image-grid]");
+    const feedback = container.querySelector("[data-escorrimento-feedback]");
+    const maxImages = Number(container.dataset.maxImages || "2");
+    const imagesBaseUrl = "/turnos-sigilatura/{{ shift.id }}/modulos/escorrimento/imagens";
+    const uploadUrl = imagesBaseUrl;
+    const cropper = document.querySelector("[data-esc-cropper]");
+    const cropperCanvas = cropper ? cropper.querySelector("[data-esc-cropper-canvas]") : null;
+    const cropFrame = cropper ? cropper.querySelector("[data-esc-cropper-frame]") : null;
+    const cropHandle = cropper ? cropper.querySelector("[data-esc-cropper-handle]") : null;
+    const confirmButton = cropper ? cropper.querySelector("[data-esc-cropper-confirm]") : null;
+    const cancelButtons = cropper ? cropper.querySelectorAll("[data-esc-cropper-cancel]") : [];
+    const cropCtx = cropperCanvas ? cropperCanvas.getContext("2d") : null;
+    const CROP_OUTPUT_SIZE = 720;
+    const cropState = {
+        image: null,
+        renderScale: 1,
+        renderX: 0,
+        renderY: 0,
+        renderW: 0,
+        renderH: 0,
+        frameX: 0,
+        frameY: 0,
+        frameSize: 0,
+        frameDragging: false,
+        frameResizing: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        baseFrameX: 0,
+        baseFrameY: 0,
+        baseFrameSize: 0,
+    };
+
+    const setFeedback = (message, isError = false) => {
+        feedback.textContent = message || "";
+        feedback.classList.toggle("is-error", Boolean(isError));
+    };
+
+    const getCurrentImageCount = () => grid.querySelectorAll(".escorrimento-images__item").length;
+
+    const renderImages = (images) => {
+        grid.innerHTML = "";
+        images.forEach((image, index) => {
+            const figure = document.createElement("figure");
+            figure.className = "escorrimento-images__item";
+            const img = document.createElement("img");
+            img.src = image.url;
+            img.alt = `Imagem de escorrimento ${index + 1}`;
+            img.loading = "lazy";
+            figure.appendChild(img);
+            const caption = document.createElement("figcaption");
+            caption.textContent = `Foto ${index + 1}`;
+            figure.appendChild(caption);
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "escorrimento-images__remove";
+            removeButton.setAttribute("data-remove-image", String(image.id));
+            removeButton.setAttribute("aria-label", "Remover foto");
+            removeButton.innerHTML = "&times;";
+            figure.appendChild(removeButton);
+            grid.appendChild(figure);
+        });
+    };
+
+    const setCropperVisibility = (visible) => {
+        if (!cropper) return;
+        cropper.hidden = !visible;
+        document.body.classList.toggle("cropper-open", visible);
+    };
+
+    const clampFrame = () => {
+        const minX = cropState.renderX;
+        const minY = cropState.renderY;
+        const maxX = cropState.renderX + cropState.renderW - cropState.frameSize;
+        const maxY = cropState.renderY + cropState.renderH - cropState.frameSize;
+        cropState.frameX = Math.min(maxX, Math.max(minX, cropState.frameX));
+        cropState.frameY = Math.min(maxY, Math.max(minY, cropState.frameY));
+    };
+
+    const frameSizeBounds = () => {
+        const maxW = (cropState.renderX + cropState.renderW) - cropState.frameX;
+        const maxH = (cropState.renderY + cropState.renderH) - cropState.frameY;
+        return {
+            min: 120,
+            max: Math.max(120, Math.floor(Math.min(maxW, maxH))),
+        };
+    };
+
+    const updateFrameStyle = () => {
+        if (!cropFrame || !cropperCanvas || !cropState.frameSize) return;
+        const canvasRect = cropperCanvas.getBoundingClientRect();
+        if (!canvasRect.width || !canvasRect.height) return;
+        const scaleX = canvasRect.width / cropperCanvas.width;
+        const scaleY = canvasRect.height / cropperCanvas.height;
+        cropFrame.style.width = `${cropState.frameSize * scaleX}px`;
+        cropFrame.style.height = `${cropState.frameSize * scaleY}px`;
+        cropFrame.style.left = `${cropState.frameX * scaleX}px`;
+        cropFrame.style.top = `${cropState.frameY * scaleY}px`;
+    };
+
+    const drawCropper = () => {
+        if (!cropCtx || !cropperCanvas || !cropState.image) return;
+        cropCtx.clearRect(0, 0, cropperCanvas.width, cropperCanvas.height);
+        cropCtx.fillStyle = "#0b2037";
+        cropCtx.fillRect(0, 0, cropperCanvas.width, cropperCanvas.height);
+        cropCtx.drawImage(
+            cropState.image,
+            cropState.renderX,
+            cropState.renderY,
+            cropState.renderW,
+            cropState.renderH
+        );
+        updateFrameStyle();
+    };
+
+    const loadCropperImage = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const image = new Image();
+            image.onload = () => {
+                if (!cropperCanvas) {
+                    reject(new Error("Nao foi possivel preparar o recorte."));
+                    return;
+                }
+                cropState.image = image;
+                cropState.renderScale = Math.min(cropperCanvas.width / image.width, cropperCanvas.height / image.height);
+                cropState.renderW = Math.floor(image.width * cropState.renderScale);
+                cropState.renderH = Math.floor(image.height * cropState.renderScale);
+                cropState.renderX = Math.floor((cropperCanvas.width - cropState.renderW) / 2);
+                cropState.renderY = Math.floor((cropperCanvas.height - cropState.renderH) / 2);
+                cropState.frameSize = Math.floor(Math.min(cropState.renderW, cropState.renderH) * 0.62);
+                cropState.frameX = cropState.renderX + Math.floor((cropState.renderW - cropState.frameSize) / 2);
+                cropState.frameY = cropState.renderY + Math.floor((cropState.renderH - cropState.frameSize) / 2);
+                clampFrame();
+                setCropperVisibility(true);
+                drawCropper();
+                // Recalcula apos o modal ficar visivel para evitar quadro 0x0.
+                requestAnimationFrame(() => {
+                    updateFrameStyle();
+                    requestAnimationFrame(updateFrameStyle);
+                });
+                resolve();
+            };
+            image.onerror = () => reject(new Error("Arquivo de imagem invalido."));
+            image.src = String(reader.result || "");
+        };
+        reader.onerror = () => reject(new Error("Falha ao ler o arquivo selecionado."));
+        reader.readAsDataURL(file);
+    });
+
+    const cropSquareBlob = () => new Promise((resolve, reject) => {
+        if (!cropperCanvas || !cropState.image || cropState.renderScale <= 0) {
+            reject(new Error("Nao foi possivel gerar o recorte."));
+            return;
+        }
+        const sourceX = (cropState.frameX - cropState.renderX) / cropState.renderScale;
+        const sourceY = (cropState.frameY - cropState.renderY) / cropState.renderScale;
+        const sourceSize = cropState.frameSize / cropState.renderScale;
+        const outputCanvas = document.createElement("canvas");
+        outputCanvas.width = CROP_OUTPUT_SIZE;
+        outputCanvas.height = CROP_OUTPUT_SIZE;
+        const outputCtx = outputCanvas.getContext("2d");
+        if (!outputCtx) {
+            reject(new Error("Nao foi possivel gerar imagem de saida."));
+            return;
+        }
+        outputCtx.drawImage(
+            cropState.image,
+            sourceX,
+            sourceY,
+            sourceSize,
+            sourceSize,
+            0,
+            0,
+            CROP_OUTPUT_SIZE,
+            CROP_OUTPUT_SIZE
+        );
+        outputCanvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error("Falha ao gerar imagem recortada."));
+                return;
+            }
+            resolve(blob);
+        }, "image/jpeg", 0.82);
+    });
+
+    if (cropFrame && cropperCanvas) {
+        cropFrame.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            if (cropState.frameResizing) return;
+            if (!cropState.image) return;
+            cropState.frameDragging = true;
+            cropState.dragStartX = event.clientX;
+            cropState.dragStartY = event.clientY;
+            cropState.baseFrameX = cropState.frameX;
+            cropState.baseFrameY = cropState.frameY;
+            cropFrame.setPointerCapture(event.pointerId);
+            cropFrame.classList.add("is-dragging");
+        });
+        cropFrame.addEventListener("pointermove", (event) => {
+            if (!cropState.frameDragging || cropState.frameResizing) return;
+            const canvasRect = cropperCanvas.getBoundingClientRect();
+            const deltaX = event.clientX - cropState.dragStartX;
+            const deltaY = event.clientY - cropState.dragStartY;
+            const toCanvasX = cropperCanvas.width / canvasRect.width;
+            const toCanvasY = cropperCanvas.height / canvasRect.height;
+            cropState.frameX = cropState.baseFrameX + (deltaX * toCanvasX);
+            cropState.frameY = cropState.baseFrameY + (deltaY * toCanvasY);
+            clampFrame();
+            updateFrameStyle();
+        });
+        cropFrame.addEventListener("pointerup", (event) => {
+            cropState.frameDragging = false;
+            cropFrame.releasePointerCapture(event.pointerId);
+            cropFrame.classList.remove("is-dragging");
+        });
+        cropFrame.addEventListener("pointercancel", () => {
+            cropState.frameDragging = false;
+            cropFrame.classList.remove("is-dragging");
+        });
+    }
+
+    if (cropHandle && cropFrame && cropperCanvas) {
+        cropHandle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!cropState.image) return;
+            cropState.frameResizing = true;
+            cropState.dragStartX = event.clientX;
+            cropState.dragStartY = event.clientY;
+            cropState.baseFrameSize = cropState.frameSize;
+            cropHandle.setPointerCapture(event.pointerId);
+            cropFrame.classList.add("is-resizing");
+        });
+
+        cropHandle.addEventListener("pointermove", (event) => {
+            if (!cropState.frameResizing) return;
+            const canvasRect = cropperCanvas.getBoundingClientRect();
+            const toCanvasX = cropperCanvas.width / canvasRect.width;
+            const toCanvasY = cropperCanvas.height / canvasRect.height;
+            const deltaX = (event.clientX - cropState.dragStartX) * toCanvasX;
+            const deltaY = (event.clientY - cropState.dragStartY) * toCanvasY;
+            const delta = Math.max(deltaX, deltaY);
+            const bounds = frameSizeBounds();
+            const nextSize = cropState.baseFrameSize + delta;
+            cropState.frameSize = Math.floor(Math.min(bounds.max, Math.max(bounds.min, nextSize)));
+            clampFrame();
+            updateFrameStyle();
+        });
+
+        cropHandle.addEventListener("pointerup", (event) => {
+            cropState.frameResizing = false;
+            cropHandle.releasePointerCapture(event.pointerId);
+            cropFrame.classList.remove("is-resizing");
+        });
+
+        cropHandle.addEventListener("pointercancel", () => {
+            cropState.frameResizing = false;
+            cropFrame.classList.remove("is-resizing");
+        });
+    }
+
+    window.addEventListener("resize", () => {
+        if (cropper && !cropper.hidden) {
+            updateFrameStyle();
+        }
+    });
+
+    cancelButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            setCropperVisibility(false);
+            cropState.image = null;
+        });
+    });
+
+    input.addEventListener("change", async (event) => {
+        const selected = event.target.files && event.target.files[0];
+        input.value = "";
+        if (!selected) return;
+        const currentItems = getCurrentImageCount();
+        if (currentItems >= maxImages) {
+            setFeedback("Limite de imagens atingido.", true);
+            return;
+        }
+        try {
+            await loadCropperImage(selected);
+            setFeedback("Ajuste o quadro 1:1 e confirme para salvar.");
+        } catch (error) {
+            setFeedback(error && error.message ? error.message : "Erro ao abrir imagem.", true);
+        }
+    });
+
+    grid.addEventListener("click", async (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest("[data-remove-image]") : null;
+        if (!target) return;
+        const imageId = String(target.getAttribute("data-remove-image") || "").trim();
+        if (!imageId) return;
+        target.setAttribute("disabled", "disabled");
+        setFeedback("Removendo foto...");
+        try {
+            const response = await fetch(`${imagesBaseUrl}/${imageId}/remover`, { method: "POST" });
+            const payload = await response.json();
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || "Falha ao remover imagem.");
+            }
+            renderImages(payload.images || []);
+            setFeedback("Foto removida.");
+        } catch (error) {
+            setFeedback(error && error.message ? error.message : "Erro ao remover imagem.", true);
+        } finally {
+            target.removeAttribute("disabled");
+        }
+    });
+
+    if (confirmButton) {
+        confirmButton.addEventListener("click", async () => {
+            if (!cropState.image) return;
+            input.disabled = true;
+            confirmButton.disabled = true;
+            setFeedback("Enviando imagem...");
+            try {
+                const croppedBlob = await cropSquareBlob();
+                const formData = new FormData();
+                formData.append("image", croppedBlob, "escorrimento.jpg");
+                const response = await fetch(uploadUrl, { method: "POST", body: formData });
+                const payload = await response.json();
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.message || "Falha ao anexar imagem.");
+                }
+                renderImages(payload.images || []);
+                setCropperVisibility(false);
+                cropState.image = null;
+                setFeedback("Foto anexada com sucesso. Salvamento automatico concluido.");
+            } catch (error) {
+                setFeedback(error && error.message ? error.message : "Erro ao anexar imagem.", true);
+            } finally {
+                input.disabled = false;
+                confirmButton.disabled = false;
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -97,7 +97,12 @@
                         <thead>
                             <tr>
                                 {% for column in module_state.module_config.columns %}
+                                {% if module_state.module_config.code == 'ed' and column.key == 'descricao' %}
+                                {% elif module_state.module_config.code == 'ed' and column.key == 'operacao' %}
+                                <th class="op-table__col--{{ column.key }}">Operação / Controle</th>
+                                {% else %}
                                 <th class="op-table__col--{{ column.key }}">{{ column.label }}</th>
+                                {% endif %}
                                 {% endfor %}
                             </tr>
                         </thead>
@@ -106,6 +111,18 @@
                             {% set row_scheduled = not row.is_applicable %}
                             <tr class="{% if row.flag %}op-table__row--flagged{% endif %} {% if row_scheduled %}check-row--scheduled{% endif %}">
                                 {% for column in module_state.module_config.columns %}
+                                {% if module_state.module_config.code == 'ed' and column.key == 'descricao' %}
+                                {% elif module_state.module_config.code == 'ed' and column.key == 'operacao' %}
+                                <td class="op-table__col--{{ column.key }}">
+                                    <div class="op-table__cell-stack">
+                                        <span class="op-table__text op-table__text--primary">{{ row.operacao }}</span>
+                                        <span class="op-table__text">{{ row.descricao }}</span>
+                                        {% if row.item_observation %}
+                                        <span class="op-table__text op-table__text--muted turno-item-note" title="{{ row.item_observation }}">{{ row.item_observation }}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% else %}
                                 <td class="op-table__col--{{ column.key }}">
                                     {% if column.kind == 'input' %}
                                         {% if module_state.module_config.code == 'aspecto' %}
@@ -160,6 +177,7 @@
                                     {% endif %}
                                     {% endif %}
                                 </td>
+                                {% endif %}
                                 {% endfor %}
                             </tr>
                             {% endfor %}

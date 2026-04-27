@@ -1,4 +1,4 @@
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.models import OperationalModuleItem
-from app.services import operational_module_item_admin_service, operational_module_item_service
+from app.services import operational_module_item_admin_service, operational_module_item_service, sigilatura_service
 from app.services.auth_service import require_admin
 from app.services.navigation import SETTINGS_HUB_ITEMS, layout_context
 from app.services.operational_module_service import MODULE_CONFIGS
@@ -30,14 +30,26 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter(tags=["cadastros"])
 
 
-def _format_temperature_parameter(valor_min: float | None, valor_max: float | None) -> str | None:
-    if valor_min is not None and valor_max is not None:
-        return f"{valor_min:g} a {valor_max:g} C"
-    if valor_min is not None:
-        return f">= {valor_min:g} C"
-    if valor_max is not None:
-        return f"<= {valor_max:g} C"
-    return None
+GENERAL_SCOPE_ED = "ed"
+GENERAL_SCOPE_SIG = "sigilatura"
+
+GENERAL_ED_TABS = [
+    {"code": "ed", "title": "ED", "field_label": "Parâmetro", "editable": True},
+    {"code": "temperatura-forno-ed", "title": "Temperatura Forno", "field_label": "Faixa", "editable": True},
+    {"code": "pressao-filtros-ed", "title": "Pressão dos Filtros", "field_label": "Limite", "editable": True},
+    {"code": "tensao-retificadores-ed", "title": "Tensão dos Retificadores", "field_label": "Faixa", "editable": True},
+    {"code": "poder-penetracao", "title": "Poder de Penetração", "field_label": "Referência", "editable": True},
+    {"code": "espessura-ed", "title": "Espessura", "field_label": "Faixa", "editable": True},
+    {"code": "aspecto", "title": "Aspecto", "field_label": "—", "editable": False},
+    {"code": "rugosidade", "title": "Rugosidade", "field_label": "Limite", "editable": True},
+]
+
+GENERAL_SIG_TABS = [
+    {"code": "sigilatura", "title": "Sigilatura", "field_label": "Parâmetro", "editable": True},
+    {"code": "espessura-pvc", "title": "Espessura PVC", "field_label": "Valor referência", "editable": True},
+    {"code": "temperatura-forno-sigilatura", "title": "Temperatura Forno", "field_label": "Referência", "editable": True},
+    {"code": "escorrimento", "title": "Escorrimento", "field_label": "—", "editable": False},
+]
 
 
 def _admin_list_context(
@@ -98,6 +110,139 @@ def _build_module_admin_context(db: Session, module_code: str) -> dict:
         "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
         "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
+    }
+
+
+def _module_tabs_for_scope(scope: str) -> list[dict[str, object]]:
+    if scope == GENERAL_SCOPE_SIG:
+        return GENERAL_SIG_TABS
+    return GENERAL_ED_TABS
+
+
+def _resolve_general_editor_scope(raw_scope: str | None) -> str:
+    scope = str(raw_scope or "").strip().lower()
+    return scope if scope in {GENERAL_SCOPE_ED, GENERAL_SCOPE_SIG} else GENERAL_SCOPE_ED
+
+
+def _resolve_general_editor_module(scope: str, raw_module: str | None) -> str:
+    tabs = _module_tabs_for_scope(scope)
+    available = {str(tab["code"]) for tab in tabs}
+    module_code = str(raw_module or "").strip()
+    if module_code in available:
+        return module_code
+    editable = next((str(tab["code"]) for tab in tabs if bool(tab["editable"])), None)
+    return editable or str(tabs[0]["code"])
+
+
+def _build_ed_parameter_rows(db: Session, module_code: str) -> list[dict[str, object]]:
+    items = list(
+        db.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == module_code)
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).all()
+    )
+    grouped: dict[tuple[str, str], dict[str, object]] = {}
+    rows: list[dict[str, object]] = []
+    for item in items:
+        key = (str(item.operacao or "").strip().lower(), str(item.controle or "").strip().lower())
+        row = grouped.get(key)
+        if row is None:
+            row = {
+                "id": item.id,
+                "ordem": item.ordem or item.id,
+                "operacao": item.operacao or "-",
+                "controle": item.controle,
+                "parametro": item.parametro or "",
+                "ids": [item.id],
+            }
+            grouped[key] = row
+            rows.append(row)
+            continue
+        row["ids"].append(item.id)
+        if not str(row["parametro"] or "").strip() and str(item.parametro or "").strip():
+            row["parametro"] = item.parametro or ""
+    return rows
+
+
+def _save_ed_parameter_rows(db: Session, module_code: str, form_data, rows: list[dict[str, object]]) -> None:
+    for row in rows:
+        row_id = int(row["id"])
+        value = str(form_data.get(f"param_{row_id}") or "").strip()
+        ids = [int(item_id) for item_id in (row.get("ids") or [])]
+        if not ids:
+            ids = [row_id]
+        for item_id in ids:
+            item = db.get(OperationalModuleItem, item_id)
+            if item is None:
+                continue
+            item.parametro = value or None
+    db.commit()
+
+
+def _build_sigilatura_parameter_rows(db: Session, module_code: str) -> list[dict[str, object]]:
+    source_rows = sigilatura_service.build_admin_parameter_rows(db, module_code)
+    rows: list[dict[str, object]] = []
+    for row in source_rows:
+        rows.append(
+            {
+                "id": str(row.get("key") or ""),
+                "ordem": int(row.get("ordem") or 0),
+                "operacao": str(row.get("operacao") or "").strip() or "-",
+                "controle": str(row.get("controle") or "").strip() or "-",
+                "parametro": str(row.get("parametro") or "").strip(),
+            }
+        )
+    return rows
+
+
+def _save_sigilatura_parameter_rows(db: Session, form_data, rows: list[dict[str, object]], module_code: str) -> None:
+    updates = []
+    for row in rows:
+        row_id = str(row["id"])
+        value = str(form_data.get(f"param_{row_id}") or "").strip()
+        updates.append(
+            {
+                "operacao": str(row["operacao"]),
+                "controle": str(row["controle"]),
+                "parametro": value,
+            }
+        )
+    sigilatura_service.save_admin_parameter_overrides(db, module_code, updates)
+
+
+def _build_general_editor_context(
+    request: Request,
+    db: Session,
+    *,
+    scope: str,
+    module_code: str,
+    status: str | None = None,
+    error_message: str | None = None,
+) -> dict:
+    tabs = _module_tabs_for_scope(scope)
+    active_tab = next((tab for tab in tabs if str(tab["code"]) == module_code), tabs[0])
+    editable = bool(active_tab["editable"])
+
+    if scope == GENERAL_SCOPE_SIG:
+        rows = _build_sigilatura_parameter_rows(db, module_code)
+    else:
+        rows = _build_ed_parameter_rows(db, module_code)
+
+    return {
+        "page_title": "Edição Geral de Limites e Referências",
+        "page_description": "Ajuste rapidamente os parâmetros operacionais por escopo e módulo.",
+        "scope": scope,
+        "tabs": tabs,
+        "active_module_code": module_code,
+        "active_module_title": str(active_tab["title"]),
+        "active_field_label": str(active_tab["field_label"]),
+        "module_editable": editable,
+        "rows": rows,
+        "error_message": error_message,
+        "success_message": "Parâmetros atualizados com sucesso." if status == "saved" else None,
+        "skip_message": "Este módulo não possui edição nesta tela." if status == "skipped" else None,
+        **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
 
 
@@ -212,23 +357,19 @@ def admin_temperatura_faixas(
     request: Request,
     db: Session = Depends(get_db),
     status: str | None = None,
+    escopo: str | None = None,
+    modulo: str | None = None,
     _admin=Depends(require_admin),
 ):
-    items = list(
-        db.scalars(
-            select(OperationalModuleItem)
-            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
-            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
-        ).all()
+    scope = _resolve_general_editor_scope(escopo)
+    module_code = _resolve_general_editor_module(scope, modulo)
+    context = _build_general_editor_context(
+        request,
+        db,
+        scope=scope,
+        module_code=module_code,
+        status=status,
     )
-    context = {
-        "page_title": "Faixas - Temperatura Forno ED",
-        "page_description": "Edicao em lote das faixas minimas e maximas das zonas termicas.",
-        "items": items,
-        "error_message": None,
-        "success_message": "Faixas atualizadas com sucesso." if status == "saved" else None,
-        **layout_context(str(request.url.path), active_path="/configuracoes"),
-    }
     return templates.TemplateResponse(request=request, name="admin/temperature_ranges.html", context=context)
 
 
@@ -239,38 +380,32 @@ async def admin_temperatura_faixas_salvar(
     _admin=Depends(require_admin),
 ):
     form = await request.form()
-    items = list(
-        db.scalars(
-            select(OperationalModuleItem)
-            .where(OperationalModuleItem.module_code == "temperatura-forno-ed")
-            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
-        ).all()
-    )
+    scope = _resolve_general_editor_scope(form.get("escopo"))
+    module_code = _resolve_general_editor_module(scope, form.get("modulo"))
+    tabs = _module_tabs_for_scope(scope)
+    active_tab = next((tab for tab in tabs if str(tab["code"]) == module_code), tabs[0])
+    editable = bool(active_tab["editable"])
 
-    invalid_ranges = []
-    for item in items:
-        valor_min_raw = str(form.get(f"valor_min_{item.id}") or "").strip()
-        valor_max_raw = str(form.get(f"valor_max_{item.id}") or "").strip()
-        valor_min = float(valor_min_raw.replace(",", ".")) if valor_min_raw else None
-        valor_max = float(valor_max_raw.replace(",", ".")) if valor_max_raw else None
+    if not editable:
+        query = urlencode({"status": "skipped", "escopo": scope, "modulo": module_code})
+        return RedirectResponse(url=f"/cadastros/modulos-itens/temperatura-forno-ed/faixas?{query}", status_code=303)
 
-        item.valor_min = valor_min
-        item.valor_max = valor_max
-        item.parametro = _format_temperature_parameter(valor_min, valor_max)
-        item.range_error = bool(valor_min is not None and valor_max is not None and valor_min > valor_max)
-        if item.range_error:
-            invalid_ranges.append(item)
-
-    if invalid_ranges:
+    try:
+        if scope == GENERAL_SCOPE_SIG:
+            rows = _build_sigilatura_parameter_rows(db, module_code)
+            _save_sigilatura_parameter_rows(db, form, rows, module_code)
+        else:
+            rows = _build_ed_parameter_rows(db, module_code)
+            _save_ed_parameter_rows(db, module_code, form, rows)
+    except ValueError as error:
         db.rollback()
-        context = {
-            "page_title": "Faixas - Temperatura Forno ED",
-            "page_description": "Edicao em lote das faixas minimas e maximas das zonas termicas.",
-            "items": items,
-            "error_message": "Existem faixas invalidas. O valor minimo nao pode ser maior que o valor maximo.",
-            "success_message": None,
-            **layout_context(str(request.url.path), active_path="/configuracoes"),
-        }
+        context = _build_general_editor_context(
+            request,
+            db,
+            scope=scope,
+            module_code=module_code,
+            error_message=str(error),
+        )
         return templates.TemplateResponse(
             request=request,
             name="admin/temperature_ranges.html",
@@ -278,8 +413,8 @@ async def admin_temperatura_faixas_salvar(
             status_code=400,
         )
 
-    db.commit()
-    return RedirectResponse(url="/cadastros/modulos-itens/temperatura-forno-ed/faixas?status=saved", status_code=303)
+    query = urlencode({"status": "saved", "escopo": scope, "modulo": module_code})
+    return RedirectResponse(url=f"/cadastros/modulos-itens/temperatura-forno-ed/faixas?{query}", status_code=303)
 
 
 @router.get("/cadastros/{entity}", name="admin_list")

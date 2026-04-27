@@ -15,7 +15,6 @@
     {% for item in settings_items %}
     <a class="settings-hub__item panel-card" href="{{ item.url }}">
         <div class="settings-hub__item-main">
-            <span class="settings-hub__eyebrow">{{ item.subtitle or 'Modulo administrativo' }}</span>
             <h3>{{ item.title }}</h3>
             <p>{{ item.description }}</p>
         </div>

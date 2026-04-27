@@ -33,6 +33,24 @@
             </button>
             {% endfor %}
         </div>
+        <div class="module-master-frequency">
+            <strong>Frequ&ecirc;ncia mestre da aba</strong>
+            <div class="module-master-frequency__controls">
+                <select data-master-frequency>
+                    {% for option in frequency_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+                <select data-master-weekday hidden>
+                    <option value="">Dia da semana</option>
+                    {% for option in weekday_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do m&ecirc;s">
+                <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
+            </div>
+        </div>
     </section>
 
     <div id="module-items-table-container">
@@ -47,6 +65,35 @@
 <style>
     [data-module-admin-page] .table-panel {
         padding: 12px;
+    }
+
+    [data-module-admin-page] .module-master-frequency {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(20, 44, 78, 0.12);
+        display: grid;
+        gap: 8px;
+    }
+
+    [data-module-admin-page] .module-master-frequency strong {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    [data-module-admin-page] .module-master-frequency__controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+
+    [data-module-admin-page] .module-master-frequency__controls select,
+    [data-module-admin-page] .module-master-frequency__controls input {
+        min-height: 34px;
+        min-width: 150px;
+        padding: 6px 8px;
     }
 
     [data-module-admin-page] .table-wrapper {
@@ -200,6 +247,10 @@
     const saveButton = document.querySelector('[data-save-module]');
     const addButton = document.querySelector('[data-add-item]');
     const toast = document.querySelector('[data-admin-toast]');
+    const masterFrequency = document.querySelector('[data-master-frequency]');
+    const masterWeekday = document.querySelector('[data-master-weekday]');
+    const masterMonthday = document.querySelector('[data-master-monthday]');
+    const applyMasterFrequencyButton = document.querySelector('[data-apply-master-frequency]');
     const sectorOptions = {{ sector_options|tojson }};
     const frequencyOptions = {{ frequency_options|tojson }};
     const weekdayOptions = {{ weekday_options|tojson }};
@@ -261,6 +312,12 @@
         if (weekly) weekly.hidden = frequency !== 'semanal';
         if (monthly) monthly.hidden = frequency !== 'mensal';
         if (staticLabel) staticLabel.hidden = frequency === 'semanal' || frequency === 'mensal';
+    }
+
+    function toggleMasterDayInputs() {
+        const frequency = masterFrequency?.value || 'diario';
+        if (masterWeekday) masterWeekday.hidden = frequency !== 'semanal';
+        if (masterMonthday) masterMonthday.hidden = frequency !== 'mensal';
     }
 
     function setRowEditing(row, editing) {
@@ -451,6 +508,46 @@
             toggleDayInputs(row);
         }
         markUnsaved();
+    });
+
+    masterFrequency?.addEventListener('change', toggleMasterDayInputs);
+    toggleMasterDayInputs();
+
+    applyMasterFrequencyButton?.addEventListener('click', async () => {
+        const rows = Array.from(container.querySelectorAll('[data-admin-row]'));
+        if (!rows.length) {
+            showToast('Nenhum item para atualizar nesta aba', 'error');
+            return;
+        }
+
+        const frequency = masterFrequency?.value || 'diario';
+        const weekdayValue = masterWeekday?.value || '';
+        const monthdayValue = masterMonthday?.value || '';
+
+        if (frequency === 'semanal' && weekdayValue === '') {
+            showToast('Selecione o dia da semana para frequencia semanal', 'error');
+            return;
+        }
+        if (frequency === 'mensal') {
+            const numericDay = Number(monthdayValue);
+            if (!monthdayValue || !Number.isInteger(numericDay) || numericDay < 1 || numericDay > 31) {
+                showToast('Informe um dia do mes valido (1-31)', 'error');
+                return;
+            }
+        }
+
+        rows.forEach((row) => {
+            const frequencyField = row.querySelector('[data-field="frequencia_tipo"]');
+            const weekdayField = row.querySelector('[data-field="dia_semana"]');
+            const monthdayField = row.querySelector('[data-field="dia_mes"]');
+            if (frequencyField) frequencyField.value = frequency;
+            if (weekdayField) weekdayField.value = frequency === 'semanal' ? weekdayValue : '';
+            if (monthdayField) monthdayField.value = frequency === 'mensal' ? monthdayValue : '';
+            toggleDayInputs(row);
+        });
+
+        markUnsaved();
+        await saveCurrentModule();
     });
 
     saveButton?.addEventListener('click', saveCurrentModule);

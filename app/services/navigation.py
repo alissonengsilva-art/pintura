@@ -47,8 +47,8 @@ SETTINGS_HUB_ITEMS = [
     },
     {
         "slug": "temperatura-faixas",
-        "title": "Faixas de Temperatura Forno",
-        "description": "Edite rapidamente os limites mínimos e máximos das zonas térmicas do forno ED.",
+        "title": "Edição Geral de Parâmetros",
+        "description": "Edite parâmetros e referências dos módulos de ED e Sigilatura em uma única tela.",
         "url": "/cadastros/modulos-itens/temperatura-forno-ed/faixas",
     },
 ]
