@@ -34,6 +34,12 @@ from app.models.poder_penetracao import PoderPenetracaoItem, PoderPenetracaoLanc
 from app.models.pressao_filtros import PressaoFiltrosItem, PressaoFiltrosLancamento
 from app.models.reference import Modelo, Responsavel, Setor, Turno
 from app.models.rugosidade import RugosidadeItem, RugosidadeLancamento
+from app.models.central_tintas import (
+    CentralTintasItem,
+    CentralTintasRelatorio,
+    CENTRAL_TINTAS_STATUS_CONCLUIDO,
+    CENTRAL_TINTAS_STATUS_EM_ANDAMENTO,
+)
 from app.models.sigilatura import (
     SIG_MODULE_CODES,
     SIG_SHIFT_STATUS_CONCLUIDO,
@@ -110,5 +116,11 @@ __all__ = [
     "SIG_SHIFT_STATUS_CONCLUIDO",
     "SIG_STATUS_LABELS",
     "SIG_MODULE_CODES",
+    "CentralTintasRelatorio",
+    "CentralTintasItem",
+    "CENTRAL_TINTAS_STATUS_EM_ANDAMENTO",
+    "CENTRAL_TINTAS_STATUS_CONCLUIDO",
     "User",
 ]
+
+

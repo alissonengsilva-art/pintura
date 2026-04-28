@@ -5,10 +5,10 @@
     <header class="turnos-page__header">
         <div>
             <span class="turnos-page__kicker">Centro operacional</span>
-            <h1 class="turnos-page__title">Sigilatura</h1>
-            <p class="turnos-page__subtitle">Entrada principal para iniciar e acompanhar os controles de Sigilatura em andamento ou concluídos.</p>
+            <h1 class="turnos-page__title">Central de Tintas</h1>
+            <p class="turnos-page__subtitle">Entrada principal para iniciar e acompanhar os relatorios da Central de Tintas em andamento ou concluidos.</p>
         </div>
-        <button type="button" class="button-primary" data-open-start-modal>Iniciar turno sigilatura</button>
+        <button type="button" class="button-primary" data-open-start-modal>Iniciar relatorio</button>
     </header>
 
     {% if schema_error_message %}
@@ -22,11 +22,11 @@
         <div class="turnos-toolbar__tabs">
             <button type="button" class="turnos-toolbar__tab {% if active_tab == 'andamento' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="andamento">
                 Em andamento
-                <span class="turnos-toolbar__count">{{ shifts_em_andamento|length }}</span>
+                <span class="turnos-toolbar__count">{{ relatorios_em_andamento|length }}</span>
             </button>
             <button type="button" class="turnos-toolbar__tab {% if active_tab == 'concluidos' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="concluidos">
-                Concluídos
-                <span class="turnos-toolbar__count">{{ shifts_concluidos|length }}</span>
+                Concluidos
+                <span class="turnos-toolbar__count">{{ relatorios_concluidos|length }}</span>
             </button>
         </div>
     </section>
@@ -36,26 +36,20 @@
             <div class="turno-table-header panel-card">
                 <span>Data</span>
                 <span>Turno</span>
-                <span>Responsável</span>
-                <span>Status</span>
-                <span>Concluídos</span>
-                <span>Andamento</span>
-                <span>Ações</span>
+                <span>Responsavel</span>
+                <span>Acoes</span>
             </div>
-            {% for shift in shifts_em_andamento %}
+            {% for relatorio in relatorios_em_andamento %}
             <article class="turno-card turno-card--table panel-card">
                 <div class="turno-table-row">
-                    <strong class="turno-card__value">{{ shift.data_label }}</strong>
-                    <strong class="turno-card__value">{{ shift.turno }}</strong>
-                    <strong class="turno-card__value">{{ shift.responsavel }}</strong>
-                    <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
-                    <span>{{ shift.concluidos }}/{{ shift.total_modules }}</span>
-                    <span>{{ shift.em_andamento }}</span>
-                    <a href="/turnos-sigilatura/{{ shift.id }}" class="button-primary small">Abrir turno</a>
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel }}</strong>
+                    <a href="/central-tintas/registros/{{ relatorio.id }}" class="button-primary small">Abrir relatorio</a>
                 </div>
             </article>
             {% else %}
-            <article class="turno-card turno-card--table panel-card"><div class="turno-table-row"><span>Nenhum turno de sigilatura em andamento.</span></div></article>
+            <article class="turno-card turno-card--table panel-card"><div class="turno-table-row"><span>Nenhum relatorio em andamento.</span></div></article>
             {% endfor %}
         </div>
     </div>
@@ -65,47 +59,41 @@
             <div class="turno-table-header turno-table-header--concluded panel-card">
                 <span>Data</span>
                 <span>Turno</span>
-                <span>Responsável</span>
-                <span>Status</span>
-                <span>Concluídos</span>
-                <span>Andamento</span>
-                <span>Ações</span>
+                <span>Responsavel</span>
+                <span>Acoes</span>
             </div>
-            {% for shift in shifts_concluidos %}
+            {% for relatorio in relatorios_concluidos %}
             <article class="turno-card turno-card--table turno-card--done panel-card">
                 <div class="turno-table-row turno-table-row--concluded">
-                    <strong class="turno-card__value">{{ shift.data_label }}</strong>
-                    <strong class="turno-card__value">{{ shift.turno }}</strong>
-                    <strong class="turno-card__value">{{ shift.responsavel }}</strong>
-                    <span class="op-status-badge op-status-badge--concluido">{{ shift.status_geral_label }}</span>
-                    <span>{{ shift.concluidos }}/{{ shift.total_modules }}</span>
-                    <span>{{ shift.em_andamento }}</span>
-                    <a href="/turnos-sigilatura/{{ shift.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel }}</strong>
+                    <a href="/central-tintas/registros/{{ relatorio.id }}/visualizar" class="button-secondary small">Visualizar relatorio</a>
                 </div>
             </article>
             {% else %}
-            <article class="turno-card turno-card--table panel-card"><div class="turno-table-row"><span>Nenhum turno de sigilatura concluído.</span></div></article>
+            <article class="turno-card turno-card--table panel-card"><div class="turno-table-row"><span>Nenhum relatorio concluido.</span></div></article>
             {% endfor %}
         </div>
     </div>
 </section>
 
-<div class="op-modal" id="startSigilaturaModal" {% if not open_start_modal %}hidden{% endif %}>
+<div class="op-modal" id="startCentralTintasModal" {% if not open_start_modal %}hidden{% endif %}>
     <div class="op-modal__backdrop" data-close-start-modal></div>
     <div class="op-modal__content">
         <div class="op-modal__header">
-            <h2 class="op-modal__title">Iniciar turno sigilatura</h2>
-            <button type="button" class="op-modal__close" data-close-start-modal aria-label="Fechar">×</button>
+            <h2 class="op-modal__title">Iniciar relatorio</h2>
+            <button type="button" class="op-modal__close" data-close-start-modal aria-label="Fechar">x</button>
         </div>
         <div class="op-modal__body">
-            <form method="post" action="/turnos-sigilatura/iniciar" class="op-form op-form--vertical">
+            <form method="post" action="/central-tintas/iniciar" class="op-form op-form--vertical">
                 <div class="op-form__group">
-                    <label class="op-form__label" for="sig_data_referencia">Data</label>
-                    <input type="date" id="sig_data_referencia" name="data_referencia" class="op-form__input" value="{{ form_data.get('data_referencia', data_hoje) }}" required>
+                    <label class="op-form__label" for="ct_data_controle">Data do controle</label>
+                    <input type="date" id="ct_data_controle" name="data_controle" class="op-form__input" value="{{ form_data.get('data_controle', data_hoje) }}" required>
                 </div>
                 <div class="op-form__group">
-                    <label class="op-form__label" for="sig_turno">Turno</label>
-                    <select id="sig_turno" name="turno" class="op-form__select" required>
+                    <label class="op-form__label" for="ct_turno">Turno</label>
+                    <select id="ct_turno" name="turno" class="op-form__select" required>
                         <option value="">Selecione</option>
                         {% for t in turnos %}
                         <option value="{{ t.codigo }}" {% if form_data.get('turno') == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
@@ -113,8 +101,8 @@
                     </select>
                 </div>
                 <div class="op-form__group">
-                    <label class="op-form__label" for="sig_responsavel">Responsável</label>
-                    <select id="sig_responsavel" name="responsavel" class="op-form__select">
+                    <label class="op-form__label" for="ct_responsavel">Responsavel</label>
+                    <select id="ct_responsavel" name="responsavel" class="op-form__select" required>
                         <option value="">Selecione</option>
                         {% for r in responsaveis %}
                         <option value="{{ r.nome }}" {% if form_data.get('responsavel') == r.nome %}selected{% endif %}>{{ r.nome }}</option>
@@ -123,7 +111,7 @@
                 </div>
                 <div class="op-modal__actions">
                     <button type="button" class="button-secondary" data-close-start-modal>Cancelar</button>
-                    <button type="submit" class="button-primary">Iniciar turno</button>
+                    <button type="submit" class="button-primary">Iniciar relatorio</button>
                 </div>
             </form>
         </div>
@@ -148,7 +136,7 @@
         });
     });
 
-    var modal = document.getElementById('startSigilaturaModal');
+    var modal = document.getElementById('startCentralTintasModal');
     if (!modal) return;
     document.querySelectorAll('[data-open-start-modal]').forEach(function(btn) {
         btn.addEventListener('click', function() { modal.hidden = false; modal.classList.add('op-modal--open'); });

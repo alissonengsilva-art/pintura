@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turno-workspace">
+    <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="turno-workspace__heading" style="min-width:0;">
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">RELATÓRIO FINAL</span>
+            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Central de Tintas - {{ relatorio.data_label }}{% if relatorio.turno %} - Turno {{ relatorio.turno }}{% endif %}</h1>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualização somente leitura.</p>
+        </div>
+        <div class="turno-workspace__header-meta">
+            <a href="/central-tintas?tab=concluidos" class="op-btn op-btn--ghost op-btn--sm">Voltar</a>
+        </div>
+    </header>
+
+    <section class="turno-overview panel-card">
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric"><span class="turno-overview__label">Data do controle</span><div class="turno-overview__value-row"><strong>{{ relatorio.data_label }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Semana</span><div class="turno-overview__value-row"><strong>{{ relatorio.semana }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Mês</span><div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Responsável</span><div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Turno</span><div class="turno-overview__value-row"><strong>{{ relatorio.turno }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Status</span><div class="turno-overview__value-row"><strong>{{ relatorio.status_label }}</strong></div></article>
+        </div>
+    </section>
+
+    <section class="turno-module-editor__shell panel-card">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">Checklist</h2>
+                </div>
+            </div>
+        </section>
+        <div class="op-table-wrapper turno-sector-table-wrap">
+            <table class="op-table turno-sector-table op-table--readonly">
+                <thead>
+                    <tr>
+                        <th>Tinta</th>
+                        <th>Lote</th>
+                        <th>pH</th>
+                        <th>Viscosidade</th>
+                        <th>Sujidade</th>
+                        <th>Ações corretivas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in relatorio.itens %}
+                    <tr>
+                        <td><span class="op-table__text">{{ item.tinta or '-' }}</span></td>
+                        <td><span class="op-table__text">{{ item.lote or '-' }}</span></td>
+                        <td><span class="op-table__text">{{ item.ph or '-' }}</span></td>
+                        <td><span class="op-table__text">{{ item.viscosidade or '-' }}</span></td>
+                        <td><span class="op-table__text">{{ item.sujidade or '-' }}</span></td>
+                        <td><span class="op-table__text">{{ item.acoes_corretivas or '-' }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6"><span class="op-table__text">Nenhum item registrado.</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}

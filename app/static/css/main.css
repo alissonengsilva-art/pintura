@@ -5107,7 +5107,7 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 .op-modal__title {
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-semibold);
-    color: var(--text-primary);
+    color: #ffffff;
     margin: 0 0 var(--space-2);
 }
 
@@ -6320,7 +6320,7 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 
 .turno-overview__grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     align-items: stretch;
 }
 

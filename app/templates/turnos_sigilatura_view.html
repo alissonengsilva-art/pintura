@@ -1,0 +1,82 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+<section class="turno-workspace">
+    <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="turno-workspace__heading" style="min-width:0;">
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">RELATÓRIO FINAL</span>
+            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Sigilatura - {{ shift.data_label }}{% if shift.turno %} - Turno {{ shift.turno }}{% endif %}</h1>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualização somente leitura.</p>
+        </div>
+        <div class="turno-workspace__header-meta">
+            <a href="/turnos-sigilatura?tab=concluidos" class="op-btn op-btn--ghost op-btn--sm">Voltar</a>
+        </div>
+    </header>
+
+    <section class="turno-overview panel-card">
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric"><span class="turno-overview__label">Responsável</span><div class="turno-overview__value-row"><strong>{{ shift.responsavel or '-' }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Status</span><div class="turno-overview__value-row"><strong>{{ shift.status_geral_label }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Concluídos</span><div class="turno-overview__value-row"><strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Em andamento</span><div class="turno-overview__value-row"><strong>{{ shift.em_andamento }}</strong></div></article>
+        </div>
+    </section>
+
+    <nav class="turno-browser-tabs" aria-label="Modulos do turno">
+        {% for module in shift.modules %}
+        {% set module_state = 'nao-iniciado' %}
+        {% if module.status == 'CONCLUIDO' %}
+            {% set module_state = 'concluido' %}
+        {% elif module.status in ['EM_ANDAMENTO', 'PARCIAL'] %}
+            {% set module_state = 'em-andamento' %}
+        {% endif %}
+        <a href="/turnos-sigilatura/{{ shift.id }}/visualizar?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}">
+            <span class="turno-browser-tab__content">
+                <span class="turno-browser-tab__title-band"><span class="turno-browser-tab__title-wrap"><span class="turno-browser-tab__title">{{ module.title }}</span></span></span>
+                <span class="turno-browser-tab__progress-band turno-browser-tab__meta"><span>{{ module.preenchidos }}/{{ module.total }} itens</span></span>
+            </span>
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="turno-module-editor__shell panel-card">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">{{ module_state.summary.title }}</h2>
+                    <span class="op-status-badge op-status-badge--{{ module_state.summary.status|lower|replace('_', '-') }}">{{ module_state.summary.status_label }}</span>
+                </div>
+                <p class="turno-module-editor__description">{{ module_state.summary.description }}</p>
+            </div>
+        </section>
+
+        <div class="op-table-wrapper turno-sector-table-wrap">
+            <table class="op-table turno-sector-table op-table--readonly">
+                <thead>
+                    <tr>
+                        {% for column in module_state.columns %}
+                        <th>{{ column.label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in module_state.rows %}
+                    <tr>
+                        {% for column in module_state.columns %}
+                        <td><span class="op-table__text">{{ row[column.key] or '-' }}</span></td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}
+

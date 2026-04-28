@@ -1,4 +1,4 @@
-from datetime import date
+﻿from datetime import date
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -214,6 +214,7 @@ def _render_shift_execution(
     source=None,
     error_message: str | None = None,
     active_sector: str | None = None,
+    readonly_mode: bool = False,
     status_code: int = 200,
 ):
     shift = get_shift_by_id(db, shift_id)
@@ -234,11 +235,12 @@ def _render_shift_execution(
 
     context = {
         "request": request,
-        "page_title": f"Execução do Turno {shift_detail['data_label']}",
-        "page_description": "Execução principal do turno com os oito módulos do mesmo turno mestre.",
+        "page_title": f"{'Relatório final do Turno' if readonly_mode else 'Execução do Turno'} {shift_detail['data_label']}",
+        "page_description": "Visualização somente leitura do turno concluído." if readonly_mode else "Execução principal do turno com os oito módulos do mesmo turno mestre.",
         "shift": shift_detail,
         "active_module_code": active_module_code,
         "module_state": module_state,
+        "readonly_mode": readonly_mode,
         "setor_sequence": module_state["module_config"].sector_sequence,
         "setor_labels": SETOR_LABELS,
         "schema_error_message": None if operational_schema_available(db) and shift_schema_available(db) else MISSING_SCHEMA_MESSAGE,
@@ -393,7 +395,28 @@ def turno_execucao(
     setor: str | None = None,
     db: Session = Depends(get_db),
 ):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    if shift.status_geral == SHIFT_STATUS_CONCLUIDO:
+        query_parts: list[str] = []
+        if modulo:
+            query_parts.append(f"modulo={modulo}")
+        if setor:
+            query_parts.append(f"setor={setor}")
+        query = f"?{'&'.join(query_parts)}" if query_parts else ""
+        return RedirectResponse(url=f"/turnos/{shift_id}/visualizar{query}", status_code=303)
     return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor)
+
+
+@router.get("/turnos/{shift_id}/visualizar", name="turno_visualizacao")
+def turno_visualizacao(shift_id: int, request: Request, db: Session = Depends(get_db)):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    modulo = request.query_params.get("modulo")
+    setor = request.query_params.get("setor")
+    return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor, readonly_mode=True)
 
 
 @router.post("/turnos/{shift_id}/concluir", name="turno_concluir")
@@ -461,6 +484,8 @@ async def turno_item_applicability_override(
     shift = get_shift_by_id(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    if shift.status_geral == SHIFT_STATUS_CONCLUIDO:
+        return RedirectResponse(url=f"/turnos/{shift_id}/visualizar?modulo={config.code}&setor={setor_tipo}", status_code=303)
 
     item = db.get(OperationalModuleItem, item_id)
     if item is None:
@@ -557,7 +582,7 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
     context = {
         "request": request,
         "page_title": "Relatorios",
-        "page_description": "Análise técnica das medições operacionais dos controles.",
+        "page_description": "AnÃ¡lise tÃ©cnica das mediÃ§Ãµes operacionais dos controles.",
         "validation_error": validation_error,
         "filters": filters,
         "rows": snapshot["rows"],
@@ -641,3 +666,4 @@ def relatorio_turno_pdf(shift_id: int, request: Request, db: Session = Depends(g
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
     return templates.TemplateResponse(request=request, name="reports_shift_pdf.html", context=context)
+

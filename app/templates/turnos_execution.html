@@ -18,14 +18,17 @@
             </svg>
         </div>
         <div class="turno-workspace__heading">
-            <span class="turno-workspace__kicker">EXECUÇÃO DO TURNO</span>
+            <span class="turno-workspace__kicker">{% if readonly_mode %}RELATÓRIO FINAL{% else %}EXECUÇÃO DO TURNO{% endif %}</span>
             <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} &middot; Turno {{ shift.turno }}{% endif %}</h1>
-            <p class="turno-workspace__subtitle">Os oito controles executam dentro do mesmo turno mestre.</p>
+            <p class="turno-workspace__subtitle">{% if readonly_mode %}Visualização somente leitura.{% else %}Os oito controles executam dentro do mesmo turno mestre.{% endif %}</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
-            {% if shift.status_geral != 'CONCLUIDO' %}
+            {% if not readonly_mode and shift.status_geral != 'CONCLUIDO' %}
             <button type="button" class="op-btn op-btn--primary op-btn--sm" data-open-close-shift-modal>Concluir turno</button>
+            {% endif %}
+            {% if readonly_mode %}
+            <a href="/relatorios/turnos/{{ shift.id }}/pdf" class="op-btn op-btn--primary op-btn--sm" target="_blank" rel="noopener">Gerar PDF</a>
             {% endif %}
             <a href="/turno-atual" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
@@ -151,7 +154,7 @@
     {% include 'modules/_editor.html' %}
 </section>
 
-{% if shift.status_geral != 'CONCLUIDO' %}
+{% if not readonly_mode and shift.status_geral != 'CONCLUIDO' %}
 <div class="op-modal" id="closeShiftModal" hidden>
     <div class="op-modal__backdrop" data-close-shift-modal></div>
     <div class="op-modal__content turno-close-modal">

@@ -78,7 +78,7 @@
                     <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
                     <strong class="turno-card__value">{{ shift.responsavel_pted or '-' }}</strong>
                     <strong class="turno-card__value">{{ shift.responsavel_lab or '-' }}</strong>
-                    <a href="/turnos/{{ shift.id }}" class="button-secondary small">Consultar turno</a>
+                    <a href="/turnos/{{ shift.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
                 </div>
             </article>
             {% endfor %}

@@ -644,12 +644,12 @@ def build_module_editor_state(session: Session, turno_obj: SigilaturaTurno, modu
 
     if module_code == "sigilatura":
         columns = [
-            {"key": "operacao", "label": "OperaÃ§Ã£o / Equipamento", "kind": "text"},
-            {"key": "controle", "label": "DescriÃ§Ã£o do controle", "kind": "text"},
-            {"key": "parametro", "label": "ParÃ¢metro", "kind": "text"},
+            {"key": "operacao", "label": "Operação / Equipamento", "kind": "text"},
+            {"key": "controle", "label": "Descrição do controle", "kind": "text"},
+            {"key": "parametro", "label": "Parâmetro", "kind": "text"},
             {"key": "turno_label", "label": "Turno", "kind": "text"},
             {"key": "valor", "label": "Valor", "kind": "input", "name_prefix": "value"},
-            {"key": "observacao", "label": "ObservaÃ§Ã£o", "kind": "input", "name_prefix": "obs"},
+            {"key": "observacao", "label": "Observação", "kind": "input", "name_prefix": "obs"},
             {"key": "status", "label": "Status", "kind": "status"},
         ]
     elif module_code == "espessura-pvc":
@@ -657,17 +657,17 @@ def build_module_editor_state(session: Session, turno_obj: SigilaturaTurno, modu
             {"key": "ponto", "label": "Espessura PVC / Ponto", "kind": "text"},
             {"key": "linha", "label": "Linha", "kind": "text"},
             {"key": "modelo", "label": "Modelo", "kind": "input", "name_prefix": "model"},
-            {"key": "valor_referencia", "label": "Valor referÃªncia", "kind": "text"},
+            {"key": "valor_referencia", "label": "Valor referência", "kind": "text"},
             {"key": "valor_medido", "label": "Valor medido", "kind": "input", "name_prefix": "value"},
-            {"key": "observacao", "label": "ObservaÃ§Ã£o", "kind": "input", "name_prefix": "obs"},
+            {"key": "observacao", "label": "Observaçã-o", "kind": "input", "name_prefix": "obs"},
             {"key": "status", "label": "Status", "kind": "status"},
         ]
     elif module_code == "temperatura-forno-sigilatura":
         columns = [
             {"key": "zona", "label": "Zona", "kind": "text"},
-            {"key": "referencia", "label": "ReferÃªncia", "kind": "text"},
+            {"key": "referencia", "label": "Referência", "kind": "text"},
             {"key": "valor_medido", "label": "Valor medido", "kind": "input", "name_prefix": "value"},
-            {"key": "observacoes", "label": "ObservaÃ§Ãµes", "kind": "input", "name_prefix": "obs"},
+            {"key": "observacoes", "label": "Observações", "kind": "input", "name_prefix": "obs"},
             {"key": "status", "label": "Status", "kind": "status"},
         ]
     else:

@@ -1,0 +1,213 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turno-workspace">
+    <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="turno-workspace__heading" style="min-width:0;">
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUCAO DO RELATORIO</span>
+            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Central de Tintas - {{ relatorio.data_label }}{% if relatorio.turno %} - Turno {{ relatorio.turno }}{% endif %}</h1>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Checklist operacional da Central de Tintas.</p>
+        </div>
+        <div class="turno-workspace__header-meta">
+            <span class="op-status-badge {% if relatorio.status == 'concluido' %}op-status-badge--concluido{% else %}op-status-badge--em-andamento{% endif %}">{{ relatorio.status_label }}</span>
+            <a href="/central-tintas" class="op-btn op-btn--ghost op-btn--sm">Voltar para relatorios</a>
+        </div>
+    </header>
+
+    {% if schema_error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
+    {% endif %}
+    {% if error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
+    {% endif %}
+
+    <section class="turno-overview panel-card">
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Data do controle</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.data_label }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Semana</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.semana }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Mes</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="m8.5 12 2.3 2.3 4.7-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.mes }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Responsavel</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="8" r="3.1" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M5.5 19c.8-3.4 3.2-5 6.5-5s5.7 1.6 6.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.responsavel }}</strong>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="turno-module-editor__shell panel-card">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">Checklist</h2>
+                </div>
+            </div>
+        </section>
+
+        <div class="op-sector turno-sector-panel op-sector--active">
+            <form method="post" action="/central-tintas/{{ relatorio.id }}/salvar" class="op-sector__form turno-sector-form" id="ct-form">
+                <div class="op-table-wrapper turno-sector-table-wrap">
+                    <table class="op-table turno-sector-table" id="ct-table">
+                        <thead>
+                            <tr>
+                                <th>DESCRICAO</th>
+                                <th>VALOR</th>
+                                <th>OBSERVACAO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in relatorio.itens %}
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">Tinta</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_tinta" value="{{ item.tinta }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_tinta_obs" value=""></td>
+                            </tr>
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">Lote</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_lote" value="{{ item.lote }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_lote_obs" value=""></td>
+                            </tr>
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">pH</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_ph" value="{{ item.ph }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_ph_obs" value=""></td>
+                            </tr>
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">Viscosidade</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_viscosidade" value="{{ item.viscosidade }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_viscosidade_obs" value=""></td>
+                            </tr>
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">Sujidade</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_sujidade" value="{{ item.sujidade }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_sujidade_obs" value=""></td>
+                            </tr>
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">Acoes corretivas</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_acoes_corretivas" value="{{ item.acoes_corretivas }}"></td>
+                                <td>
+                                    <input type="hidden" name="item_{{ item.id }}_remove" value="0" data-remove-flag>
+                                    <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-remove-row="{{ item.id }}">Remover linha</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="op-sector__actions turno-sector-actions">
+                    <div class="op-sector__actions-buttons">
+                        <button type="button" id="ct-add-row" class="op-btn op-btn--ghost">Adicionar linha</button>
+                    </div>
+                    <div class="op-sector__actions-buttons">
+                        {% if relatorio.status != 'concluido' %}
+                        <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
+                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatorio</button>
+                        {% else %}
+                        <span>Relatorio finalizado</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+</section>
+
+<script>
+(function () {
+    var table = document.getElementById('ct-table');
+    var addButton = document.getElementById('ct-add-row');
+    if (!table || !addButton) return;
+
+    var nextTempId = -1;
+
+    function blockRows(tempId) {
+        return [
+            ['Tinta', 'tinta'],
+            ['Lote', 'lote'],
+            ['pH', 'ph'],
+            ['Viscosidade', 'viscosidade'],
+            ['Sujidade', 'sujidade'],
+            ['Acoes corretivas', 'acoes_corretivas']
+        ].map(function (entry, idx) {
+            var isLast = idx === 5;
+            return '' +
+                '<tr data-item-row="' + tempId + '">' +
+                    '<td><span class="op-table__text">' + entry[0] + '</span></td>' +
+                    '<td><input type="text" class="op-input op-input--compact" name="item_' + tempId + '_' + entry[1] + '"></td>' +
+                    '<td>' + (isLast
+                        ? '<input type="hidden" name="item_' + tempId + '_remove" value="0" data-remove-flag><button type="button" class="op-btn op-btn--ghost op-btn--sm" data-remove-row="' + tempId + '">Remover linha</button>'
+                        : '<input type="text" class="op-input op-input--compact" name="item_' + tempId + '_' + entry[1] + '_obs">') +
+                    '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    addButton.addEventListener('click', function () {
+        table.querySelector('tbody').insertAdjacentHTML('beforeend', blockRows(nextTempId));
+        nextTempId -= 1;
+    });
+
+    table.addEventListener('click', function (event) {
+        var btn = event.target.closest('[data-remove-row]');
+        if (!btn) return;
+        var key = btn.getAttribute('data-remove-row');
+        if (!key) return;
+        var rows = table.querySelectorAll('tr[data-item-row="' + key + '"]');
+        var flag = table.querySelector('input[name="item_' + key + '_remove"]');
+
+        if (String(key).indexOf('-') !== 0 && flag) {
+            flag.value = '1';
+            rows.forEach(function (row) { row.style.display = 'none'; });
+            return;
+        }
+
+        rows.forEach(function (row) { row.remove(); });
+    });
+})();
+</script>
+{% endblock %}

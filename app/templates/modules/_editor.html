@@ -1,6 +1,7 @@
 {% set setor_views = module_state.setor_views %}
 {% set active_sector = module_state.active_sector %}
 {% set total_desvios = setor_views|sum(attribute='summary.flag_count') %}
+{% set readonly_mode = readonly_mode|default(false) %}
 
 <div class="turno-module-editor" data-module-editor>
     <section class="turno-module-editor__shell panel-card">
@@ -33,7 +34,7 @@
                     <div class="turno-module-context__field">
                         <label for="context_{{ field.name }}">{{ field.label }}</label>
                         {% if field.kind == 'select' %}
-                        <select id="context_{{ field.name }}" name="{{ field.name }}" {% if module_state.context_locked %}disabled{% endif %}>
+                        <select id="context_{{ field.name }}" name="{{ field.name }}" {% if module_state.context_locked or readonly_mode %}disabled{% endif %}>
                             {% for option in module_state.context_options[field.options_key] %}
                             {% set option_value = option.codigo if option.codigo is defined else (option.value if option.value is defined else option.nome) %}
                             {% set option_label = option.nome if option.nome is defined else option.label %}
@@ -48,7 +49,7 @@
                             value="{{ module_state.context_values[field.name] }}"
                             {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
                             {% if field.required %}required{% endif %}
-                            {% if module_state.context_locked %}readonly disabled{% endif %}
+                            {% if module_state.context_locked or readonly_mode %}readonly disabled{% endif %}
                         >
                         {% endif %}
                     </div>
@@ -84,9 +85,10 @@
 
         {% for setor_view in setor_views %}
         {% set setor_concluido = setor_view.status_setor == 'CONCLUIDO' %}
+        {% set setor_readonly = setor_concluido or readonly_mode %}
         {% set responsavel_turno = module_state.inherited_context.responsavel_pted if setor_view.setor_tipo == 'PTED' else module_state.inherited_context.responsavel_lab %}
         <div class="op-sector turno-sector-panel {% if setor_views|length == 1 or setor_view.setor_tipo == active_sector %}op-sector--active{% endif %} {% if setor_concluido %}op-sector--done{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
-            <form method="post" action="{{ module_state.execution_save_base_url }}/{{ setor_view.setor_tipo }}/salvar" class="op-sector__form turno-sector-form" data-sector-form>
+            <form method="post" action="{{ module_state.execution_save_base_url }}/{{ setor_view.setor_tipo }}/salvar" class="op-sector__form turno-sector-form" data-sector-form {% if readonly_mode %}onsubmit="return false;"{% endif %}>
                 {% for field in module_state.context_fields %}
                 <input type="hidden" name="{{ field.name }}" value="{{ module_state.context_values[field.name] }}">
                 {% endfor %}
@@ -132,7 +134,7 @@
                                             value="{{ row[column.key] }}"
                                             class="op-input op-input--compact {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
-                                            {% if setor_concluido or row_scheduled %}disabled readonly{% endif %}
+                                            {% if setor_readonly or row_scheduled %}disabled readonly{% endif %}
                                         >
                                         {% elif column.key == 'row_observation' %}
                                         <input
@@ -141,7 +143,7 @@
                                             value="{{ row[column.key] }}"
                                             class="op-input op-input--compact op-input--obs {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             placeholder="Obs."
-                                            {% if setor_concluido or row_scheduled %}disabled readonly{% endif %}
+                                            {% if setor_readonly or row_scheduled %}disabled readonly{% endif %}
                                         >
                                         {% else %}
                                         <input
@@ -151,7 +153,7 @@
                                             class="op-input op-input--compact op-input--value {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             {% if column.key != 'value' %}readonly{% endif %}
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
-                                            {% if setor_concluido or row_scheduled %}disabled{% endif %}
+                                            {% if setor_readonly or row_scheduled %}disabled{% endif %}
                                         >
                                         {% endif %}
                                     {% elif column.kind == 'status' %}
@@ -193,7 +195,7 @@
                         name="observacoes_setor_{{ setor_view.setor_tipo }}"
                         value="{{ setor_view.observacoes_setor }}"
                         placeholder="Observações do setor"
-                        {% if setor_concluido %}disabled readonly{% endif %}
+                        {% if setor_readonly %}disabled readonly{% endif %}
                     >
                 </div>
 
@@ -204,14 +206,14 @@
                         <span class="op-sector__progress">{{ setor_view.summary.status_text }}</span>
                         {% endif %}
                     </div>
-                    {% if not setor_concluido %}
+                    {% if not setor_readonly %}
                     <div class="op-sector__actions-buttons">
                         <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
                         <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir setor</button>
                     </div>
                     {% else %}
                     <div class="op-sector__actions-done">
-                        <span>Setor finalizado</span>
+                        <span>{% if readonly_mode %}Somente leitura{% else %}Setor finalizado{% endif %}</span>
                     </div>
                     {% endif %}
                 </div>

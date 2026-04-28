@@ -12,6 +12,7 @@ from app.routes.poder_penetracao import router as poder_penetracao_router
 from app.routes.pressao_filtros_ed import router as pressao_filtros_router
 from app.routes.rugosidade import router as rugosidade_router
 from app.routes.sigilatura import router as sigilatura_router
+from app.routes.central_tintas import router as central_tintas_router
 from app.routes.tensao_retificadores_ed import router as tensao_retificadores_router
 from app.routes.temperatura_forno_ed import router as temperatura_forno_router
 from app.routes.web import router as web_router
@@ -30,6 +31,9 @@ app.include_router(poder_penetracao_router)
 app.include_router(pressao_filtros_router)
 app.include_router(rugosidade_router)
 app.include_router(sigilatura_router)
+app.include_router(central_tintas_router)
 app.include_router(tensao_retificadores_router)
 app.include_router(temperatura_forno_router)
 app.include_router(web_router)
+
+

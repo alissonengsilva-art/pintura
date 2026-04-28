@@ -5,6 +5,7 @@ PRIMARY_LINKS = [
     {"slug": "dashboard", "title": "Dashboard", "url": "/dashboard"},
     {"slug": "turnos", "title": "ED", "url": "/turno-atual"},
     {"slug": "turnos-sigilatura", "title": "Sigilatura", "url": "/turnos-sigilatura"},
+    {"slug": "central-tintas", "title": "Central de Tintas", "url": "/central-tintas"},
     {"slug": "relatorios", "title": "Relatórios", "url": "/relatorios"},
 ]
 
@@ -66,3 +67,5 @@ def layout_context(current_path: str, active_path: str | None = None, scope_sour
         "current_path": current_path,
         "active_path": active_path or current_path,
     }
+
+
