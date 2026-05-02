@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block content %}
 {% set progress = namespace(filled=0, total=0) %}
@@ -19,7 +19,7 @@
         </div>
         <div class="turno-workspace__heading">
             <span class="turno-workspace__kicker">{% if readonly_mode %}RELATÓRIO FINAL{% else %}EXECUÇÃO DO TURNO{% endif %}</span>
-            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} &middot; Turno {{ shift.turno }}{% endif %}</h1>
+            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} · Turno {{ shift.turno }}{% endif %}</h1>
             <p class="turno-workspace__subtitle">{% if readonly_mode %}Visualização somente leitura.{% else %}Os oito controles executam dentro do mesmo turno mestre.{% endif %}</p>
         </div>
         <div class="turno-workspace__header-meta">

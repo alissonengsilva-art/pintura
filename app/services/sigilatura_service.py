@@ -26,6 +26,7 @@ from app.models import (
     SigilaturaTurno,
     Turno,
 )
+from app.services import module_parameter_validation, operational_module_item_service
 
 
 MODULE_META = {
@@ -35,11 +36,11 @@ MODULE_META = {
     },
     "espessura-pvc": {
         "title": "Espessura PVC",
-        "description": "MediÃ§Ãµes de espessura PVC por modelo, linha e ponto.",
+        "description": "Medições de espessura PVC por modelo, linha e ponto.",
     },
     "temperatura-forno-sigilatura": {
         "title": "Temperatura Forno Sigilatura",
-        "description": "Leituras de zonas tÃ©rmicas e validaÃ§Ã£o por faixa.",
+        "description": "Leituras de zonas térmicas e validação por faixa.",
     },
     "escorrimento": {
         "title": "Escorrimento",
@@ -49,8 +50,8 @@ MODULE_META = {
 
 SIGILATURA_BASE_BY_TURNO: dict[str, list[tuple[str, str, str, str, str]]] = {
     "1": [
-        ("APLICAÃ‡ÃƒO PVC", "ESPESSURA", "", ">220", "1XTURNO"),
-        ("APLICAÃ‡ÃƒO PVC", "REGIÃƒO COBERTA", "", "OK", "1XTURNO"),
+        ("APLICAÇÃO PVC", "ESPESSURA", "", ">220", "1XTURNO"),
+        ("APLICAÇÃO PVC", "REGIÃO COBERTA", "", "OK", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA CARGO BOX", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA MANUAL SPRUZZO", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA LINHA MANUAL 1", "", "26 - 32", "1XTURNO"),
@@ -58,11 +59,11 @@ SIGILATURA_BASE_BY_TURNO: dict[str, list[tuple[str, str, str, str, str]]] = {
         ("SIGILATURA", "TEMPERATURA PVC 1", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA UBS 2", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA PVC 2", "", "26 - 32", "1XTURNO"),
-        ("FORNO SEALER", "TEMPERATURA INTERNA", "AutomÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡tico", "<200", "2XSEMANA"),
+        ("FORNO SEALER", "TEMPERATURA INTERNA", "Automático", "<200", "2XSEMANA"),
     ],
     "2": [
-        ("APLICAÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O PVC", "ESPESSURA", "", ">220", "1XTURNO"),
-        ("APLICAÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O PVC", "REGIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O COBERTA", "", "OK", "1XTURNO"),
+        ("APLICAÇÃO PVC", "ESPESSURA", "", ">220", "1XTURNO"),
+        ("APLICAÇÃO PVC", "REGIÃO COBERTA", "", "OK", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA CARGO BOX", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA MANUAL SPRUZZO", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA LINHA MANUAL 1", "", "26 - 32", "1XTURNO"),
@@ -73,8 +74,8 @@ SIGILATURA_BASE_BY_TURNO: dict[str, list[tuple[str, str, str, str, str]]] = {
         ("FORNO SEALER", "CURVA DE COZIMENTO", "", ">20", "1XSEMANA"),
     ],
     "3": [
-        ("APLICAÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O PVC", "ESPESSURA", "", ">220", "1XTURNO"),
-        ("APLICAÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O PVC", "REGIÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢O COBERTA", "", "OK", "1XTURNO"),
+        ("APLICAÇÃO PVC", "ESPESSURA", "", ">220", "1XTURNO"),
+        ("APLICAÇÃO PVC", "REGIÃO COBERTA", "", "OK", "1XTURNO"),
         ("SIGILATURA", "ESCORRIMENTO", "", ">5", "1XSEMANA"),
         ("SIGILATURA", "TEMPERATURA CARGO BOX", "", "26 - 32", "1XTURNO"),
         ("SIGILATURA", "TEMPERATURA MANUAL SPRUZZO", "", "26 - 32", "1XTURNO"),
@@ -146,28 +147,53 @@ def _text_key(value: str | None) -> str:
     return str(value or "").strip().lower()
 
 
-def _load_override_map(session: Session, module_code: str) -> dict[tuple[str, str], str]:
-    items = list(
-        session.scalars(
-            select(OperationalModuleItem)
-            .where(OperationalModuleItem.module_code == module_code)
-            .where(OperationalModuleItem.ativo.is_(True))
-            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
-        ).all()
+def _catalog_items(session: Session, module_code: str, *, turno: str | None = None) -> list[OperationalModuleItem]:
+    items = operational_module_item_service.get_items_by_scope_module(
+        session,
+        escopo="sigilatura",
+        modulo=module_code,
+        aba="Manual",
     )
-    return {
-        (_text_key(item.operacao), _text_key(item.controle)): str(item.parametro or "").strip()
-        for item in items
-        if str(item.parametro or "").strip()
-    }
+    if not items:
+        items = operational_module_item_service.get_items_by_scope_module(
+            session,
+            escopo="sigilatura",
+            modulo=module_code,
+            aba=None,
+        )
+    if not turno:
+        return items
+    filtered = [item for item in items if not str(item.turno_padrao or "").strip() or str(item.turno_padrao).strip() == str(turno).strip()]
+    return filtered or items
+
+
+def _item_parameter(item: OperationalModuleItem) -> str:
+    return module_parameter_validation.display_parameter(item)
 
 
 def _sigilatura_base_items(turno: str, session: Session | None = None) -> list[dict[str, Any]]:
+    if session is not None:
+        catalog = _catalog_items(session, "sigilatura", turno=turno)
+        rows = []
+        for idx, item in enumerate(catalog, start=1):
+            rows.append(
+                {
+                    "item_key": f"SIG-{item.id}",
+                    "ordem": item.ordem or idx,
+                    "operacao": str(item.operacao or "").strip(),
+                    "controle": str(item.controle or "").strip(),
+                    "norma": str(item.norma or "").strip(),
+                    "parametro": _item_parameter(item),
+                    "frequencia": str(item.frequencia or item.frequencia_tipo or "").strip() or "diario",
+                    "turno_label": turno,
+                    "item_id": item.id,
+                }
+            )
+        return sorted(rows, key=lambda row: (int(row["ordem"]), str(row["item_key"])))
+
     source = SIGILATURA_BASE_BY_TURNO.get(turno, SIGILATURA_BASE_BY_TURNO["1"])
-    overrides = _load_override_map(session, "sigilatura") if session is not None else {}
     rows = []
     for idx, (operacao, controle, norma, parametro, frequencia) in enumerate(source, start=1):
-        parametro_resolvido = overrides.get((_text_key(operacao), _text_key(controle)), parametro)
         rows.append(
             {
                 "item_key": f"SIG-{idx:02d}",
@@ -175,7 +201,7 @@ def _sigilatura_base_items(turno: str, session: Session | None = None) -> list[d
                 "operacao": operacao,
                 "controle": controle,
                 "norma": norma,
-                "parametro": parametro_resolvido,
+                "parametro": parametro,
                 "frequencia": frequencia,
                 "turno_label": turno,
             }
@@ -184,14 +210,32 @@ def _sigilatura_base_items(turno: str, session: Session | None = None) -> list[d
 
 
 def _espessura_base_items(turno: str, session: Session | None = None) -> list[dict[str, Any]]:
-    overrides = _load_override_map(session, "espessura-pvc") if session is not None else {}
+    if session is not None:
+        catalog = _catalog_items(session, "espessura-pvc", turno=turno)
+        rows = []
+        for idx, item in enumerate(catalog, start=1):
+            item_key = f"ESP-{item.id}"
+            rows.append(
+                {
+                    "item_key": item_key,
+                    "ordem": item.ordem or idx,
+                    "ponto": str(item.controle or "").strip(),
+                    "linha": str(item.aba or "1").strip(),
+                    "frequencia": str(item.frequencia or item.frequencia_tipo or "").strip() or "diario",
+                    "turno_label": turno,
+                    "modelo": str(item.operacao or "").strip() or "226",
+                    "valor_referencia": _item_parameter(item),
+                    "item_id": item.id,
+                }
+            )
+        return sorted(rows, key=lambda row: (int(row["ordem"]), str(row["item_key"])))
+
     rows = []
     idx = 1
     for modelo in ("226", "291"):
         for linha in ("1", "2"):
             for ponto in range(1, 9):
                 item_key = f"ESP-{modelo}-L{linha}-P{ponto}"
-                valor_referencia = overrides.get((_text_key("ESPESSURA PVC"), _text_key(item_key)), ">220")
                 rows.append(
                     {
                         "item_key": item_key,
@@ -201,7 +245,7 @@ def _espessura_base_items(turno: str, session: Session | None = None) -> list[di
                         "frequencia": "1/TURNO",
                         "turno_label": turno,
                         "modelo": modelo,
-                        "valor_referencia": valor_referencia,
+                        "valor_referencia": ">220",
                     }
                 )
                 idx += 1
@@ -209,16 +253,45 @@ def _espessura_base_items(turno: str, session: Session | None = None) -> list[di
 
 
 def _temperatura_base_items(session: Session | None = None) -> list[dict[str, Any]]:
-    overrides = _load_override_map(session, "temperatura-forno-sigilatura") if session is not None else {}
+    if session is not None:
+        catalog = _catalog_items(session, "temperatura-forno-sigilatura")
+        rows = []
+        for idx, item in enumerate(catalog, start=1):
+            zona_label = str(item.controle or "").strip() or f"Zona {idx}"
+            rows.append(
+                {
+                    "item_key": f"TEMP-{item.id}",
+                    "ordem": item.ordem or idx,
+                    "zona": zona_label,
+                    "referencia": _item_parameter(item),
+                    "item_id": item.id,
+                }
+            )
+        return sorted(rows, key=lambda row: (int(row["ordem"]), str(row["item_key"])))
+
     rows = []
     for idx, (zona, referencia) in enumerate(SIGILATURA_TEMPERATURA_BASE, start=1):
         zona_label = f"Zona {zona}"
-        referencia_resolvida = overrides.get((_text_key("TEMPERATURA FORNO"), _text_key(zona_label)), referencia)
-        rows.append({"item_key": f"TEMP-{idx:02d}", "ordem": idx, "zona": zona_label, "referencia": referencia_resolvida})
+        rows.append({"item_key": f"TEMP-{idx:02d}", "ordem": idx, "zona": zona_label, "referencia": referencia})
     return rows
 
 
-def _escorrimento_base_items() -> list[dict[str, Any]]:
+def _escorrimento_base_items(session: Session | None = None, turno: str | None = None) -> list[dict[str, Any]]:
+    if session is not None:
+        catalog = _catalog_items(session, "escorrimento", turno=turno)
+        rows = []
+        for idx, item in enumerate(catalog, start=1):
+            rows.append(
+                {
+                    "item_key": f"ESC-ITEM-{item.id}",
+                    "ordem": item.ordem or idx,
+                    "item": str(item.controle or "").strip(),
+                    "field_key": str(item.operacao or "").strip().lower().replace(" ", "_") or f"field_{idx}",
+                    "item_id": item.id,
+                }
+            )
+        return sorted(rows, key=lambda row: (int(row["ordem"]), str(row["item_key"])))
+
     controls = [
         ("numero_amostra", "N° AMOSTRA"),
         ("lote", "LOTE"),
@@ -260,7 +333,7 @@ def _evaluate_param_rule(parametro: str | None, valor: str | None) -> tuple[str,
         limit = float(rule.replace("<", "").strip().split(" ")[0])
         return ("DENTRO", "NAO") if number < limit else ("FORA", "SIM")
     if "-" in rule and number is not None:
-        parts = rule.replace("ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºC", "").replace("MM", "").split("-")
+        parts = rule.replace("°C", "").replace("MM", "").split("-")
         if len(parts) == 2:
             low = float(parts[0].strip())
             high = float(parts[1].strip())
@@ -309,12 +382,12 @@ def _ensure_modulos(session: Session, turno: SigilaturaTurno) -> None:
 
 def create_turno(session: Session, data_referencia: date, turno: str, responsavel: str | None = None) -> SigilaturaTurno:
     if not sigilatura_schema_available(session):
-        raise SigilaturaValidationError("Estrutura de Sigilatura nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o disponÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­vel. Execute as migrations.")
+        raise SigilaturaValidationError("Estrutura de Sigilatura não disponível. Execute as migrations.")
     exists = session.scalars(
         select(SigilaturaTurno).where(SigilaturaTurno.data_referencia == data_referencia).where(SigilaturaTurno.turno == turno)
     ).first()
     if exists:
-        raise SigilaturaValidationError("JÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ existe turno de sigilatura para essa data/turno.")
+        raise SigilaturaValidationError("Já existe turno de sigilatura para essa data/turno.")
     obj = SigilaturaTurno(
         data_referencia=data_referencia,
         turno=turno,
@@ -467,10 +540,13 @@ def _load_module_rows(session: Session, turno_obj: SigilaturaTurno, module_code:
 
     if module_code == "sigilatura":
         defaults = _sigilatura_base_items(turno_obj.turno, session)
-        existing = {r.item_key: r for r in modulo.respostas}
+        existing_by_item_id = {int(r.operational_module_item_id): r for r in modulo.respostas if r.operational_module_item_id is not None}
+        existing_by_key = {r.item_key: r for r in modulo.respostas}
         rows = []
         for base in defaults:
-            item = existing.get(base["item_key"])
+            item = existing_by_item_id.get(int(base["item_id"])) if base.get("item_id") is not None else None
+            if item is None:
+                item = existing_by_key.get(base["item_key"])
             rows.append(
                 {
                     **base,
@@ -491,12 +567,19 @@ def _load_module_rows(session: Session, turno_obj: SigilaturaTurno, module_code:
                 .order_by(SigilaturaEspessuraPVC.id.asc())
             ).all()
         )
+        existing_by_item_id = {
+            int(row.operational_module_item_id): row
+            for row in existing_rows
+            if row.operational_module_item_id is not None
+        }
         existing_by_key = {
             f"ESP-{(row.modelo or '').strip()}-L{row.linha}-P{row.ponto.replace('Ponto ', '')}": row for row in existing_rows
         }
         rows = []
         for index, base in enumerate(defaults):
-            item = existing_rows[index] if index < len(existing_rows) else None
+            item = existing_by_item_id.get(int(base["item_id"])) if base.get("item_id") is not None else None
+            if item is None:
+                item = existing_rows[index] if index < len(existing_rows) else None
             if item is None:
                 item = existing_by_key.get(base["item_key"])
             measured = item.valor_medido if item else ""
@@ -515,10 +598,20 @@ def _load_module_rows(session: Session, turno_obj: SigilaturaTurno, module_code:
 
     if module_code == "temperatura-forno-sigilatura":
         defaults = _temperatura_base_items(session)
-        existing = {row.zona: row for row in session.scalars(select(SigilaturaTemperaturaForno).where(SigilaturaTemperaturaForno.modulo_id == modulo.id)).all()}
+        existing_rows = list(
+            session.scalars(select(SigilaturaTemperaturaForno).where(SigilaturaTemperaturaForno.modulo_id == modulo.id)).all()
+        )
+        existing_by_item_id = {
+            int(row.operational_module_item_id): row
+            for row in existing_rows
+            if row.operational_module_item_id is not None
+        }
+        existing = {row.zona: row for row in existing_rows}
         rows = []
         for base in defaults:
-            item = existing.get(base["zona"])
+            item = existing_by_item_id.get(int(base["item_id"])) if base.get("item_id") is not None else None
+            if item is None:
+                item = existing.get(base["zona"])
             measured = item.valor_medido if item else ""
             status, desvio = _evaluate_param_rule(base["referencia"], measured)
             rows.append(
@@ -534,7 +627,7 @@ def _load_module_rows(session: Session, turno_obj: SigilaturaTurno, module_code:
             )
         return rows
 
-    defaults = _escorrimento_base_items()
+    defaults = _escorrimento_base_items(session, turno_obj.turno)
     existing = session.scalars(
         select(SigilaturaEscorrimento)
         .where(SigilaturaEscorrimento.modulo_id == modulo.id)
@@ -589,7 +682,7 @@ def build_turno_detail(session: Session, turno_obj: SigilaturaTurno) -> dict[str
                 "title": MODULE_META[code]["title"],
                 "description": MODULE_META[code]["description"],
                 "status": status,
-                "status_label": SIG_STATUS_LABELS.get(status, "NÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£o iniciado"),
+                "status_label": SIG_STATUS_LABELS.get(status, "Não iniciado"),
                 "preenchidos": filled,
                 "total": total,
                 "percent": _module_percent(filled, total),
@@ -644,7 +737,7 @@ def build_module_editor_state(session: Session, turno_obj: SigilaturaTurno, modu
 
     if module_code == "sigilatura":
         columns = [
-            {"key": "operacao", "label": "Operação / Equipamento", "kind": "text"},
+            {"key": "operacao", "label": "operação / Equipamento", "kind": "text"},
             {"key": "controle", "label": "Descrição do controle", "kind": "text"},
             {"key": "parametro", "label": "Parâmetro", "kind": "text"},
             {"key": "turno_label", "label": "Turno", "kind": "text"},
@@ -659,7 +752,7 @@ def build_module_editor_state(session: Session, turno_obj: SigilaturaTurno, modu
             {"key": "modelo", "label": "Modelo", "kind": "input", "name_prefix": "model"},
             {"key": "valor_referencia", "label": "Valor referência", "kind": "text"},
             {"key": "valor_medido", "label": "Valor medido", "kind": "input", "name_prefix": "value"},
-            {"key": "observacao", "label": "Observaçã-o", "kind": "input", "name_prefix": "obs"},
+            {"key": "observacao", "label": "Observação", "kind": "input", "name_prefix": "obs"},
             {"key": "status", "label": "Status", "kind": "status"},
         ]
     elif module_code == "temperatura-forno-sigilatura":
@@ -673,7 +766,7 @@ def build_module_editor_state(session: Session, turno_obj: SigilaturaTurno, modu
     else:
         columns = [
             {"key": "item", "label": "ITEM", "kind": "text"},
-            {"key": "descricao", "label": "DESCRIÃ‡ÃƒO", "kind": "input", "name_prefix": "value"},
+            {"key": "descricao", "label": "DESCRIÇÃO", "kind": "input", "name_prefix": "value"},
         ]
     escorrimento_images = list_escorrimento_images(session, turno_obj) if module_code == "escorrimento" else []
     return {
@@ -693,7 +786,7 @@ def save_module(
 ) -> None:
     modulo = next((m for m in turno_obj.modulos if m.module_code == module_code), None)
     if modulo is None:
-        raise SigilaturaValidationError("MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³dulo invÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡lido para este turno.")
+        raise SigilaturaValidationError("Módulo inválido para este turno.")
     now = _now()
 
     if module_code == "sigilatura":
@@ -707,6 +800,7 @@ def save_module(
                 SigilaturaResposta(
                     turno_id=turno_obj.id,
                     modulo_id=modulo.id,
+                    operational_module_item_id=base.get("item_id"),
                     module_code=module_code,
                     item_key=base["item_key"],
                     ordem=base["ordem"],
@@ -736,6 +830,7 @@ def save_module(
                 SigilaturaEspessuraPVC(
                     turno_id=turno_obj.id,
                     modulo_id=modulo.id,
+                    operational_module_item_id=base.get("item_id"),
                     ponto=base["ponto"],
                     linha=base["linha"],
                     frequencia=base["frequencia"],
@@ -762,6 +857,7 @@ def save_module(
                 SigilaturaTemperaturaForno(
                     turno_id=turno_obj.id,
                     modulo_id=modulo.id,
+                    operational_module_item_id=base.get("item_id"),
                     semana=week or None,
                     responsavel=owner or None,
                     zona=base["zona"],
@@ -774,7 +870,7 @@ def save_module(
                 )
             )
     else:
-        defaults = _escorrimento_base_items()
+        defaults = _escorrimento_base_items(session, turno_obj.turno)
         session.query(SigilaturaEscorrimento).filter(SigilaturaEscorrimento.modulo_id == modulo.id).delete()
         payload = {
             "numero_amostra": "",
@@ -797,6 +893,7 @@ def save_module(
             SigilaturaEscorrimento(
                 turno_id=turno_obj.id,
                 modulo_id=modulo.id,
+                operational_module_item_id=(defaults[0].get("item_id") if defaults else None),
                 semana=None,
                 responsavel=None,
                 numero_amostra=payload["numero_amostra"] or None,
@@ -819,65 +916,40 @@ def save_module(
     if action == "concluir":
         module = next((item for item in detail["modules"] if item["code"] == module_code), None)
         if not module:
-            raise SigilaturaValidationError("MÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³dulo invÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡lido para este turno.")
+            raise SigilaturaValidationError("Módulo inválido para este turno.")
         if module["status"] != SIG_SHIFT_STATUS_CONCLUIDO:
-            raise SigilaturaValidationError("Preencha todos os itens aplicÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡veis para concluir setor.")
+            raise SigilaturaValidationError("Preencha todos os itens aplicáveis para concluir setor.")
 
 
 def build_admin_parameter_rows(session: Session, module_code: str) -> list[dict[str, Any]]:
-    if module_code == "sigilatura":
-        unique: dict[tuple[str, str], dict[str, Any]] = {}
-        index = 1
-        for turno in ("1", "2", "3"):
-            for row in _sigilatura_base_items(turno, session):
-                key = (_text_key(row["operacao"]), _text_key(row["controle"]))
-                if key in unique:
-                    continue
-                unique[key] = {
-                    "key": f"SIGCFG-{index:03d}",
-                    "ordem": index,
-                    "operacao": row["operacao"],
-                    "controle": row["controle"],
-                    "parametro": row["parametro"],
-                }
-                index += 1
-        return list(unique.values())
-
-    if module_code == "espessura-pvc":
-        return [
+    rows = operational_module_item_service.get_items_by_scope_module(
+        session,
+        escopo="sigilatura",
+        modulo=module_code,
+        aba=None,
+    )
+    result: list[dict[str, Any]] = []
+    for index, item in enumerate(rows, start=1):
+        result.append(
             {
-                "key": row["item_key"],
-                "ordem": row["ordem"],
-                "operacao": "ESPESSURA PVC",
-                "controle": f"{row['modelo']} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Linha {row['linha']} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· {row['ponto']}",
-                "parametro": row["valor_referencia"],
+                "key": f"SIGCFG-{item.id}",
+                "ordem": item.ordem or index,
+                "operacao": item.operacao or "",
+                "controle": item.controle or "",
+                "parametro": _item_parameter(item),
             }
-            for row in _espessura_base_items("1", session)
-        ]
-
-    if module_code == "temperatura-forno-sigilatura":
-        return [
-            {
-                "key": row["item_key"],
-                "ordem": row["ordem"],
-                "operacao": "TEMPERATURA FORNO",
-                "controle": row["zona"],
-                "parametro": row["referencia"],
-            }
-            for row in _temperatura_base_items(session)
-        ]
-    return []
-
+        )
+    return result
 
 def save_admin_parameter_overrides(session: Session, module_code: str, updates: list[dict[str, str]]) -> None:
-    if module_code not in {"sigilatura", "espessura-pvc", "temperatura-forno-sigilatura"}:
+    if module_code not in {"sigilatura", "espessura-pvc", "temperatura-forno-sigilatura", "escorrimento"}:
         return
 
     existing = list(
         session.scalars(
             select(OperationalModuleItem)
-            .where(OperationalModuleItem.module_code == module_code)
-            .where(OperationalModuleItem.setor_tipo == "AMBOS")
+            .where(OperationalModuleItem.escopo == "sigilatura")
+            .where(OperationalModuleItem.modulo == module_code)
             .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
         ).all()
     )
@@ -897,11 +969,17 @@ def save_admin_parameter_overrides(session: Session, module_code: str, updates: 
         item = by_key.get(key)
         if item is None:
             item = OperationalModuleItem(
+                escopo="sigilatura",
+                modulo=module_code,
+                aba="Manual",
                 module_code=module_code,
                 setor_tipo="AMBOS",
                 operacao=operacao,
                 controle=controle,
                 parametro=parametro or None,
+                parametro_exibicao=parametro or None,
+                referencia_visual=parametro or None,
+                tipo_validacao="texto",
                 ordem=idx,
                 obrigatorio=True,
                 ativo=True,
@@ -913,14 +991,28 @@ def save_admin_parameter_overrides(session: Session, module_code: str, updates: 
             by_key[key] = item
             continue
         item.parametro = parametro or None
+        item.parametro_exibicao = parametro or None
+        item.referencia_visual = parametro or None
         item.ordem = idx
         item.ativo = True
         item.updated_at = now
 
     session.commit()
 
-
 def conclude_turno(session: Session, turno_obj: SigilaturaTurno) -> None:
+    detail = build_turno_detail(session, turno_obj)
+    pending_modules = [
+        module
+        for module in detail.get("modules", [])
+        if module.get("status") != SIG_SHIFT_STATUS_CONCLUIDO
+    ]
+    if pending_modules:
+        pending_names = ", ".join(str(module.get("title") or module.get("code")) for module in pending_modules[:3])
+        suffix = "..." if len(pending_modules) > 3 else ""
+        raise SigilaturaValidationError(
+            f"Nao e possivel finalizar o turno. Conclua todos os setores pendentes: {pending_names}{suffix}"
+        )
+
     turno_obj.status_geral = SIG_SHIFT_STATUS_CONCLUIDO
     turno_obj.updated_at = _now()
     session.commit()

@@ -78,6 +78,11 @@ class SigilaturaResposta(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     turno_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_turnos.id", ondelete="CASCADE"), nullable=False, index=True)
     modulo_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     module_code: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     item_key: Mapped[str] = mapped_column(String(120), nullable=False)
     ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -101,6 +106,11 @@ class SigilaturaEspessuraPVC(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     turno_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_turnos.id", ondelete="CASCADE"), nullable=False, index=True)
     modulo_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     ponto: Mapped[str] = mapped_column(String(60), nullable=False)
     linha: Mapped[str] = mapped_column(String(20), nullable=False)
     frequencia: Mapped[str | None] = mapped_column(String(60), nullable=True)
@@ -118,6 +128,11 @@ class SigilaturaTemperaturaForno(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     turno_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_turnos.id", ondelete="CASCADE"), nullable=False, index=True)
     modulo_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     semana: Mapped[str | None] = mapped_column(String(40), nullable=True)
     responsavel: Mapped[str | None] = mapped_column(String(120), nullable=True)
     zona: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -133,6 +148,11 @@ class SigilaturaEscorrimento(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     turno_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_turnos.id", ondelete="CASCADE"), nullable=False, index=True)
     modulo_id: Mapped[int] = mapped_column(ForeignKey("sigilatura_modulos.id", ondelete="CASCADE"), nullable=False, index=True)
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     semana: Mapped[str | None] = mapped_column(String(40), nullable=True)
     responsavel: Mapped[str | None] = mapped_column(String(120), nullable=True)
     numero_amostra: Mapped[str | None] = mapped_column(String(40), nullable=True)

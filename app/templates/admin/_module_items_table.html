@@ -1,8 +1,8 @@
-<section class="panel-card table-panel">
+﻿<section class="panel-card table-panel">
     <div class="section-header-inline compact">
         <div>
             <h3>{{ module_title }}</h3>
-            <p>Edite os itens e a periodicidade deste m&oacute;dulo.</p>
+            <p>Edite os itens e a periodicidade deste módulo.</p>
         </div>
     </div>
 
@@ -12,11 +12,15 @@
                 <tr class="table-row table-head-row">
                     <th data-col-item>Item</th>
                     <th data-col-setor>Setor</th>
-                    <th data-col-frequencia>Frequ&ecirc;ncia</th>
+                    <th data-col-frequencia>Frequência</th>
                     <th data-col-dia>Dia</th>
                     <th data-col-ordem>Ordem</th>
                     <th data-col-ativo>Ativo</th>
-                    <th data-col-acoes>A&ccedil;&otilde;es</th>
+                    <th data-col-validacao>Validação</th>
+                    <th data-col-limites>Regra / Limite</th>
+                    <th data-col-unidade>Unidade</th>
+                    <th data-col-referencia>Referência visual</th>
+                    <th data-col-acoes>Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -24,19 +28,20 @@
                 <tr class="table-row" data-admin-row data-row-key="{{ row.id }}" data-editing="false">
                     <td data-col-item>
                         {% if module_code == 'ed' %}
-                        <div class="item-dual-field">
-                            <div class="item-dual-field__block">
-                                <span data-operacao-label>Operação</span>
-                                <input type="text" data-field="operacao" data-editable data-inline-input value="{{ row.operacao or '' }}" disabled>
-                            </div>
-                            <div class="item-dual-field__block">
-                                <span data-operacao-label>Controle</span>
-                                <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled>
-                            </div>
-                        </div>
+                        <input
+                            type="text"
+                            data-field="item_nome"
+                            data-editable
+                            data-inline-input
+                            value="{% if row.operacao %}{{ row.operacao }} - {% endif %}{{ row.controle }}"
+                            placeholder="Operação / Controle"
+                            disabled
+                        >
+                        <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
+                        <input type="hidden" data-field="controle" value="{{ row.controle }}">
                         {% else %}
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
-                        {% if row.operacao %}
+                        {% if row.operacao and module_code not in ['escorrimento', 'rugosidade', 'sigilatura', 'espessura-pvc', 'temperatura-forno-sigilatura'] %}
                         <span data-operacao-label>{{ row.operacao }}</span>
                         {% endif %}
                         <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled>
@@ -57,7 +62,7 @@
                         </select>
                     </td>
                     <td data-col-dia>
-                        <span data-day-static {% if row.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>&mdash;</span>
+                        <span data-day-static {% if row.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>—</span>
                         <div data-day-weekly {% if row.frequencia_tipo != 'semanal' %}hidden{% endif %}>
                             <select data-field="dia_semana" data-editable disabled>
                                 <option value="">Selecione</option>
@@ -76,6 +81,26 @@
                     <td data-col-ativo data-checkbox-cell>
                         <input type="checkbox" data-field="ativo" data-editable {% if row.ativo %}checked{% endif %} disabled>
                     </td>
+                    <td data-col-validacao>
+                        <select data-field="tipo_validacao" data-editable data-inline-select disabled>
+                            {% for option in validation_type_options %}
+                            <option value="{{ option.value }}" {% if row.tipo_validacao == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-col-limites>
+                        <div class="limits-inline" data-rule-shell>
+                            <input type="text" data-field="limite_minimo" data-editable data-inline-input data-rule-min value="{{ row.limite_minimo if row.limite_minimo is not none else '' }}" placeholder="Min" disabled>
+                            <span class="limits-inline__sep" data-rule-sep>/</span>
+                            <input type="text" data-field="limite_maximo" data-editable data-inline-input data-rule-max value="{{ row.limite_maximo if row.limite_maximo is not none else '' }}" placeholder="Max" disabled>
+                        </div>
+                    </td>
+                    <td data-col-unidade>
+                        <input type="text" data-field="unidade" data-editable data-inline-input value="{{ row.unidade or '' }}" disabled>
+                    </td>
+                    <td data-col-referencia>
+                        <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="{{ row.parametro_exibicao or '' }}" placeholder="Ex.: ≥2,5 L/min (≥150 L/h)" disabled>
+                    </td>
                     <td data-col-acoes class="actions-cell">
                         <button type="button" class="button-secondary small" data-row-edit>Editar</button>
                         <button type="button" class="button-danger small" data-row-delete>Excluir</button>
@@ -83,7 +108,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="empty-state">Nenhum item encontrado para este m&oacute;dulo.</td>
+                    <td colspan="11" class="empty-state">Nenhum item encontrado para este módulo.</td>
                 </tr>
                 {% endfor %}
             </tbody>

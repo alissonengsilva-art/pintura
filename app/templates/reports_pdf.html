@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 <section class="op-module reports-page reports-page--print">
@@ -61,7 +61,7 @@
                         <th>Turno</th>
                         <th>Módulo</th>
                         <th>Controle</th>
-                        <th>Parâmetro</th>
+                        <th>Item do checklist</th>
                         <th>Valor</th>
                         <th>Responsável</th>
                     </tr>
@@ -73,7 +73,7 @@
                         <td><span class="op-table__text">{{ row.turno_label }}</span></td>
                         <td><span class="op-table__text">{{ row.modulo_label }}</span></td>
                         <td><span class="op-table__text">{{ row.controle }}</span></td>
-                        <td><span class="op-table__text">{{ row.parametro }}</span></td>
+                        <td><span class="op-table__text">{{ row.checklist_item }}</span></td>
                         <td><span class="op-table__text">{{ row.valor }}</span></td>
                         <td><span class="op-table__text">{{ row.responsavel }}</span></td>
                     </tr>
@@ -94,3 +94,4 @@ window.addEventListener('load', function () {
 });
 </script>
 {% endblock %}
+

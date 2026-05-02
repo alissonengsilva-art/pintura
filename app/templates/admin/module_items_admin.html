@@ -3,12 +3,12 @@
 {% block content %}
 <section class="section-header-inline">
     <div>
-        <h1>Itens dos M&oacute;dulos</h1>
+        <h1>Itens dos Módulos</h1>
         <p>Cadastre, edite e organize os itens e sua periodicidade operacional.</p>
     </div>
     <div class="hero-actions">
         <button type="button" class="button-primary" data-add-item>Novo item</button>
-        <button type="button" class="button-primary" data-save-module>Salvar altera&ccedil;&otilde;es</button>
+        <button type="button" class="button-primary" data-save-module>Salvar alterações</button>
         <a class="button-secondary" href="/configuracoes">Voltar</a>
     </div>
 </section>
@@ -17,8 +17,8 @@
     <section class="panel-card table-panel">
         <div class="section-header-inline compact">
             <div>
-                <h3>M&oacute;dulos</h3>
-                <p>Selecione uma aba para ajustar os itens do m&oacute;dulo.</p>
+                <h3>Módulos</h3>
+                <p>Selecione uma aba para ajustar os itens do módulo.</p>
             </div>
         </div>
         <div>
@@ -34,7 +34,7 @@
             {% endfor %}
         </div>
         <div class="module-master-frequency">
-            <strong>Frequ&ecirc;ncia mestre da aba</strong>
+            <strong>Frequência mestre da aba</strong>
             <div class="module-master-frequency__controls">
                 <select data-master-frequency>
                     {% for option in frequency_options %}
@@ -47,7 +47,7 @@
                     <option value="{{ option.value }}">{{ option.label }}</option>
                     {% endfor %}
                 </select>
-                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do m&ecirc;s">
+                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do mÃªs">
                 <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
             </div>
         </div>
@@ -59,7 +59,7 @@
 </div>
 
 <div data-admin-toast hidden style="position: fixed; right: 24px; bottom: 24px; z-index: 50; padding: 10px 14px; border-radius: 12px; background: #1f7a45; color: #fff; font-size: 14px; box-shadow: var(--shadow-card);">
-    Altera&ccedil;&otilde;es salvas com sucesso
+    Alterações salvas com sucesso
 </div>
 
 <style>
@@ -99,53 +99,75 @@
     [data-module-admin-page] .table-wrapper {
         overflow-x: auto;
         padding-bottom: 2px;
+        border: 1px solid #cfd7e3;
+        background: #fff;
     }
 
     [data-module-admin-page] .module-items-grid {
         width: 100%;
-        min-width: 980px;
-        border-collapse: separate;
-        border-spacing: 0 6px;
+        min-width: 1240px;
+        border-collapse: collapse;
+        border-spacing: 0;
+        table-layout: fixed;
     }
 
     [data-module-admin-page] .table-row {
         display: grid;
         grid-template-columns:
-            3fr
-            1.5fr
-            1.2fr
-            1.2fr
-            0.8fr
-            0.6fr
-            1.2fr;
-        gap: 8px;
+            minmax(180px, 2fr)
+            minmax(140px, 1.2fr)
+            minmax(110px, 0.9fr)
+            minmax(84px, 0.7fr)
+            minmax(70px, 0.6fr)
+            52px
+            minmax(112px, 0.9fr)
+            minmax(160px, 1.3fr)
+            minmax(78px, 0.6fr)
+            minmax(220px, 1.6fr)
+            minmax(122px, 0.9fr);
+        gap: 6px;
         align-items: center;
     }
 
     [data-module-admin-page] .table-head-row {
-        margin-bottom: 2px;
+        margin-bottom: 0;
+        background: #eef3f9;
+        border-bottom: 1px solid #cfd7e3;
     }
 
     [data-module-admin-page] .table-head-row th {
-        padding: 4px 8px;
+        padding: 6px 8px;
         font-size: 11px;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        color: var(--text-muted);
+        color: #4a617d;
         font-weight: 700;
         white-space: nowrap;
+        border-right: 1px solid #dbe3ee;
+    }
+
+    [data-module-admin-page] .table-head-row th:last-child {
+        border-right: 0;
     }
 
     [data-module-admin-page] tbody tr[data-admin-row] {
-        background: #f8fbff;
-        border: 1px solid rgba(20, 44, 78, 0.12);
-        border-radius: 10px;
-        padding: 8px 10px;
+        background: #fff;
+        border-bottom: 1px solid #e3e9f2;
+        padding: 0;
     }
 
     [data-module-admin-page] tbody tr[data-admin-row] td {
-        padding: 0;
+        padding: 6px 8px;
         min-width: 0;
+        border-right: 1px solid #eef2f7;
+    }
+
+    [data-module-admin-page] tbody tr[data-admin-row] td:last-child {
+        border-right: 0;
+    }
+
+    [data-module-admin-page] tbody tr[data-admin-row]:nth-child(even) {
+        background: #f9fbfe;
     }
 
     [data-module-admin-page] [data-col-ativo] {
@@ -159,7 +181,7 @@
     [data-module-admin-page] .item-dual-field {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
     }
 
@@ -167,12 +189,23 @@
         min-width: 0;
     }
 
+    [data-module-admin-page] .item-merged-field {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
     [data-module-admin-page] [data-inline-input],
     [data-module-admin-page] [data-inline-select] {
         width: 100%;
         max-width: 100%;
-        min-height: 34px;
-        padding: 6px 8px;
+        min-height: 30px;
+        padding: 4px 6px;
+        font-size: 13px;
+        border-radius: 0;
+        border: 1px solid #d6deea;
+        box-shadow: none;
+        background: #fff;
     }
 
     [data-module-admin-page] [data-inline-select="frequencia"] {
@@ -183,8 +216,9 @@
     [data-module-admin-page] [data-day-monthly] input {
         width: 100%;
         max-width: none;
-        min-height: 34px;
-        padding: 6px 8px;
+        min-height: 30px;
+        padding: 4px 6px;
+        border-radius: 0;
     }
 
     [data-module-admin-page] [data-day-static] {
@@ -208,23 +242,41 @@
     }
 
     [data-module-admin-page] tr[data-editing="true"] {
-        background: #eef5ff;
-        border-color: rgba(25, 91, 166, 0.28);
+        background: #edf4ff !important;
     }
 
     [data-module-admin-page] .actions-cell {
         display: flex;
-        gap: 6px;
+        gap: 4px;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
         flex-wrap: nowrap;
     }
 
     [data-module-admin-page] .actions-cell .button-secondary.small,
     [data-module-admin-page] .actions-cell .button-danger.small {
-        min-width: 78px;
-        padding: 6px 10px;
+        min-width: 58px;
+        padding: 4px 8px;
+        font-size: 12px;
         white-space: nowrap;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    [data-module-admin-page] .limits-inline {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 4px;
+        align-items: center;
+    }
+
+    [data-module-admin-page] .limits-inline__sep {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    [data-module-admin-page] [hidden] {
+        display: none !important;
     }
 
     [data-module-admin-page] [data-checkbox-cell] {
@@ -233,7 +285,7 @@
 
     @media (max-width: 1100px) {
         [data-module-admin-page] .module-items-grid {
-            min-width: 920px;
+            min-width: 1160px;
         }
     }
 </style>
@@ -252,6 +304,7 @@
     const masterMonthday = document.querySelector('[data-master-monthday]');
     const applyMasterFrequencyButton = document.querySelector('[data-apply-master-frequency]');
     const sectorOptions = {{ sector_options|tojson }};
+    const validationTypeOptions = {{ validation_type_options|tojson }};
     const frequencyOptions = {{ frequency_options|tojson }};
     const weekdayOptions = {{ weekday_options|tojson }};
 
@@ -314,6 +367,35 @@
         if (staticLabel) staticLabel.hidden = frequency === 'semanal' || frequency === 'mensal';
     }
 
+    function toggleValidationInputs(row) {
+        const validationType = (row.querySelector('[data-field="tipo_validacao"]')?.value || 'nenhum').toLowerCase();
+        const minInput = row.querySelector('[data-rule-min]');
+        const maxInput = row.querySelector('[data-rule-max]');
+        const sep = row.querySelector('[data-rule-sep]');
+        const refInput = row.querySelector('[data-field="parametro_exibicao"]');
+
+        const isRange = validationType === 'range';
+        const isMin = validationType === 'min';
+        const isMax = validationType === 'max';
+        const isTextual = ['texto', 'booleano', 'nenhum', 'referencia'].includes(validationType);
+
+        if (minInput) {
+            minInput.hidden = !(isRange || isMin);
+            minInput.disabled = minInput.hidden || row.dataset.editing !== 'true';
+            if (minInput.hidden) minInput.value = '';
+        }
+        if (maxInput) {
+            maxInput.hidden = !(isRange || isMax);
+            maxInput.disabled = maxInput.hidden || row.dataset.editing !== 'true';
+            if (maxInput.hidden) maxInput.value = '';
+        }
+        if (sep) sep.hidden = !isRange;
+        if (refInput) {
+            refInput.hidden = !isTextual;
+            refInput.disabled = refInput.hidden || row.dataset.editing !== 'true';
+        }
+    }
+
     function toggleMasterDayInputs() {
         const frequency = masterFrequency?.value || 'diario';
         if (masterWeekday) masterWeekday.hidden = frequency !== 'semanal';
@@ -330,22 +412,16 @@
             editButton.textContent = editing ? 'Fechar' : 'Editar';
         }
         toggleDayInputs(row);
+        toggleValidationInputs(row);
     }
 
     function buildNewRowMarkup() {
         const rowKey = `new-${Date.now()}-${newRowSequence++}`;
         const itemFieldMarkup = selectedModule === 'ed'
             ? `
-                <div class="item-dual-field">
-                    <div class="item-dual-field__block">
-                        <span data-operacao-label>Operação</span>
-                        <input type="text" data-field="operacao" data-editable data-inline-input value="" placeholder="Nome da operação">
-                    </div>
-                    <div class="item-dual-field__block">
-                        <span data-operacao-label>Controle</span>
-                        <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do controle">
-                    </div>
-                </div>
+                <input type="text" data-field="item_nome" data-editable data-inline-input value="" placeholder="operação / Controle">
+                <input type="hidden" data-field="operacao" value="">
+                <input type="hidden" data-field="controle" value="">
             `
             : `
                 <input type="hidden" data-field="operacao" value="">
@@ -367,7 +443,7 @@
                     </select>
                 </td>
                 <td data-col-dia>
-                    <span data-day-static>&mdash;</span>
+                    <span data-day-static>â€”</span>
                     <div data-day-weekly hidden>
                         <select data-field="dia_semana" data-editable>
                             <option value="">Selecione</option>
@@ -384,6 +460,24 @@
                 <td data-col-ativo data-checkbox-cell>
                     <input type="checkbox" data-field="ativo" data-editable checked>
                 </td>
+                <td data-col-validacao>
+                    <select data-field="tipo_validacao" data-editable data-inline-select>
+                        ${renderOptions(validationTypeOptions, 'nenhum')}
+                    </select>
+                </td>
+                <td data-col-limites>
+                    <div class="limits-inline" data-rule-shell>
+                        <input type="text" data-field="limite_minimo" data-editable data-inline-input data-rule-min value="" placeholder="Min">
+                        <span class="limits-inline__sep" data-rule-sep>/</span>
+                        <input type="text" data-field="limite_maximo" data-editable data-inline-input data-rule-max value="" placeholder="Max">
+                    </div>
+                </td>
+                <td data-col-unidade>
+                    <input type="text" data-field="unidade" data-editable data-inline-input value="">
+                </td>
+                <td data-col-referencia>
+                    <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="" placeholder="Ex.: ≥2,5 L/min (≥150 L/h)">
+                </td>
                 <td data-col-acoes class="actions-cell">
                     <button type="button" class="button-secondary small" data-row-edit>Fechar</button>
                     <button type="button" class="button-danger small" data-row-delete>Excluir</button>
@@ -398,16 +492,36 @@
         const frequency = row.querySelector('[data-field="frequencia_tipo"]')?.value || 'diario';
         const weekday = row.querySelector('[data-field="dia_semana"]')?.value || '';
         const monthday = row.querySelector('[data-field="dia_mes"]')?.value || '';
+        let operacao = row.querySelector('[data-field="operacao"]')?.value || '';
+        let controle = row.querySelector('[data-field="controle"]')?.value || '';
+        const mergedItem = row.querySelector('[data-field="item_nome"]');
+        if (mergedItem) {
+            const mergedText = (mergedItem.value || '').trim();
+            const separator = ' - ';
+            if (mergedText.includes(separator)) {
+                const parts = mergedText.split(separator);
+                operacao = (parts.shift() || '').trim();
+                controle = parts.join(separator).trim();
+            } else {
+                operacao = '';
+                controle = mergedText;
+            }
+        }
         return {
             id: itemId,
-            operacao: row.querySelector('[data-field="operacao"]')?.value || '',
-            controle: row.querySelector('[data-field="controle"]')?.value || '',
+            operacao,
+            controle,
             setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
             frequencia_tipo: frequency,
             dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
             dia_mes: frequency === 'mensal' && monthday !== '' ? Number(monthday) : null,
             ordem: Number(row.querySelector('[data-field="ordem"]')?.value || 0),
             ativo: Boolean(row.querySelector('[data-field="ativo"]')?.checked),
+            tipo_validacao: row.querySelector('[data-field="tipo_validacao"]')?.value || 'nenhum',
+            limite_minimo: (row.querySelector('[data-field="limite_minimo"]')?.value || '').trim(),
+            limite_maximo: (row.querySelector('[data-field="limite_maximo"]')?.value || '').trim(),
+            unidade: (row.querySelector('[data-field="unidade"]')?.value || '').trim(),
+            parametro_exibicao: (row.querySelector('[data-field="parametro_exibicao"]')?.value || '').trim(),
         };
     }
 
@@ -493,6 +607,9 @@
         if (event.target.matches('[data-field="frequencia_tipo"]')) {
             toggleDayInputs(row);
         }
+        if (event.target.matches('[data-field="tipo_validacao"]')) {
+            toggleValidationInputs(row);
+        }
         if (event.target.matches('[data-editable], [data-field]')) {
             markUnsaved();
         }
@@ -506,6 +623,7 @@
         if (row) {
             row.removeAttribute('data-new-row');
             toggleDayInputs(row);
+            toggleValidationInputs(row);
         }
         markUnsaved();
     });
@@ -553,6 +671,7 @@
     saveButton?.addEventListener('click', saveCurrentModule);
     container.querySelectorAll('[data-admin-row]').forEach((row) => {
         setRowEditing(row, false);
+        toggleValidationInputs(row);
     });
 })();
 </script>

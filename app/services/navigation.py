@@ -9,7 +9,23 @@ PRIMARY_LINKS = [
     {"slug": "relatorios", "title": "Relatórios", "url": "/relatorios"},
 ]
 
-SECTIONS: list[dict] = []
+SECTIONS: list[dict] = [
+    {
+        "slug": "visao-geral",
+        "title": "Visão Geral",
+        "links": [PRIMARY_LINKS[0]],
+    },
+    {
+        "slug": "operacao",
+        "title": "Operação",
+        "links": PRIMARY_LINKS[1:4],
+    },
+    {
+        "slug": "relatorios",
+        "title": "Relatórios",
+        "links": [PRIMARY_LINKS[4]],
+    },
+]
 
 ADMIN_LINKS = [
     {"slug": "configuracoes", "title": "Configurações", "url": "/configuracoes"},
@@ -46,12 +62,6 @@ SETTINGS_HUB_ITEMS = [
         "description": "Cadastre, edite e organize os itens e sua periodicidade operacional.",
         "url": "/configuracoes/modulos-itens",
     },
-    {
-        "slug": "temperatura-faixas",
-        "title": "Edição Geral de Parâmetros",
-        "description": "Edite parâmetros e referências dos módulos de ED e Sigilatura em uma única tela.",
-        "url": "/cadastros/modulos-itens/temperatura-forno-ed/faixas",
-    },
 ]
 
 
@@ -67,5 +77,3 @@ def layout_context(current_path: str, active_path: str | None = None, scope_sour
         "current_path": current_path,
         "active_path": active_path or current_path,
     }
-
-

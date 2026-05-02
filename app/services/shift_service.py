@@ -297,6 +297,14 @@ def conclude_shift(session: Session, shift: OperationalShift) -> None:
     if not shift_schema_available(session):
         return
 
+    ed_record = session.scalars(
+        select(OperationalModuleRecord)
+        .where(OperationalModuleRecord.shift_id == shift.id)
+        .where(OperationalModuleRecord.module_code == "ed")
+    ).first()
+    if ed_record is not None and ed_record.status_geral != MODULE_STATUS_CONCLUIDO:
+        raise ShiftValidationError("Nao e possivel concluir o turno: o modulo ED ainda possui itens pendentes.")
+
     shift.status_geral = SHIFT_STATUS_CONCLUIDO
     shift.updated_at = datetime.now(UTC).replace(tzinfo=None)
     session.commit()

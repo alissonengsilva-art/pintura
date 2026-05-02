@@ -269,12 +269,15 @@ def turnos_sigilatura_remover_escorrimento_imagem(
 
 
 @router.post("/turnos-sigilatura/{shift_id}/concluir", name="turnos_sigilatura_concluir")
-def turnos_sigilatura_concluir(shift_id: int, db: Session = Depends(get_db)):
+def turnos_sigilatura_concluir(shift_id: int, request: Request, db: Session = Depends(get_db)):
     shift_obj = get_turno_by_id(db, shift_id)
     if not shift_obj:
         raise HTTPException(status_code=404, detail="Turno de sigilatura nÃ£o encontrado")
-    conclude_turno(db, shift_obj)
-    return RedirectResponse(url="/turnos-sigilatura?tab=concluidos", status_code=303)
-
+    try:
+        conclude_turno(db, shift_obj)
+        return RedirectResponse(url="/turnos-sigilatura?tab=concluidos", status_code=303)
+    except SigilaturaValidationError as error:
+        active_module = request.query_params.get("modulo")
+        return _render_execution(request, db, shift_id, active_module, error_message=str(error), status_code=400)
 
 

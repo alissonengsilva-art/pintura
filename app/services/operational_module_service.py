@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any, Callable
 
 from sqlalchemy import Select, case, inspect, select
@@ -19,6 +20,7 @@ from app.services import aspecto_service
 from app.services import ed_service
 from app.services import espessura_ed_service
 from app.services import item_frequency_runtime_service
+from app.services import module_parameter_validation
 from app.services import operational_module_item_service
 from app.services import poder_penetracao_service
 from app.services import pressao_filtros_service
@@ -128,6 +130,17 @@ def operational_schema_available(session: Session) -> bool:
         "operational_module_items",
     )
     return all(inspector.has_table(table_name) for table_name in required_tables)
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def list_shared_options(session: Session) -> dict[str, list[Any]]:
@@ -402,7 +415,7 @@ def save_sector(
     sector.atualizado_em = now
     sector.status_setor = SETOR_STATUS_CONCLUIDO if action == "concluir" else SETOR_STATUS_EM_ANDAMENTO
     sector.concluido_em = now if sector.status_setor == SETOR_STATUS_CONCLUIDO else None
-    sector.metricas = metricas
+    sector.metricas = _json_safe(metricas)
     sector.respostas.clear()
     for index, row in enumerate(rows, start=1):
         value_number = row.get("value_number")
@@ -414,7 +427,7 @@ def save_sector(
                 valor_numero=float(value_number) if isinstance(value_number, (int, float)) else None,
                 observacao=None if row.get("row_observation") is None else str(row.get("row_observation")),
                 fora_padrao=row.get("flag"),
-                dados=row,
+                dados=_json_safe(row),
                 created_at=now,
                 updated_at=now,
             )
@@ -693,13 +706,57 @@ def _first_option_value(options: list[Any]) -> str | None:
 
 
 def _parse_decimal(raw_value: Any, message: str) -> float | None:
-    text = str(raw_value or "").strip()
-    if not text:
-        return None
-    try:
-        return float(text.replace(",", "."))
-    except ValueError as error:
-        raise OperationalModuleValidationError(message.format(value=text)) from error
+    parsed = module_parameter_validation.parse_numeric_value(str(raw_value or ""))
+    if str(raw_value or "").strip() and parsed is None:
+        text = str(raw_value or "").strip()
+        raise OperationalModuleValidationError(message.format(value=text))
+    return parsed
+
+
+def _item_validation_meta(item: Any) -> dict[str, Any]:
+    return {
+        "tipo_validacao": module_parameter_validation.normalize_validation_type(getattr(item, "tipo_validacao", None)),
+        "limite_minimo": getattr(item, "limite_minimo", None),
+        "limite_maximo": getattr(item, "limite_maximo", None),
+        "unidade": getattr(item, "unidade", None),
+        "parametro_exibicao": module_parameter_validation.display_parameter(item),
+    }
+
+
+def _evaluate_item_input(row: dict[str, Any], value: str) -> module_parameter_validation.ValidationResult:
+    return module_parameter_validation.evaluate(
+        value,
+        tipo_validacao=row.get("tipo_validacao"),
+        limite_minimo=row.get("limite_minimo"),
+        limite_maximo=row.get("limite_maximo"),
+    )
+
+
+def _is_conclude_action(form_data: Any) -> bool:
+    return str(form_data.get("submit_action") or "").strip().lower() == "concluir"
+
+
+def _enforce_required_fields_on_conclude(
+    rows: list[dict[str, Any]],
+    *,
+    setor_tipo: str,
+) -> None:
+    for row in rows:
+        if not row.get("is_applicable"):
+            continue
+        value = str(row.get("value") or "").strip()
+        if not value:
+            label = row.get("label") or row.get("descricao") or row.get("reference") or "item"
+            raise OperationalModuleValidationError(
+                f"Preencha o valor do item '{label}' antes de concluir o setor {SETOR_LABELS[setor_tipo]}."
+            )
+        if bool(row.get("flag")) and not str(row.get("row_observation") or "").strip():
+            label = row.get("label") or row.get("descricao") or row.get("reference") or "item"
+            expected = row.get("expected") or row.get("parametro") or row.get("parametro_exibicao") or "-"
+            raise OperationalModuleValidationError(
+                f"Informe observação para item fora do padrão no setor {SETOR_LABELS[setor_tipo]}: "
+                f"{label} (valor: {value}, regra: {expected})."
+            )
 
 
 def _legacy_ed_history(session: Session) -> list[dict[str, Any]]:
@@ -933,7 +990,7 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
             "operacao": item.operacao or "-",
             "descricao": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "parametro": item.parametro or "-",
+            "parametro": module_parameter_validation.display_parameter(item),
             "value": "",
             "row_observation": "",
             "status_label": _runtime_item_state(session, context, item)["applicability_label"]
@@ -941,6 +998,7 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
             else ed_service.EVALUATION_LABELS["neutral"],
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, context, item),
         }
         for item in items
@@ -950,6 +1008,7 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
 def _ed_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _ed_rows(session, context, setor_tipo)
     flagged = 0
+    require_observation_on_out = _is_conclude_action(form_data)
     for row in rows:
         if not row.get("is_applicable"):
             row.update({"value": "", "row_observation": "", "flag": False})
@@ -957,20 +1016,24 @@ def _ed_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_d
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
-        evaluation = ed_service.evaluate_parameter(row["parametro"] if row["parametro"] != "-" else None, value)
-        if evaluation["fora_parametro"] is True and not observation:
+        evaluation = _evaluate_item_input(row, value)
+        if require_observation_on_out and evaluation.fora_padrao is True and not observation:
+            item_label = f"{row.get('operacao') or '-'} / {row.get('descricao') or '-'}"
+            regra = str(row.get("parametro_exibicao") or row.get("parametro") or "-")
             raise OperationalModuleValidationError(
-                f"Informe observação para item fora do padrão no setor {SETOR_LABELS[setor_tipo]}."
+                "Informe observação para item fora do padrão no setor "
+                f"{SETOR_LABELS[setor_tipo]}: {item_label} (valor: {value or '-'}, regra: {regra})."
             )
         row.update(
             {
                 "value": value,
                 "row_observation": observation,
-                "status_label": evaluation["label"],
-                "flag": bool(evaluation["fora_parametro"]),
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
             }
         )
-        flagged += int(bool(evaluation["fora_parametro"]))
+        flagged += int(bool(evaluation.fora_padrao))
     summary = _summarize_rows(rows)
     summary["flag_count"] = flagged
     return rows, summary
@@ -993,13 +1056,15 @@ def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_t
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": item.parametro or "-",
+            "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else "Normal",
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "pressao-filtros-ed", setor_tipo)
@@ -1010,13 +1075,23 @@ def _pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
     rows = _build_pressao_item_rows(session, context, setor_tipo)
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Valor de pressão inválido: '{value}'.")
-        flag = pressao_filtros_service._compute_alarm(parsed)
-        row.update({"value": value, "value_number": parsed, "status_label": "Em alarme" if flag else "Normal", "flag": flag})
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     return rows, summary
@@ -1033,14 +1108,14 @@ def _build_temperatura_item_rows(session: Session, _context: dict[str, Any], set
                 "item_id": item.id,
                 "label": item.controle,
                 "item_observation": (item.observacao or "").strip() if item.observacao else "",
-                "expected": item.parametro or "-",
-                "faixa_min": item.valor_min,
-                "faixa_max": item.valor_max,
+                "expected": module_parameter_validation.display_parameter(item),
                 "value": "",
+                "row_observation": "",
                 "status_label": applicability["applicability_label"]
                 if not applicability["is_applicable"]
                 else temperatura_forno_service.STATUS_LABELS["neutral"],
                 "flag": False,
+                **_item_validation_meta(item),
                 **applicability,
             }
         )
@@ -1051,13 +1126,23 @@ def _temperatura_parse(session: Session, context: dict[str, Any], setor_tipo: st
     rows = _build_temperatura_item_rows(session, context, setor_tipo)
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Temperatura inválida: '{value}'.")
-        status = temperatura_forno_service._evaluate_zone(parsed, row["faixa_min"], row["faixa_max"])
-        row.update({"value": value, "value_number": parsed, "status_label": status["label"], "flag": bool(status["fora_padrao"])})
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     return rows, summary
@@ -1070,13 +1155,15 @@ def _build_tensao_item_rows(session: Session, _context: dict[str, Any], setor_ti
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": item.parametro or "-",
+            "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else tensao_retificadores_service.STATUS_LABELS["neutral"],
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "tensao-retificadores-ed", setor_tipo)
@@ -1087,13 +1174,23 @@ def _tensao_parse(session: Session, context: dict[str, Any], setor_tipo: str, fo
     rows = _build_tensao_item_rows(session, context, setor_tipo)
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Valor de tensão inválido: '{value}'.")
-        status = tensao_retificadores_service._evaluate_tensao(parsed)
-        row.update({"value": value, "value_number": parsed, "status_label": status["label"], "flag": bool(status["fora_padrao"])})
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     return rows, summary
@@ -1106,13 +1203,15 @@ def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tip
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": item.parametro or "-",
+            "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else poder_penetracao_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "poder-penetracao", setor_tipo)
@@ -1125,17 +1224,27 @@ def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, for
     filled = 0
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Valor inválido no ensaio: '{value}'.")
-        status = poder_penetracao_service._evaluate_value(parsed)
-        row.update({"value": value, "value_number": parsed, "status_label": status["label"], "flag": status["status"] == "reproved"})
-        if parsed is not None:
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+        if evaluation.value_number is not None:
             filled += 1
-            if status["status"] == "approved":
+            if not bool(evaluation.fora_padrao):
                 approved += 1
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     summary["aprovados"] = approved
@@ -1150,13 +1259,15 @@ def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": item.parametro or "-",
+            "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else espessura_ed_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "espessura-ed", setor_tipo)
@@ -1167,13 +1278,23 @@ def _espessura_parse(session: Session, context: dict[str, Any], setor_tipo: str,
     rows = _build_espessura_item_rows(session, context, setor_tipo)
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Valor de espessura inválido: '{value}'.")
-        status = espessura_ed_service._evaluate_value(parsed)
-        row.update({"value": value, "value_number": parsed, "status_label": status["label"], "flag": status["status"] == "attention"})
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     return rows, summary
@@ -1186,13 +1307,15 @@ def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], seto
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": item.parametro or "-",
+            "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else rugosidade_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
         for item in _module_items(session, "rugosidade", setor_tipo)
@@ -1203,13 +1326,23 @@ def _rugosidade_parse(session: Session, context: dict[str, Any], setor_tipo: str
     rows = _build_rugosidade_item_rows(session, context, setor_tipo)
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "value_number": None, "flag": False})
+            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
             continue
         reference = row["reference"]
         value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
-        parsed = _parse_decimal(value, "Valor inválido de rugosidade: '{value}'.")
-        status = rugosidade_service._evaluate_value(parsed)
-        row.update({"value": value, "value_number": parsed, "status_label": status["label"], "flag": status["status"] == "outlier"})
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": evaluation.label,
+                "flag": bool(evaluation.fora_padrao),
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     return rows, summary
@@ -1229,6 +1362,7 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
             "lado": "",
             "geracao": "",
             "quantidade": "1",
+            "row_observation": "",
             "value": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
@@ -1257,6 +1391,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
         lado = (form_data.get(f"lado_{setor_tipo}_{reference}") or "").strip()
         geracao = (form_data.get(f"geracao_{setor_tipo}_{reference}") or "").strip()
         quantidade = (form_data.get(f"quantidade_{setor_tipo}_{reference}") or "").strip()
+        row_observation = (form_data.get(f"row_observation_{setor_tipo}_{reference}") or "").strip()
         if not any([cis, cod_posicao, local, anomalia, lado, geracao, quantidade]):
             if int(reference) <= 5:
                 rows.append(dict(base_rows_by_reference[reference]))
@@ -1292,6 +1427,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "lado": lado,
                 "geracao": geracao,
                 "quantidade": str(quantidade_int),
+                "row_observation": row_observation,
                 "value": anomalia,
                 "status_label": "Registrado",
                 "flag": True,
@@ -1345,6 +1481,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Zona"),
             TableColumn("expected", "Faixa"),
             TableColumn("value", "Temperatura (°C)", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_temperatura_item_rows,
@@ -1369,6 +1506,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Filtro"),
             TableColumn("expected", "Limite"),
             TableColumn("value", "Pressão (bar)", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_pressao_item_rows,
@@ -1395,6 +1533,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Zona"),
             TableColumn("expected", "Faixa"),
             TableColumn("value", "Tensão (V)", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_tensao_item_rows,
@@ -1424,6 +1563,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Ponto"),
             TableColumn("expected", "Referência"),
             TableColumn("value", "Valor medido", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_poder_item_rows,
@@ -1451,6 +1591,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Ponto"),
             TableColumn("expected", "Faixa"),
             TableColumn("value", "Espessura (µm)", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_espessura_item_rows,
@@ -1481,6 +1622,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("lado", "Lado", "input"),
             TableColumn("geracao", "Geração", "input"),
             TableColumn("quantidade", "Qtd.", "input"),
+            TableColumn("row_observation", "Observação", "input"),
         ),
         default_rows_builder=_build_aspecto_item_rows,
         parse_rows=_aspecto_parse,
@@ -1505,6 +1647,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
             TableColumn("label", "Modelo"),
             TableColumn("expected", "Limite"),
             TableColumn("value", "Rugosidade", "input"),
+            TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
         default_rows_builder=_build_rugosidade_item_rows,
@@ -1731,4 +1874,6 @@ def list_all_modules() -> list[dict[str, Any]]:
         }
         for config in MODULE_CONFIGS.values()
     ]
+
+
 

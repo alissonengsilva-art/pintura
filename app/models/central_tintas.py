@@ -41,6 +41,16 @@ class CentralTintasItem(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    operational_module_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operational_module_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    controle: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    parametro: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    valor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     tinta: Mapped[str | None] = mapped_column(String(120), nullable=True)
     lote: Mapped[str | None] = mapped_column(String(80), nullable=True)
     ph: Mapped[str | None] = mapped_column(String(40), nullable=True)
@@ -49,3 +59,18 @@ class CentralTintasItem(Base, TimestampMixin):
     acoes_corretivas: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     relatorio: Mapped[CentralTintasRelatorio] = relationship(back_populates="itens")
+
+
+class CentralTintasRegistro(Base, TimestampMixin):
+    __tablename__ = "central_tintas_registros"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    data_hora: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    responsavel: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    turno: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    tinta: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lote: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    ph: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    viscosidade: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    sujidade: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    acoes_corretivas: Mapped[str | None] = mapped_column(Text, nullable=True)

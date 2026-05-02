@@ -10,13 +10,13 @@
             </svg>
         </div>
         <div class="turno-workspace__heading" style="min-width:0;">
-            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUCAO DO RELATORIO</span>
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUÇÃO DO RELATÓRIO</span>
             <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Central de Tintas - {{ relatorio.data_label }}{% if relatorio.turno %} - Turno {{ relatorio.turno }}{% endif %}</h1>
             <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Checklist operacional da Central de Tintas.</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge {% if relatorio.status == 'concluido' %}op-status-badge--concluido{% else %}op-status-badge--em-andamento{% endif %}">{{ relatorio.status_label }}</span>
-            <a href="/central-tintas" class="op-btn op-btn--ghost op-btn--sm">Voltar para relatorios</a>
+            <a href="/central-tintas" class="op-btn op-btn--ghost op-btn--sm">Voltar para relatórios</a>
         </div>
     </header>
 
@@ -54,7 +54,7 @@
                 </div>
             </article>
             <article class="turno-overview__metric">
-                <span class="turno-overview__label">Mes</span>
+                <span class="turno-overview__label">Mês</span>
                 <div class="turno-overview__value-row">
                     <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none">
@@ -66,7 +66,7 @@
                 </div>
             </article>
             <article class="turno-overview__metric">
-                <span class="turno-overview__label">Responsavel</span>
+                <span class="turno-overview__label">Responsável</span>
                 <div class="turno-overview__value-row">
                     <span class="turno-overview__icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none">
@@ -95,12 +95,31 @@
                     <table class="op-table turno-sector-table" id="ct-table">
                         <thead>
                             <tr>
-                                <th>DESCRICAO</th>
+                                {% if relatorio.mode == 'catalog' %}
+                                <th>OPERAÇÃO / CONTROLE</th>
+                                <th>PARÂMETRO</th>
                                 <th>VALOR</th>
-                                <th>OBSERVACAO</th>
+                                <th>OBSERVAÇÃO</th>
+                                <th>STATUS</th>
+                                {% else %}
+                                <th>DESCRIÇÃO</th>
+                                <th>VALOR</th>
+                                <th>OBSERVAÇÃO</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
+                            {% if relatorio.mode == 'catalog' %}
+                            {% for item in relatorio.itens %}
+                            <tr data-item-row="{{ item.id }}">
+                                <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_valor" value="{{ item.valor }}"></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_observacao" value="{{ item.observacao }}"></td>
+                                <td><span class="op-table__text">{{ item.status or 'NAO_AVALIADO' }}</span></td>
+                            </tr>
+                            {% endfor %}
+                            {% else %}
                             {% for item in relatorio.itens %}
                             <tr data-item-row="{{ item.id }}">
                                 <td><span class="op-table__text">Tinta</span></td>
@@ -128,7 +147,7 @@
                                 <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_sujidade_obs" value=""></td>
                             </tr>
                             <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Acoes corretivas</span></td>
+                                <td><span class="op-table__text">Ações corretivas</span></td>
                                 <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_acoes_corretivas" value="{{ item.acoes_corretivas }}"></td>
                                 <td>
                                     <input type="hidden" name="item_{{ item.id }}_remove" value="0" data-remove-flag>
@@ -136,19 +155,22 @@
                                 </td>
                             </tr>
                             {% endfor %}
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
                 <div class="op-sector__actions turno-sector-actions">
                     <div class="op-sector__actions-buttons">
+                        {% if relatorio.mode != 'catalog' %}
                         <button type="button" id="ct-add-row" class="op-btn op-btn--ghost">Adicionar linha</button>
+                        {% endif %}
                     </div>
                     <div class="op-sector__actions-buttons">
                         {% if relatorio.status != 'concluido' %}
                         <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
-                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatorio</button>
+                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatório</button>
                         {% else %}
-                        <span>Relatorio finalizado</span>
+                        <span>Relatório finalizado</span>
                         {% endif %}
                     </div>
                 </div>
@@ -159,6 +181,9 @@
 
 <script>
 (function () {
+    {% if relatorio.mode == 'catalog' %}
+    return;
+    {% endif %}
     var table = document.getElementById('ct-table');
     var addButton = document.getElementById('ct-add-row');
     if (!table || !addButton) return;

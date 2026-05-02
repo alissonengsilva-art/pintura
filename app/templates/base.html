@@ -18,33 +18,35 @@
                         <p>Pintura • Processo</p>
                     </div>
 
-                <nav class="nav-group nav-group--primary">
-                    <h2>Operação</h2>
-                    <ul>
-                        {% for item in primary_links %}
-                        <li>
-                            <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
-                                <span class="nav-label">{{ item.title }}</span>
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </nav>
+                    {% for section in nav_sections %}
+                    <nav class="nav-group {% if loop.first %}nav-group--first{% endif %}">
+                        <h2>{{ section.title }}</h2>
+                        <ul>
+                            {% for item in section.links %}
+                            <li>
+                                <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
+                                    <span class="nav-label">{{ item.title }}</span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                    {% endfor %}
 
-                {% if request.session.get('is_admin') %}
-                <nav class="nav-group nav-group-secondary">
-                    <h2>Administração</h2>
-                    <ul>
-                        {% for item in admin_links %}
-                        <li>
-                            <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
-                                <span class="nav-label">{{ item.title }}</span>
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </nav>
-                {% endif %}
+                    {% if request.session.get('is_admin') %}
+                    <nav class="nav-group nav-group-secondary">
+                        <h2>Administração</h2>
+                        <ul>
+                            {% for item in admin_links %}
+                            <li>
+                                <a href="{{ item.url }}" class="{% if active_path == item.url %}active{% endif %}">
+                                    <span class="nav-label">{{ item.title }}</span>
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                    {% endif %}
                 </div>
 
                 <div class="sidebar-session">
@@ -52,7 +54,7 @@
                         {% if request.session.get('username') %}
                         <span class="sidebar-user-card__label">Sessão atual</span>
                         <strong>{{ request.session.get('username') }}</strong>
-                        <small>{% if request.session.get('is_admin') %}Administrador{% else %}Usuario interno{% endif %}</small>
+                        <small>{% if request.session.get('is_admin') %}Administrador{% else %}Usuário interno{% endif %}</small>
                         <a href="/logout" class="sidebar-user-card__link">Sair</a>
                         {% else %}
                         <span class="sidebar-user-card__label">Acesso interno</span>

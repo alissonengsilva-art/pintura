@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
+from math import ceil
+from typing import Any
 
-from sqlalchemy import inspect, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func, inspect, select
+from sqlalchemy.orm import Session
 
-from app.models import (
-    CentralTintasItem,
-    CentralTintasRelatorio,
-    CENTRAL_TINTAS_STATUS_CONCLUIDO,
-    CENTRAL_TINTAS_STATUS_EM_ANDAMENTO,
-    Turno,
-)
+from app.models import CentralTintasRegistro
 
 
 class CentralTintasValidationError(ValueError):
@@ -24,178 +20,203 @@ def _now() -> datetime:
 
 def central_tintas_schema_available(session: Session) -> bool:
     inspector = inspect(session.get_bind())
-    return inspector.has_table("central_tintas_relatorios") and inspector.has_table("central_tintas_itens")
+    return inspector.has_table("central_tintas_registros")
 
 
-def _semana_mes_por_data(data_controle: date) -> tuple[str, str]:
-    semana = str(data_controle.isocalendar().week)
-    mes = str(data_controle.month)
-    return semana, mes
-
-
-def list_turno_options(session: Session) -> list[Turno]:
-    return list(session.scalars(select(Turno).where(Turno.ativo.is_(True)).order_by(Turno.codigo, Turno.nome)).all())
-
-
-def create_relatorio(session: Session, data_controle: date, turno: str, responsavel: str) -> CentralTintasRelatorio:
-    if not central_tintas_schema_available(session):
-        raise CentralTintasValidationError("Estrutura da Central de Tintas nao instalada. Execute as migrations.")
-    if not turno.strip():
-        raise CentralTintasValidationError("Informe o turno.")
-    if not responsavel.strip():
-        raise CentralTintasValidationError("Informe o responsavel.")
-
-    semana, mes = _semana_mes_por_data(data_controle)
-    relatorio = CentralTintasRelatorio(
-        data_controle=data_controle,
-        semana=semana,
-        mes=mes,
-        responsavel=responsavel.strip(),
-        turno=turno.strip(),
-        status=CENTRAL_TINTAS_STATUS_EM_ANDAMENTO,
-        created_at=_now(),
-        updated_at=_now(),
-    )
-    session.add(relatorio)
-    session.flush()
-
-    # Garante linha inicial para manter o mesmo fluxo visual de checklist.
-    session.add(CentralTintasItem(central_tintas_id=relatorio.id, created_at=_now(), updated_at=_now()))
-    session.commit()
-    session.refresh(relatorio)
-    return relatorio
-
-
-def get_relatorio_by_id(session: Session, relatorio_id: int) -> CentralTintasRelatorio | None:
-    if not central_tintas_schema_available(session):
+def _clean_text(value: Any, *, max_len: int | None = None) -> str | None:
+    text = str(value or "").strip()
+    if not text:
         return None
-    return session.scalars(
-        select(CentralTintasRelatorio)
-        .options(joinedload(CentralTintasRelatorio.itens))
-        .where(CentralTintasRelatorio.id == relatorio_id)
-    ).unique().first()
+    if max_len is not None:
+        return text[:max_len]
+    return text
 
 
-def build_relatorio_detail(session: Session, relatorio_obj: CentralTintasRelatorio) -> dict:
-    session.refresh(relatorio_obj)
-    itens = [
-        {
-            "id": item.id,
-            "tinta": item.tinta or "",
-            "lote": item.lote or "",
-            "ph": item.ph or "",
-            "viscosidade": item.viscosidade or "",
-            "sujidade": item.sujidade or "",
-            "acoes_corretivas": item.acoes_corretivas or "",
-        }
-        for item in relatorio_obj.itens
-    ]
-    preenchidos = sum(
-        1
-        for row in itens
-        if any(
-            str(row.get(field) or "").strip()
-            for field in ("tinta", "lote", "ph", "viscosidade", "sujidade", "acoes_corretivas")
-        )
-    )
+def _parse_datetime(value: Any) -> datetime:
+    raw = str(value or "").strip()
+    if not raw:
+        raise CentralTintasValidationError("Informe data/hora.")
+
+    normalized = raw.replace("Z", "")
+    for parser in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(normalized, parser)
+        except ValueError:
+            continue
+    raise CentralTintasValidationError("Data/hora invalida.")
+
+
+def _parse_date(value: Any) -> date | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as error:
+        raise CentralTintasValidationError("Data de filtro invalida.") from error
+
+
+def _serialize(row: CentralTintasRegistro) -> dict[str, Any]:
     return {
-        "id": relatorio_obj.id,
-        "data_label": relatorio_obj.data_controle.strftime("%d/%m/%Y"),
-        "data_controle": relatorio_obj.data_controle,
-        "semana": relatorio_obj.semana,
-        "mes": relatorio_obj.mes,
-        "responsavel": relatorio_obj.responsavel,
-        "turno": relatorio_obj.turno,
-        "status": relatorio_obj.status,
-        "status_label": "Concluido" if relatorio_obj.status == CENTRAL_TINTAS_STATUS_CONCLUIDO else "Em andamento",
-        "itens": itens,
-        "preenchidos": preenchidos,
-        "total": len(itens),
+        "id": row.id,
+        "data_hora": row.data_hora.strftime("%Y-%m-%dT%H:%M"),
+        "responsavel": row.responsavel or "",
+        "turno": row.turno or "",
+        "tinta": row.tinta or "",
+        "lote": row.lote or "",
+        "ph": row.ph or "",
+        "viscosidade": row.viscosidade or "",
+        "sujidade": row.sujidade or "",
+        "acoes_corretivas": row.acoes_corretivas or "",
     }
 
 
-def list_relatorios_history(session: Session, limit: int = 100) -> list[dict]:
+def list_registros(
+    session: Session,
+    *,
+    page: int,
+    per_page: int,
+    data_inicial: str | None = None,
+    data_final: str | None = None,
+    responsavel: str | None = None,
+    turno: str | None = None,
+) -> dict[str, Any]:
     if not central_tintas_schema_available(session):
-        return []
-    relatorios = list(
+        return {
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "per_page": per_page,
+            "total_pages": 1,
+            "filters": {
+                "data_inicial": data_inicial or "",
+                "data_final": data_final or "",
+                "responsavel": responsavel or "",
+                "turno": turno or "",
+            },
+        }
+
+    page = max(1, int(page or 1))
+    per_page = max(1, int(per_page or 50))
+
+    statement = select(CentralTintasRegistro)
+
+    dt_start = _parse_date(data_inicial)
+    dt_end = _parse_date(data_final)
+    resp = _clean_text(responsavel)
+    turno_value = _clean_text(turno)
+
+    if dt_start is not None:
+        statement = statement.where(CentralTintasRegistro.data_hora >= datetime.combine(dt_start, time.min))
+    if dt_end is not None:
+        statement = statement.where(CentralTintasRegistro.data_hora <= datetime.combine(dt_end, time.max))
+    if resp:
+        statement = statement.where(CentralTintasRegistro.responsavel == resp)
+    if turno_value:
+        statement = statement.where(CentralTintasRegistro.turno == turno_value)
+
+    count_statement = select(func.count()).select_from(statement.subquery())
+    total = int(session.scalar(count_statement) or 0)
+    total_pages = max(1, ceil(total / per_page))
+    if page > total_pages:
+        page = total_pages
+
+    offset = (page - 1) * per_page
+    rows = list(
         session.scalars(
-            select(CentralTintasRelatorio)
-            .options(joinedload(CentralTintasRelatorio.itens))
-            .order_by(CentralTintasRelatorio.data_controle.desc(), CentralTintasRelatorio.turno.desc(), CentralTintasRelatorio.id.desc())
-            .limit(limit)
-        ).unique().all()
+            statement.order_by(CentralTintasRegistro.data_hora.desc(), CentralTintasRegistro.id.desc())
+            .limit(per_page)
+            .offset(offset)
+        ).all()
     )
-    return [build_relatorio_detail(session, relatorio) for relatorio in relatorios]
+
+    return {
+        "items": [_serialize(row) for row in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "filters": {
+            "data_inicial": data_inicial or "",
+            "data_final": data_final or "",
+            "responsavel": responsavel or "",
+            "turno": turno or "",
+        },
+    }
 
 
-def save_relatorio(session: Session, relatorio_obj: CentralTintasRelatorio, form_data: dict[str, str], action: str = "salvar") -> None:
-    rows_map: dict[int, dict[str, str]] = {}
-    for key, raw_value in form_data.items():
-        if not key.startswith("item_"):
-            continue
-        parts = key.split("_", 2)
-        if len(parts) != 3:
-            continue
-        _, item_id_raw, field = parts
-        try:
-            item_id = int(item_id_raw)
-        except ValueError:
-            continue
-        rows_map.setdefault(item_id, {})[field] = str(raw_value or "").strip()
+def create_registro(session: Session, payload: dict[str, Any]) -> dict[str, Any]:
+    if not central_tintas_schema_available(session):
+        raise CentralTintasValidationError("Estrutura da Central de Tintas nao instalada. Execute as migrations.")
 
-    keep_ids: set[int] = set()
-    now = _now()
-    existing_by_id = {item.id: item for item in relatorio_obj.itens}
-
-    for item_id, payload in rows_map.items():
-        marked_remove = payload.get("remove", "").strip() == "1"
-        if marked_remove:
-            if item_id > 0 and item_id in existing_by_id:
-                session.delete(existing_by_id[item_id])
-            continue
-
-        if item_id > 0 and item_id in existing_by_id:
-            item = existing_by_id[item_id]
-        else:
-            item = CentralTintasItem(central_tintas_id=relatorio_obj.id, created_at=now, updated_at=now)
-            session.add(item)
-
-        item.tinta = payload.get("tinta") or None
-        item.lote = payload.get("lote") or None
-        item.ph = payload.get("ph") or None
-        item.viscosidade = payload.get("viscosidade") or None
-        item.sujidade = payload.get("sujidade") or None
-        item.acoes_corretivas = payload.get("acoes_corretivas") or None
-        item.updated_at = now
-        session.flush()
-        keep_ids.add(item.id)
-
-    # Mantem ao menos uma linha para o editor.
-    if not keep_ids:
-        session.add(CentralTintasItem(central_tintas_id=relatorio_obj.id, created_at=now, updated_at=now))
-
-    relatorio_obj.updated_at = now
-    if action == "concluir":
-        if not any(
-            item
-            for item in relatorio_obj.itens
-            if any(
-                str(getattr(item, field) or "").strip()
-                for field in ("tinta", "lote", "ph", "viscosidade", "sujidade", "acoes_corretivas")
-            )
-        ):
-            raise CentralTintasValidationError("Preencha ao menos uma linha antes de concluir o relatorio.")
-        relatorio_obj.status = CENTRAL_TINTAS_STATUS_CONCLUIDO
-        relatorio_obj.concluded_at = now
-    else:
-        relatorio_obj.status = CENTRAL_TINTAS_STATUS_EM_ANDAMENTO
-
+    row = CentralTintasRegistro(
+        data_hora=_parse_datetime(payload.get("data_hora") or _now().strftime("%Y-%m-%dT%H:%M")),
+        responsavel=_clean_text(payload.get("responsavel"), max_len=120),
+        turno=_clean_text(payload.get("turno"), max_len=20),
+        tinta=_clean_text(payload.get("tinta"), max_len=120),
+        lote=_clean_text(payload.get("lote"), max_len=80),
+        ph=_clean_text(payload.get("ph"), max_len=40),
+        viscosidade=_clean_text(payload.get("viscosidade"), max_len=80),
+        sujidade=_clean_text(payload.get("sujidade"), max_len=120),
+        acoes_corretivas=_clean_text(payload.get("acoes_corretivas")),
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    session.add(row)
     session.commit()
+    session.refresh(row)
+    return _serialize(row)
 
 
-def conclude_relatorio(session: Session, relatorio_obj: CentralTintasRelatorio) -> None:
-    now = _now()
-    relatorio_obj.status = CENTRAL_TINTAS_STATUS_CONCLUIDO
-    relatorio_obj.concluded_at = now
-    relatorio_obj.updated_at = now
+def update_registro(session: Session, registro_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    row = session.get(CentralTintasRegistro, registro_id)
+    if row is None:
+        raise CentralTintasValidationError("Registro nao encontrado.")
+
+    allowed_fields = {
+        "data_hora",
+        "responsavel",
+        "turno",
+        "tinta",
+        "lote",
+        "ph",
+        "viscosidade",
+        "sujidade",
+        "acoes_corretivas",
+    }
+
+    for field in allowed_fields:
+        if field not in payload:
+            continue
+        value = payload.get(field)
+        if field == "data_hora":
+            row.data_hora = _parse_datetime(value)
+        elif field == "responsavel":
+            row.responsavel = _clean_text(value, max_len=120)
+        elif field == "turno":
+            row.turno = _clean_text(value, max_len=20)
+        elif field == "tinta":
+            row.tinta = _clean_text(value, max_len=120)
+        elif field == "lote":
+            row.lote = _clean_text(value, max_len=80)
+        elif field == "ph":
+            row.ph = _clean_text(value, max_len=40)
+        elif field == "viscosidade":
+            row.viscosidade = _clean_text(value, max_len=80)
+        elif field == "sujidade":
+            row.sujidade = _clean_text(value, max_len=120)
+        elif field == "acoes_corretivas":
+            row.acoes_corretivas = _clean_text(value)
+
+    row.updated_at = _now()
+    session.commit()
+    session.refresh(row)
+    return _serialize(row)
+
+
+def delete_registro(session: Session, registro_id: int) -> None:
+    row = session.get(CentralTintasRegistro, registro_id)
+    if row is None:
+        raise CentralTintasValidationError("Registro nao encontrado.")
+    session.delete(row)
     session.commit()

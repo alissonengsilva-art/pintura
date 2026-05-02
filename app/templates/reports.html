@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 <section class="op-module reports-page">
@@ -38,11 +38,11 @@
                 </select>
             </div>
             <div class="op-filters__group">
-                <label class="op-filters__label" for="parametro">Parâmetro</label>
+                <label class="op-filters__label" for="parametro">Item do checklist</label>
                 <select id="parametro" name="parametro" class="op-filters__select" data-selected-parametro="{{ filters.parametro or '' }}">
                     <option value="">Todos</option>
                     {% for item in parametros %}
-                    <option value="{{ item }}" {% if filters.parametro == item %}selected{% endif %}>{{ item }}</option>
+                    <option value="{{ item.value }}" {% if filters.parametro == item.value %}selected{% endif %}>{{ item.label }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -143,7 +143,7 @@
                         <th>Módulo</th>
                         <th>Operação</th>
                         <th>Controle</th>
-                        <th>Parâmetro</th>
+                        <th>Item do checklist</th>
                         <th>Valor</th>
                         <th>Status</th>
                         <th>Desvio</th>
@@ -157,7 +157,7 @@
                         <td><span class="op-table__text op-table__text--primary">{{ row.modulo_label }}</span></td>
                         <td><span class="op-table__text">{{ row.operacao }}</span></td>
                         <td><span class="op-table__text">{{ row.controle }}</span></td>
-                        <td><span class="op-table__text">{{ row.parametro }}</span></td>
+                        <td><span class="op-table__text">{{ row.checklist_item }}</span></td>
                         <td><span class="op-table__text">{{ row.valor }}</span></td>
                         <td>
                             <span class="op-status-badge {% if row.desvio %}op-status-badge--parcial{% else %}op-status-badge--concluido{% endif %}">
@@ -191,7 +191,7 @@
         <div class="report-detail-modal__grid">
             <div><label>Operação</label><strong id="reportDetailOperacao">—</strong></div>
             <div><label>Controle</label><strong id="reportDetailControle">—</strong></div>
-            <div><label>Parâmetro</label><strong id="reportDetailParametro">—</strong></div>
+            <div><label>Item do checklist</label><strong id="reportDetailParametro">—</strong></div>
             <div><label>Valor informado</label><strong id="reportDetailValor">—</strong></div>
             <div><label>Limites esperados</label><strong id="reportDetailExpected">—</strong></div>
             <div><label>Status</label><strong id="reportDetailStatus">—</strong></div>
@@ -251,7 +251,7 @@
         map.setor.textContent = detail.setor || '—';
         map.operacao.textContent = detail.operacao || '—';
         map.controle.textContent = detail.controle || '—';
-        map.parametro.textContent = detail.parametro || '—';
+        map.parametro.textContent = detail.checklist_item || detail.parametro || '—';
         map.valor.textContent = detail.valor || '—';
         map.expected.textContent = detail.expected_limits || '—';
         map.status.textContent = detail.status || '—';
@@ -315,13 +315,20 @@
     function renderParametroOptions(moduleCode, preserveValue) {
         var params = moduleCode ? (byModule[moduleCode] || []) : allParams;
         var current = preserveValue || '';
-        var options = ['<option value="">Todos</option>'];
+        var options = [];
+        var allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Todos';
+        options.push(allOption.outerHTML);
         params.forEach(function (p) {
-            var selected = current === p ? ' selected' : '';
-            options.push('<option value="' + p.replace(/"/g, '&quot;') + '"' + selected + '>' + p + '</option>');
+            var option = document.createElement('option');
+            option.value = p.value;
+            option.textContent = p.label;
+            if (current === p.value) option.selected = true;
+            options.push(option.outerHTML);
         });
         parametroSelect.innerHTML = options.join('');
-        if (current && params.indexOf(current) === -1) {
+        if (current && !params.some(function (p) { return p.value === current; })) {
             parametroSelect.value = '';
         }
     }
@@ -333,3 +340,5 @@
 })();
 </script>
 {% endblock %}
+
+

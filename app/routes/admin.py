@@ -1,4 +1,4 @@
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -108,6 +108,7 @@ def _build_module_admin_context(db: Session, module_code: str) -> dict:
         "module_title": module_context.module_title,
         "rows": module_context.rows,
         "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
+        "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
         "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
     }
@@ -294,7 +295,7 @@ def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db),
     modules = operational_module_item_admin_service.list_modules()
     selected_module = request.query_params.get("modulo", "").strip()
     if not selected_module:
-        selected_module = modules[0]["code"] if modules else next(iter(MODULE_CONFIGS.keys()))
+        selected_module = modules[0]["code"] if modules else "ed"
 
     context = {
         "page_title": "Itens dos Modulos",
@@ -355,66 +356,23 @@ def cadastros_home(_admin=Depends(require_admin)):
 @router.get("/cadastros/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas")
 def admin_temperatura_faixas(
     request: Request,
-    db: Session = Depends(get_db),
-    status: str | None = None,
     escopo: str | None = None,
     modulo: str | None = None,
     _admin=Depends(require_admin),
 ):
     scope = _resolve_general_editor_scope(escopo)
     module_code = _resolve_general_editor_module(scope, modulo)
-    context = _build_general_editor_context(
-        request,
-        db,
-        scope=scope,
-        module_code=module_code,
-        status=status,
-    )
-    return templates.TemplateResponse(request=request, name="admin/temperature_ranges.html", context=context)
+    query = f"?modulo={quote_plus(module_code)}" if module_code else ""
+    return RedirectResponse(url=f"/configuracoes/modulos-itens{query}", status_code=302)
 
 
 @router.post("/cadastros/modulos-itens/temperatura-forno-ed/faixas", name="admin_temperatura_faixas_salvar")
 async def admin_temperatura_faixas_salvar(
-    request: Request,
-    db: Session = Depends(get_db),
+    _request: Request,
+    _db: Session = Depends(get_db),
     _admin=Depends(require_admin),
 ):
-    form = await request.form()
-    scope = _resolve_general_editor_scope(form.get("escopo"))
-    module_code = _resolve_general_editor_module(scope, form.get("modulo"))
-    tabs = _module_tabs_for_scope(scope)
-    active_tab = next((tab for tab in tabs if str(tab["code"]) == module_code), tabs[0])
-    editable = bool(active_tab["editable"])
-
-    if not editable:
-        query = urlencode({"status": "skipped", "escopo": scope, "modulo": module_code})
-        return RedirectResponse(url=f"/cadastros/modulos-itens/temperatura-forno-ed/faixas?{query}", status_code=303)
-
-    try:
-        if scope == GENERAL_SCOPE_SIG:
-            rows = _build_sigilatura_parameter_rows(db, module_code)
-            _save_sigilatura_parameter_rows(db, form, rows, module_code)
-        else:
-            rows = _build_ed_parameter_rows(db, module_code)
-            _save_ed_parameter_rows(db, module_code, form, rows)
-    except ValueError as error:
-        db.rollback()
-        context = _build_general_editor_context(
-            request,
-            db,
-            scope=scope,
-            module_code=module_code,
-            error_message=str(error),
-        )
-        return templates.TemplateResponse(
-            request=request,
-            name="admin/temperature_ranges.html",
-            context=context,
-            status_code=400,
-        )
-
-    query = urlencode({"status": "saved", "escopo": scope, "modulo": module_code})
-    return RedirectResponse(url=f"/cadastros/modulos-itens/temperatura-forno-ed/faixas?{query}", status_code=303)
+    return RedirectResponse(url="/configuracoes/modulos-itens", status_code=303)
 
 
 @router.get("/cadastros/{entity}", name="admin_list")

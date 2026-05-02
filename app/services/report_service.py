@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -42,31 +42,32 @@ class ReportFilters:
 def report_filter_options(session: Session) -> dict[str, Any]:
     shared = list_shared_options(session)
     modulos = list_all_modules()
-    parametros_por_modulo: dict[str, list[str]] = {}
-    todos_parametros: set[str] = set()
+    parametros_por_modulo: dict[str, list[dict[str, str]]] = {}
+    parametros: list[dict[str, str]] = []
+    seen_global: set[str] = set()
+    seen_per_module: dict[str, set[str]] = {}
+
     for item in session.scalars(select(OperationalModuleItem).where(OperationalModuleItem.ativo.is_(True))).all():
-        config = get_module_config(item.module_code)
-        first_column_key = config.columns[0].key if config.columns else "controle"
-
-        # "Parâmetro" no relatório segue a primeira coluna operacional do módulo.
-        # Ex.: ED -> operacao; Temperatura Forno -> label (zona), com fallback em controle.
-        parametro = ""
-        if first_column_key == "operacao":
-            parametro = _normalize_text(item.operacao)
-        elif first_column_key in {"label", "descricao", "cis", "cod_posicao", "local", "anomalia", "lado", "geracao", "quantidade"}:
-            parametro = _normalize_text(item.controle)
-        else:
-            parametro = _normalize_text(getattr(item, first_column_key, None) or item.controle or item.parametro)
-
-        if not parametro:
+        label = _checklist_item_label(item.operacao, item.controle)
+        if not label:
             continue
-        todos_parametros.add(parametro)
-        parametros_por_modulo.setdefault(item.module_code, [])
-        if parametro not in parametros_por_modulo[item.module_code]:
-            parametros_por_modulo[item.module_code].append(parametro)
+        value = f"id:{item.id}"
+        entry = {"value": value, "label": label}
+
+        if value not in seen_global:
+            parametros.append(entry)
+            seen_global.add(value)
+
+        module_key = item.module_code
+        seen_per_module.setdefault(module_key, set())
+        if value not in seen_per_module[module_key]:
+            parametros_por_modulo.setdefault(module_key, []).append(entry)
+            seen_per_module[module_key].add(value)
+
+    parametros.sort(key=lambda row: row["label"])
     for key in list(parametros_por_modulo.keys()):
-        parametros_por_modulo[key] = sorted(parametros_por_modulo[key])
-    parametros = sorted(todos_parametros)
+        parametros_por_modulo[key].sort(key=lambda row: row["label"])
+
     return {
         "turnos": shared.get("turnos", []),
         "responsaveis": shared.get("responsaveis", []),
@@ -88,6 +89,14 @@ def report_filter_options(session: Session) -> dict[str, Any]:
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _checklist_item_label(operacao: Any, controle: Any) -> str:
+    op = _normalize_text(operacao)
+    ctrl = _normalize_text(controle)
+    if op and ctrl:
+        return f"{op} - {ctrl}"
+    return ctrl or op
 
 
 def _format_datetime(value: datetime | None) -> str:
@@ -132,11 +141,17 @@ def _build_item_lookup(session: Session) -> dict[tuple[str, str], OperationalMod
     return lookup
 
 
+def _build_item_lookup_by_id(session: Session) -> dict[int, OperationalModuleItem]:
+    items = session.scalars(select(OperationalModuleItem).where(OperationalModuleItem.ativo.is_(True))).all()
+    return {int(item.id): item for item in items}
+
+
 def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[str, Any]]:
     if not operational_schema_available(session):
         return []
 
     item_lookup = _build_item_lookup(session)
+    item_lookup_by_id = _build_item_lookup_by_id(session)
     statement = (
         select(OperationalModuleRecord)
         .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
@@ -182,6 +197,12 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                     or entry.referencia
                 )
                 item = item_lookup.get((record.module_code, controle.lower()))
+                item_id_value = dados.get("item_id")
+                if item_id_value not in (None, ""):
+                    try:
+                        item = item_lookup_by_id.get(int(item_id_value)) or item
+                    except (TypeError, ValueError):
+                        pass
 
                 first_column_key = config.columns[0].key if config.columns else "controle"
                 parametro_nome = _normalize_text(dados.get(first_column_key))
@@ -193,7 +214,22 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                     else:
                         parametro_nome = _normalize_text((getattr(item, first_column_key, None) if item else None) or controle or dados.get("parametro"))
 
-                if filters.parametro and _normalize_text(filters.parametro).lower() != parametro_nome.lower():
+                checklist_item = _checklist_item_label(
+                    (item.operacao if item else None) or operacao,
+                    (item.controle if item else None) or controle,
+                ) or "—"
+                selected_param = _normalize_text(filters.parametro)
+                if selected_param:
+                    if selected_param.startswith("id:"):
+                        expected_id = selected_param.split(":", 1)[1].strip()
+                        current_id = str(item.id) if item else ""
+                        if current_id != expected_id:
+                            continue
+                    else:
+                        if checklist_item.lower() != selected_param.lower():
+                            continue
+
+                if not checklist_item:
                     continue
                 valor = _normalize_text(entry.valor_texto or dados.get("value") or dados.get("quantidade") or "—")
                 expected_limits = _extract_expected_limits(item_lookup, record.module_code, controle, dados)
@@ -215,6 +251,8 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                         "setor_label": setor_label,
                         "operacao": operacao,
                         "controle": controle,
+                        "item_id": item.id if item else None,
+                        "checklist_item": checklist_item,
                         "parametro": parametro_nome or "—",
                         "valor": valor,
                         "status_label": status_analitico,
@@ -224,7 +262,7 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                         "observacao": observacao,
                         "expected_limits": expected_limits,
                         "updated_at_label": updated_at_label,
-                        "history_key": f"{record.module_code}|{setor.setor_tipo}|{_normalize_text(entry.referencia)}|{controle.lower()}",
+                        "history_key": f"{record.module_code}|{setor.setor_tipo}|{(item.id if item else _normalize_text(entry.referencia))}|{controle.lower()}",
                     }
                 )
 
@@ -244,6 +282,7 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
             "operacao": row["operacao"],
             "controle": row["controle"],
             "parametro": row["parametro"],
+            "checklist_item": row["checklist_item"],
             "valor": row["valor"],
             "status": row["status_label"],
             "desvio": row["desvio_label"],
@@ -271,7 +310,7 @@ def _build_group_summary(rows: list[dict[str, Any]], agrupamento: str) -> list[d
     if agrupamento == "modulo":
         bucket_key = "modulo_label"
     elif agrupamento == "parametro":
-        bucket_key = "parametro"
+        bucket_key = "checklist_item"
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -352,3 +391,5 @@ def build_module_report_detail(session: Session, module_code: str, record_id: in
     detail["module_config"] = config
     detail["report_setor"] = setor
     return detail
+
+

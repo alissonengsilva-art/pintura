@@ -2,7 +2,7 @@
     <div class="section-header-inline compact">
         <div>
             <h3>{{ module_title }}</h3>
-            <p>Ajuste a periodicidade dos itens deste m&oacute;dulo.</p>
+            <p>Ajuste a periodicidade dos itens deste módulo.</p>
         </div>
     </div>
 
@@ -12,7 +12,7 @@
                 <tr>
                     <th>Item</th>
                     <th>Setor</th>
-                    <th>Frequ&ecirc;ncia</th>
+                    <th>Frequência</th>
                     <th>Dia</th>
                 </tr>
             </thead>
@@ -29,7 +29,7 @@
                         </select>
                     </td>
                     <td>
-                        <span data-day-static {% if item.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>&mdash;</span>
+                        <span data-day-static {% if item.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>—</span>
                         <div data-day-weekly {% if item.frequencia_tipo != 'semanal' %}hidden{% endif %}>
                             <select data-weekday-select>
                                 <option value="">Selecione</option>
@@ -45,7 +45,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4">Nenhum item encontrado para este m&oacute;dulo.</td>
+                    <td colspan="4">Nenhum item encontrado para este módulo.</td>
                 </tr>
                 {% endfor %}
             </tbody>

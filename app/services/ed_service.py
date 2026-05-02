@@ -137,7 +137,8 @@ def parse_context_payload(form_data) -> ParsedContext:
 def load_items_for_context(session: Session, setor: str, turno: str) -> list[OperationalModuleItem]:
     setor_tipo = _resolve_setor_tipo(setor)
     items = operational_module_item_service.get_items_by_module_and_setor(session, "ed", setor_tipo)
-    return [item for item in items if _matches_turno(item, turno)]
+    filtered = [item for item in items if _matches_turno(item, turno)]
+    return _deduplicate_items(filtered)
 
 
 def list_items_by_ids(session: Session, item_ids: list[int]) -> list[OperationalModuleItem]:
@@ -309,12 +310,16 @@ def save_lancamento(
         if row.operational_module_item_id is not None
     }
 
+    missing_required_items: list[str] = []
     for item_id in item_ids:
         item = item_lookup.get(item_id)
         if item is None:
             continue
         valor = (form_data.get(f"valor_{item_id}") or "").strip() or None
         observacao = (form_data.get(f"observacao_{item_id}") or "").strip() or None
+        if status == STATUS_CONCLUIDO and not valor:
+            label_controle = str(item.controle or "").strip() or f"Item {item_id}"
+            missing_required_items.append(label_controle)
         evaluation = evaluate_parameter(item.parametro, valor)
         if evaluation["fora_parametro"] is True and not observacao:
             raise EDValidationError(
@@ -332,6 +337,13 @@ def save_lancamento(
     for existing_item_id, row in list(existing_rows.items()):
         if existing_item_id not in item_ids:
             lancamento.itens.remove(row)
+
+    if status == STATUS_CONCLUIDO and missing_required_items:
+        preview = ", ".join(missing_required_items[:3])
+        suffix = "..." if len(missing_required_items) > 3 else ""
+        raise EDValidationError(
+            f"Preencha todos os itens antes de concluir. Pendentes: {preview}{suffix}"
+        )
 
     session.commit()
     session.refresh(lancamento)
@@ -473,6 +485,45 @@ def _normalize_text(value: str | None) -> str:
     normalized = normalized.replace("ú", "u")
     normalized = normalized.replace("ç", "c")
     return normalized
+
+
+def _deduplicate_items(items: list[OperationalModuleItem]) -> list[OperationalModuleItem]:
+    """Evita renderização duplicada quando existem registros idênticos legados no ED."""
+    unique: list[OperationalModuleItem] = []
+    seen: set[tuple[object, ...]] = set()
+    for item in items:
+        key = (
+            str(item.module_code or "").strip().lower(),
+            str(item.setor_tipo or "").strip().upper(),
+            str(item.turno_padrao or "").strip(),
+            str(item.operacao or "").strip().lower(),
+            str(item.controle or "").strip().lower(),
+            int(item.ordem or 0),
+            str(item.frequencia_tipo or "").strip().lower(),
+            item.dia_semana,
+            item.dia_mes,
+            str(item.tipo_validacao or "").strip().lower(),
+            str(item.parametro_exibicao or item.parametro or "").strip().lower(),
+            _normalize_decimal(item.limite_minimo),
+            _normalize_decimal(item.limite_maximo),
+            _normalize_decimal(item.valor_min),
+            _normalize_decimal(item.valor_max),
+            str(item.unidade or "").strip().lower(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(item)
+    return unique
+
+
+def _normalize_decimal(value) -> str:
+    if value is None:
+        return ""
+    try:
+        return format(Decimal(str(value)), "f")
+    except (InvalidOperation, ValueError):
+        return str(value)
 
 
 def _extract_first_number(value: str) -> Decimal | None:

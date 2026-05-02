@@ -36,6 +36,7 @@ from app.models.reference import Modelo, Responsavel, Setor, Turno
 from app.models.rugosidade import RugosidadeItem, RugosidadeLancamento
 from app.models.central_tintas import (
     CentralTintasItem,
+    CentralTintasRegistro,
     CentralTintasRelatorio,
     CENTRAL_TINTAS_STATUS_CONCLUIDO,
     CENTRAL_TINTAS_STATUS_EM_ANDAMENTO,
@@ -118,6 +119,7 @@ __all__ = [
     "SIG_MODULE_CODES",
     "CentralTintasRelatorio",
     "CentralTintasItem",
+    "CentralTintasRegistro",
     "CENTRAL_TINTAS_STATUS_EM_ANDAMENTO",
     "CENTRAL_TINTAS_STATUS_CONCLUIDO",
     "User",

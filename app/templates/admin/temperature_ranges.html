@@ -13,6 +13,9 @@
             {% if scope == 'ed' %}
             <a class="button-secondary" href="/configuracoes/modulos-itens?modulo={{ active_module_code }}">Abrir lista</a>
             {% endif %}
+            {% if module_editable %}
+            <button class="button-primary" type="submit" form="temperature-ranges-form">Salvar alterações</button>
+            {% endif %}
         </div>
     </div>
 
@@ -53,7 +56,7 @@
         </div>
     </nav>
 
-    <form method="post">
+    <form id="temperature-ranges-form" method="post">
         <input type="hidden" name="escopo" value="{{ scope }}">
         <input type="hidden" name="modulo" value="{{ active_module_code }}">
         <section class="panel-card table-panel">
@@ -99,12 +102,6 @@
                 </table>
             </div>
         </section>
-
-        {% if module_editable %}
-        <div class="form-actions">
-            <button class="button-primary" type="submit">Salvar alterações</button>
-        </div>
-        {% endif %}
     </form>
 </section>
 {% endblock %}

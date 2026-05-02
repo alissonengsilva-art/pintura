@@ -19,20 +19,35 @@ def _item(
     unidade: str | None = None,
     valor_min: float | None = None,
     valor_max: float | None = None,
+    tipo_validacao: str | None = None,
     obrigatorio: bool = True,
     ativo: bool = True,
     frequencia: str | None = None,
     observacao: str | None = None,
 ) -> dict[str, Any]:
+    validation_type = tipo_validacao
+    if validation_type is None:
+        if valor_min is not None and valor_max is not None:
+            validation_type = "range"
+        elif valor_min is not None:
+            validation_type = "min"
+        elif valor_max is not None:
+            validation_type = "max"
+        else:
+            validation_type = "nenhum"
     return {
         "module_code": module_code,
         "setor_tipo": setor_tipo,
         "operacao": operacao,
         "controle": controle,
         "parametro": parametro,
+        "parametro_exibicao": parametro,
         "unidade": unidade,
         "valor_min": valor_min,
         "valor_max": valor_max,
+        "limite_minimo": valor_min,
+        "limite_maximo": valor_max,
+        "tipo_validacao": validation_type,
         "ordem": ordem,
         "obrigatorio": obrigatorio,
         "ativo": ativo,

@@ -11,7 +11,7 @@
         </div>
         <div class="turno-workspace__heading">
             <span class="turno-workspace__kicker">EXECUÇÃO DO TURNO</span>
-            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} &middot; Turno {{ shift.turno }}{% endif %}</h1>
+            <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} · Turno {{ shift.turno }}{% endif %}</h1>
             <p class="turno-workspace__subtitle">Os módulos de Sigilatura executam dentro do mesmo turno mestre.</p>
         </div>
         <div class="turno-workspace__header-meta">
@@ -193,7 +193,7 @@
                         <figure class="escorrimento-images__item">
                             <img src="{{ image.url }}" alt="Imagem de escorrimento {{ loop.index }}" loading="lazy">
                             <figcaption>Foto {{ loop.index }}</figcaption>
-                            <button type="button" class="escorrimento-images__remove" data-remove-image="{{ image.id }}" aria-label="Remover foto">&times;</button>
+                            <button type="button" class="escorrimento-images__remove" data-remove-image="{{ image.id }}" aria-label="Remover foto">×</button>
                         </figure>
                         {% endfor %}
                     </div>
@@ -213,7 +213,7 @@
                                 <span class="escorrimento-cropper__kicker">Recorte 1:1</span>
                                 <h4>Ajustar foto antes do envio</h4>
                             </div>
-                            <button type="button" class="escorrimento-cropper__close" data-esc-cropper-cancel aria-label="Fechar">&times;</button>
+                            <button type="button" class="escorrimento-cropper__close" data-esc-cropper-cancel aria-label="Fechar">×</button>
                         </header>
                         <div class="escorrimento-cropper__body">
                             <div class="escorrimento-cropper__canvas-shell">
@@ -314,7 +314,7 @@
             removeButton.className = "escorrimento-images__remove";
             removeButton.setAttribute("data-remove-image", String(image.id));
             removeButton.setAttribute("aria-label", "Remover foto");
-            removeButton.innerHTML = "&times;";
+            removeButton.innerHTML = "×";
             figure.appendChild(removeButton);
             grid.appendChild(figure);
         });

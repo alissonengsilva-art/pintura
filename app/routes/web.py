@@ -136,6 +136,34 @@ def _build_module_execution_state(
     error_message: str | None = None,
     active_sector: str | None = None,
 ) -> dict:
+    def _rehydrate_rows_from_source(setor_views: list[dict], payload) -> None:
+        if payload is None or not hasattr(payload, "get"):
+            return
+        for setor_view in setor_views:
+            setor_tipo = str(setor_view.get("setor_tipo") or "")
+            if not setor_tipo:
+                continue
+            observacoes_setor = payload.get(f"observacoes_setor_{setor_tipo}")
+            if observacoes_setor is not None:
+                setor_view["observacoes_setor"] = str(observacoes_setor)
+            for row in setor_view.get("rows", []):
+                reference = str(row.get("reference") or "")
+                if not reference:
+                    continue
+                value_key = f"value_{setor_tipo}_{reference}"
+                obs_key = f"obs_{setor_tipo}_{reference}"
+                if payload.get(value_key) is not None:
+                    row["value"] = str(payload.get(value_key) or "")
+                if payload.get(obs_key) is not None:
+                    row["row_observation"] = str(payload.get(obs_key) or "")
+                # Preserve custom input columns (ex: aspecto e observacao por linha).
+                for field_key in list(row.keys()):
+                    if field_key in {"reference", "order", "status_label", "flag", "item_id"}:
+                        continue
+                    custom_key = f"{field_key}_{setor_tipo}_{reference}"
+                    if payload.get(custom_key) is not None:
+                        row[field_key] = str(payload.get(custom_key) or "")
+
     config = get_module_config(module_code)
     master = get_master_by_shift(db, shift.id, config.code)
     context_options: dict = {}
@@ -163,6 +191,8 @@ def _build_module_execution_state(
         context_locked = False
 
     setor_views = [build_sector_view(db, config, parsed_context, master, setor) for setor in config.sector_sequence]
+    if source is not None and error_message:
+        _rehydrate_rows_from_source(setor_views, source)
     module_summary = next((module for module in shift_detail["modules"] if module["code"] == config.code), None)
 
     inherited_context = {
@@ -422,14 +452,20 @@ def turno_visualizacao(shift_id: int, request: Request, db: Session = Depends(ge
 @router.post("/turnos/{shift_id}/concluir", name="turno_concluir")
 def turno_concluir(
     shift_id: int,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     shift = get_shift_by_id(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
 
-    conclude_shift(db, shift)
-    return RedirectResponse(url="/turno-atual?tab=concluidos", status_code=303)
+    try:
+        conclude_shift(db, shift)
+        return RedirectResponse(url="/turno-atual?tab=concluidos", status_code=303)
+    except ShiftValidationError as error:
+        modulo = request.query_params.get("modulo")
+        setor = request.query_params.get("setor")
+        return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor, error_message=str(error), status_code=400)
 
 
 @router.post("/turnos/{shift_id}/modulos/{module_code}/setores/{setor_tipo}/salvar", name="turno_modulo_salvar_setor")
@@ -582,7 +618,7 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
     context = {
         "request": request,
         "page_title": "Relatorios",
-        "page_description": "AnÃ¡lise tÃ©cnica das mediÃ§Ãµes operacionais dos controles.",
+        "page_description": "Análise técnica das medições operacionais dos controles.",
         "validation_error": validation_error,
         "filters": filters,
         "rows": snapshot["rows"],
@@ -666,4 +702,5 @@ def relatorio_turno_pdf(shift_id: int, request: Request, db: Session = Depends(g
         **layout_context(str(request.url.path), scope_source=request.query_params),
     }
     return templates.TemplateResponse(request=request, name="reports_shift_pdf.html", context=context)
+
 

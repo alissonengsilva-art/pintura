@@ -371,17 +371,25 @@ button {
 }
 
 .nav-group {
-    margin-top: var(--space-4);
+    margin-top: 17px;
+    padding-top: 12px;
+    border-top: 1px solid var(--sidebar-border);
+}
+
+.nav-group--first {
+    margin-top: 10px;
+    padding-top: 0;
+    border-top: none;
 }
 
 .nav-group h2 {
-    margin: 0 0 var(--space-2);
+    margin: 0 0 6px;
     padding: 0 var(--space-3);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: var(--font-weight-semibold);
-    color: var(--sidebar-text-muted);
+    color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
 }
 
 .nav-group ul {
@@ -390,24 +398,26 @@ button {
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 }
 
 .nav-group a {
     display: flex;
     align-items: center;
     width: 100%;
-    min-height: 38px;
-    padding: var(--space-2) var(--space-3);
+    min-height: 34px;
+    padding: 8px var(--space-3);
     border-radius: var(--radius-sm);
     color: var(--sidebar-text);
     background: transparent;
     border: 1px solid transparent;
     transition: all var(--duration-fast) var(--easing-standard);
+    position: relative;
+    overflow: hidden;
 }
 
 .nav-group a:hover {
-    background: var(--sidebar-hover);
+    background: rgba(255, 255, 255, 0.05);
     color: var(--sidebar-text-active);
     border-color: rgba(255, 255, 255, 0.06);
 }
@@ -418,11 +428,22 @@ button {
 }
 
 .nav-group a.active {
-    background: var(--sidebar-active);
+    background: linear-gradient(180deg, rgba(74, 138, 208, 0.3) 0%, rgba(31, 78, 133, 0.34) 100%);
     color: var(--sidebar-text-active);
     font-weight: var(--font-weight-medium);
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.nav-group a.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 999px 999px 0;
+    background: rgba(255, 255, 255, 0.88);
 }
 
 .nav-label {
@@ -438,19 +459,7 @@ button {
 
 .nav-group-secondary {
     margin-top: auto;
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--sidebar-border);
-}
-
-/* Nav Group Primary - Turno Operacional em destaque */
-.nav-group--primary {
-    margin-bottom: var(--space-3);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--sidebar-border);
-}
-
-.nav-group--primary h2 {
-    color: var(--blue-300);
+    padding-top: 17px;
 }
 
 .nav-link--turno {

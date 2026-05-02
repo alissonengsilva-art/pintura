@@ -96,7 +96,7 @@
     <div class="op-modal__content panel-card">
         <div class="turnos-modal__header">
             <div>
-                <span class="turnos-page__kicker">Novo turno mestre</span>
+                <span class="turnos-page__kicker">Novo turno</span>
                 <h2 class="turnos-modal__title">Iniciar turno</h2>
             </div>
             <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">×</button>
@@ -140,10 +140,7 @@
                     </select>
                 </div>
             </div>
-            <div class="op-form__group op-form__group--full">
-                <label class="op-form__label" for="observacoes">Observações gerais</label>
-                <textarea id="observacoes" name="observacoes" class="op-form__textarea" rows="3">{{ form_data.get('observacoes', '') }}</textarea>
-            </div>
+
             <div class="op-form__actions">
                 <button type="button" class="button-secondary" data-close-start-modal>Cancelar</button>
                 <button type="submit" class="button-primary button-primary--lg">Confirmar e iniciar</button>

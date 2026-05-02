@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import OperationalModuleItem
@@ -41,6 +41,30 @@ SETOR_LABELS = {
 }
 
 
+def _norm(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _scope_for_module(module_code: str) -> str:
+    code = _norm(module_code)
+    if code in {"sigilatura", "espessura-pvc", "temperatura-forno-sigilatura", "escorrimento"}:
+        return "sigilatura"
+    if code == "central-tintas":
+        return "central_tintas"
+    return "ed"
+
+
+def _aba_from_setor(setor: str) -> str:
+    raw = str(setor or "").strip().upper()
+    if raw == "PTED":
+        return "PTED"
+    if raw == "LABORATORIO":
+        return "Laboratorio"
+    if raw == SECTOR_BOTH:
+        return "Ambos"
+    return raw
+
+
 def get_items_ordered(session: Session, module_code: str) -> list[OperationalModuleItem]:
     return list(
         session.scalars(
@@ -67,15 +91,58 @@ def get_items_by_module(session: Session, module_code: str) -> list[OperationalM
 
 
 def get_items_by_module_and_setor(session: Session, module_code: str, setor: str) -> list[OperationalModuleItem]:
+    scope = _scope_for_module(module_code)
+    modulo = module_code
+    aba = _aba_from_setor(setor)
     return list(
         session.scalars(
             select(OperationalModuleItem)
-            .where(OperationalModuleItem.module_code == module_code)
+            .where(
+                or_(
+                    OperationalModuleItem.module_code == module_code,
+                    and_(
+                        OperationalModuleItem.escopo == scope,
+                        OperationalModuleItem.modulo == modulo,
+                    ),
+                )
+            )
             .where(OperationalModuleItem.ativo.is_(True))
-            .where(or_(OperationalModuleItem.setor_tipo == setor, OperationalModuleItem.setor_tipo == SECTOR_BOTH))
+            .where(
+                or_(
+                    OperationalModuleItem.setor_tipo == setor,
+                    OperationalModuleItem.setor_tipo == SECTOR_BOTH,
+                    OperationalModuleItem.aba == aba,
+                    OperationalModuleItem.aba == "Ambos",
+                )
+            )
             .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
         ).all()
     )
+
+
+def get_items_by_scope_module(
+    session: Session,
+    *,
+    escopo: str,
+    modulo: str,
+    aba: str | None = None,
+    only_active: bool = True,
+) -> list[OperationalModuleItem]:
+    statement = select(OperationalModuleItem).where(
+        or_(
+            and_(
+                OperationalModuleItem.escopo == escopo,
+                OperationalModuleItem.modulo == modulo,
+            ),
+            OperationalModuleItem.module_code == modulo,
+        )
+    )
+    if only_active:
+        statement = statement.where(OperationalModuleItem.ativo.is_(True))
+    if aba:
+        statement = statement.where(or_(OperationalModuleItem.aba == aba, OperationalModuleItem.aba == "Ambos"))
+    statement = statement.order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+    return list(session.scalars(statement).all())
 
 
 def get_item_map_by_legacy_ed_id(session: Session) -> dict[int, OperationalModuleItem]:
@@ -92,10 +159,21 @@ def get_item_map_by_legacy_ed_id(session: Session) -> dict[int, OperationalModul
 def list_frequency_modules() -> list[dict[str, str]]:
     from app.services.operational_module_service import MODULE_CONFIGS
 
-    return [
+    modules = [
         {"id": config.code, "code": config.code, "title": config.title}
         for config in MODULE_CONFIGS.values()
     ]
+    sig_modules = [
+        {"id": "sigilatura", "code": "sigilatura", "title": "Sigilatura"},
+        {"id": "espessura-pvc", "code": "espessura-pvc", "title": "Espessura PVC"},
+        {"id": "temperatura-forno-sigilatura", "code": "temperatura-forno-sigilatura", "title": "Temperatura Forno Sigilatura"},
+        {"id": "escorrimento", "code": "escorrimento", "title": "Escorrimento"},
+    ]
+    existing_codes = {item["code"] for item in modules}
+    for item in sig_modules:
+        if item["code"] not in existing_codes:
+            modules.append(item)
+    return modules
 
 
 def get_itens_por_modulo(session: Session, modulo_id: str) -> list[dict[str, object | None]]:

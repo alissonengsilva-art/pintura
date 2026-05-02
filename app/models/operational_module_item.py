@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Float, Integer, String, Text
+from sqlalchemy import Boolean, Float, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -9,6 +9,9 @@ class OperationalModuleItem(Base, TimestampMixin):
     __tablename__ = "operational_module_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escopo: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    modulo: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    aba: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     module_code: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     setor_tipo: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     operacao: Mapped[str | None] = mapped_column(String(150), nullable=True)
@@ -18,6 +21,11 @@ class OperationalModuleItem(Base, TimestampMixin):
     unidade: Mapped[str | None] = mapped_column(String(40), nullable=True)
     valor_min: Mapped[float | None] = mapped_column(Float, nullable=True)
     valor_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tipo_validacao: Mapped[str] = mapped_column(String(30), default="nenhum", nullable=False)
+    limite_minimo: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    limite_maximo: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    parametro_exibicao: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    referencia_visual: Mapped[str | None] = mapped_column(String(160), nullable=True)
     ordem: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
     obrigatorio: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
