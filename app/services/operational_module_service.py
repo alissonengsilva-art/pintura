@@ -1361,7 +1361,7 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
             "anomalia": "",
             "lado": "",
             "geracao": "",
-            "quantidade": "1",
+            "quantidade": "",
             "row_observation": "",
             "value": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
@@ -1430,13 +1430,13 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "row_observation": row_observation,
                 "value": anomalia,
                 "status_label": "Registrado",
-                "flag": True,
+                "flag": False,
             }
         )
     if not any(row.get("cis") for row in rows) and any(row.get("is_applicable") for row in rows):
         raise OperationalModuleValidationError("Adicione ao menos uma linha para o lote do setor.")
     summary = _summarize_rows(rows)
-    summary["flag_count"] = len([row for row in rows if row.get("cis")])
+    summary["flag_count"] = 0
     summary["total_quantidade"] = total_quantidade
     return rows, summary
 

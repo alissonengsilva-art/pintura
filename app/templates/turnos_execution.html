@@ -1,14 +1,8 @@
 {% extends 'base.html' %}
 
 {% block content %}
-{% set progress = namespace(filled=0, total=0) %}
-{% for module in shift.modules %}
-    {% set module_total_all = module.pted_progress.total + module.lab_progress.total + module.non_applicable_count + module.on_demand_count %}
-    {% set module_filled_all = module.pted_progress.preenchidos + module.lab_progress.preenchidos %}
-    {% set progress.total = progress.total + module_total_all %}
-    {% set progress.filled = progress.filled + module_filled_all %}
-{% endfor %}
-{% set overall_progress_percent = ((progress.filled * 100) / progress.total)|round|int if progress.total > 0 else shift.progresso %}
+{% set progress = namespace(filled=shift.total_concluidos or 0, total=shift.total_exigiveis or 0, disabled=shift.total_desativados or 0) %}
+{% set overall_progress_percent = shift.progresso_percentual if shift.progresso_percentual is defined else shift.progresso %}
 <section class="turno-workspace">
     <header class="turno-workspace__header">
         <div class="turno-workspace__header-icon" aria-hidden="true">
@@ -26,9 +20,6 @@
             <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
             {% if not readonly_mode and shift.status_geral != 'CONCLUIDO' %}
             <button type="button" class="op-btn op-btn--primary op-btn--sm" data-open-close-shift-modal>Concluir turno</button>
-            {% endif %}
-            {% if readonly_mode %}
-            <a href="/relatorios/turnos/{{ shift.id }}/pdf" class="op-btn op-btn--primary op-btn--sm" target="_blank" rel="noopener">Gerar PDF</a>
             {% endif %}
             <a href="/turno-atual" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
@@ -50,6 +41,18 @@
                         </svg>
                     </span>
                     <strong>{{ shift.responsavel_pted or '-' }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Turno</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ shift.turno or '-' }}</strong>
                 </div>
             </article>
             <article class="turno-overview__metric">
@@ -85,7 +88,7 @@
                             <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <strong>{{ shift.em_andamento }}</strong>
+                    <strong>{{ shift.em_andamento_itens if shift.em_andamento_itens is defined else shift.em_andamento }}</strong>
                 </div>
             </article>
             <article class="turno-overview__metric turno-overview__metric--progress">
@@ -94,6 +97,9 @@
                     <div class="turno-overview__progress-copy">
                         <strong>{{ overall_progress_percent }}%</strong>
                         <span class="turno-overview__progress-total">{{ progress.filled }}/{{ progress.total }} itens</span>
+                        {% if progress.disabled > 0 %}
+                        <span class="turno-overview__progress-total">{{ progress.disabled }} desativado{% if progress.disabled != 1 %}s{% endif %} no dia</span>
+                        {% endif %}
                     </div>
                     <div class="turno-overview__progress">
                         <div class="op-shift-summary__progress-bar">
@@ -107,9 +113,9 @@
 
     <nav class="turno-browser-tabs" aria-label="Modulos do turno">
         {% for module in shift.modules %}
-        {% set module_total = module.pted_progress.total + module.lab_progress.total + module.non_applicable_count + module.on_demand_count %}
-        {% set module_filled = module.pted_progress.preenchidos + module.lab_progress.preenchidos %}
-        {% set module_progress = (module_filled * 100 / module_total)|round|int if module_total > 0 else 0 %}
+        {% set module_total = module.total_exigiveis if module.total_exigiveis is defined else (module.pted_progress.total + module.lab_progress.total) %}
+        {% set module_filled = module.total_concluidos if module.total_concluidos is defined else (module.pted_progress.preenchidos + module.lab_progress.preenchidos) %}
+        {% set module_progress = module.progresso_percentual if module.progresso_percentual is defined else ((module_filled * 100 / module_total)|round|int if module_total > 0 else 100) %}
         {% set module_state = 'nao-iniciado' %}
         {% set module_status_short = 'Nao iniciado' %}
         {% if module.status_geral == 'CONCLUIDO' %}
@@ -119,7 +125,7 @@
             {% set module_state = 'em-andamento' %}
             {% set module_status_short = 'Em andamento' %}
         {% endif %}
-        {% set scheduled_count = module.non_applicable_count + module.on_demand_count %}
+        {% set scheduled_count = module.total_desativados if module.total_desativados is defined else (module.non_applicable_count + module.on_demand_count) %}
         <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
             <span class="turno-browser-tab__icon" aria-hidden="true">
                 {% set module_code = module.code %}
@@ -143,7 +149,7 @@
                 <span class="turno-browser-tab__progress-band turno-browser-tab__meta" data-module-progress-band>
                     <span data-module-progress-pted>{{ module_filled }}/{{ module_total }} itens</span>
                     {% if scheduled_count > 0 %}
-                    <span data-module-non-applicable>{{ scheduled_count }} agendados</span>
+                    <span data-module-non-applicable>{{ scheduled_count }} desativado{% if scheduled_count != 1 %}s{% endif %}</span>
                     {% endif %}
                 </span>
             </span>

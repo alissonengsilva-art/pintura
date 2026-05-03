@@ -87,6 +87,12 @@ def _effective_module_status(status_geral: str, total_items: int) -> str:
     return status_geral
 
 
+def _progress_percent(total_concluidos: int, total_exigiveis: int) -> int:
+    if total_exigiveis <= 0:
+        return 100
+    return int(round((total_concluidos / total_exigiveis) * 100))
+
+
 def shift_schema_available(session: Session) -> bool:
     """Verifica se as tabelas de turno operacional existem."""
     from sqlalchemy import inspect
@@ -424,17 +430,25 @@ def build_shift_detail(
             "preenchidos": int(lab_view["summary"]["preenchidos"]),
             "total": int(lab_view["summary"]["total"]),
         } if lab_view is not None else {"preenchidos": 0, "total": 0}
-        total_items = pted_progress["total"] + lab_progress["total"]
-        total_filled = pted_progress["preenchidos"] + lab_progress["preenchidos"]
-        progress_percent = round((total_filled / total_items) * 100) if total_items > 0 else 100
-        has_applicable_items = total_items > 0
+        total_configurados = int(pted_view["summary"].get("total_rows", 0)) + int(
+            lab_view["summary"].get("total_rows", 0) if lab_view else 0
+        )
+        total_exigiveis = pted_progress["total"] + lab_progress["total"]
+        total_concluidos = pted_progress["preenchidos"] + lab_progress["preenchidos"]
+        progress_percent = _progress_percent(total_concluidos, total_exigiveis)
+        has_applicable_items = total_exigiveis > 0
         non_applicable_count = int(pted_view["summary"].get("not_applicable_count", 0)) + int(
             lab_view["summary"].get("not_applicable_count", 0) if lab_view else 0
         )
         on_demand_count = int(pted_view["summary"].get("on_demand_count", 0)) + int(
             lab_view["summary"].get("on_demand_count", 0) if lab_view else 0
         )
-        effective_status_geral = _effective_module_status(status_geral, total_items)
+        total_desativados = non_applicable_count + on_demand_count
+        em_andamento_itens = max(total_exigiveis - total_concluidos, 0)
+        if total_exigiveis > 0 and total_concluidos >= total_exigiveis:
+            effective_status_geral = MODULE_STATUS_CONCLUIDO
+        else:
+            effective_status_geral = _effective_module_status(status_geral, total_exigiveis)
         
         # Determina ação principal
         previsao = prev_info["previsao"]
@@ -471,6 +485,12 @@ def build_shift_detail(
             "pted_progress": pted_progress,
             "lab_progress": lab_progress,
             "progress_percent": progress_percent,
+            "progresso_percentual": progress_percent,
+            "total_configurados": total_configurados,
+            "total_exigiveis": total_exigiveis,
+            "total_concluidos": total_concluidos,
+            "total_desativados": total_desativados,
+            "em_andamento_itens": em_andamento_itens,
             "has_alert": desvios > 0,
             "has_applicable_items": has_applicable_items,
             "non_applicable_count": non_applicable_count,
@@ -486,6 +506,12 @@ def build_shift_detail(
     
     # Calcula métricas
     previstos = [m for m in modules_list if m["previsao"] in (MODULE_PREVISAO_OBRIGATORIO, MODULE_PREVISAO_PREVISTO)]
+    total_configurados = sum(int(m.get("total_configurados", 0)) for m in previstos)
+    total_exigiveis = sum(int(m.get("total_exigiveis", 0)) for m in previstos)
+    total_concluidos = sum(int(m.get("total_concluidos", 0)) for m in previstos)
+    total_desativados = sum(int(m.get("total_desativados", 0)) for m in previstos)
+    progresso_percentual = _progress_percent(total_concluidos, total_exigiveis)
+    em_andamento_itens = max(total_exigiveis - total_concluidos, 0)
     total_previstos = len(previstos)
     concluidos = sum(1 for m in previstos if m["status_geral"] == MODULE_STATUS_CONCLUIDO)
     em_andamento = sum(1 for m in previstos if m["status_geral"] in (MODULE_STATUS_EM_ANDAMENTO, MODULE_STATUS_PARCIAL))
@@ -533,7 +559,13 @@ def build_shift_detail(
         "nao_previstos": nao_previstos,
         "pending_modules": pending_modules,
         "pending_count": len(pending_modules),
-        "progresso": round((concluidos / total_previstos * 100) if total_previstos > 0 else 0),
+        "progresso": progresso_percentual,
+        "progresso_percentual": progresso_percentual,
+        "total_configurados": total_configurados,
+        "total_exigiveis": total_exigiveis,
+        "total_concluidos": total_concluidos,
+        "total_desativados": total_desativados,
+        "em_andamento_itens": em_andamento_itens,
     }
 
 

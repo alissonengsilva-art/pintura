@@ -168,11 +168,12 @@
                                 <td>
                                     {% if column.kind == 'input' %}
                                     {% set field_name = column.name_prefix ~ '_' ~ row.item_key %}
-                                    <input type="text" name="{{ field_name }}" value="{{ row[column.key] }}" class="op-input op-input--compact">
+                                    <input type="text" name="{{ field_name }}" value="{{ row[column.key] or '' }}" class="op-input op-input--compact">
                                     {% elif column.kind == 'status' %}
-                                    <span class="op-badge {% if row[column.key] in ['FORA', 'FORA_PADRAO', 'FORA_DO_PADRAO'] %}op-badge--alarme{% elif row[column.key] in ['DENTRO', 'OK', 'CONCLUIDO'] %}op-badge--ok{% else %}op-badge--neutro{% endif %}">{{ row[column.key] }}</span>
+                                    {% set status_value = row[column.key] %}
+                                    <span class="op-badge {% if status_value in ['FORA', 'FORA_PADRAO', 'FORA_DO_PADRAO'] %}op-badge--alarme{% elif status_value in ['DENTRO', 'OK', 'CONCLUIDO'] %}op-badge--ok{% else %}op-badge--neutro{% endif %}">{% if status_value == 'NAO_AVALIADO' %}Não avaliado{% else %}{{ status_value }}{% endif %}</span>
                                     {% else %}
-                                    <span class="op-table__text">{{ row[column.key] }}</span>
+                                    <span class="op-table__text">{{ row[column.key] or '' }}</span>
                                     {% endif %}
                                 </td>
                                 {% endfor %}

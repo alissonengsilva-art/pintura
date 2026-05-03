@@ -31,10 +31,11 @@
             <form id="module-context-form" class="turno-module-context__form">
                 <div class="turno-module-context__grid">
                     {% for field in module_state.extra_context_fields %}
+                    {% if field.name != 'turno' %}
                     <div class="turno-module-context__field">
                         <label for="context_{{ field.name }}">{{ field.label }}</label>
                         {% if field.kind == 'select' %}
-                        <select id="context_{{ field.name }}" name="{{ field.name }}" {% if module_state.context_locked or readonly_mode %}disabled{% endif %}>
+                        <select id="context_{{ field.name }}" name="{{ field.name }}" {% if module_state.context_locked or readonly_mode or field.name == 'turno' %}disabled{% endif %}>
                             {% for option in module_state.context_options[field.options_key] %}
                             {% set option_value = option.codigo if option.codigo is defined else (option.value if option.value is defined else option.nome) %}
                             {% set option_label = option.nome if option.nome is defined else option.label %}
@@ -49,10 +50,11 @@
                             value="{{ module_state.context_values[field.name] }}"
                             {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}
                             {% if field.required %}required{% endif %}
-                            {% if module_state.context_locked or readonly_mode %}readonly disabled{% endif %}
+                            {% if module_state.context_locked or readonly_mode or field.name == 'turno' %}readonly disabled{% endif %}
                         >
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </form>

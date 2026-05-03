@@ -22,8 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--admin",
         choices=["true", "false"],
-        default="false",
-        help="Define se o usuario sera administrador.",
+        default="true",
+        help="Define se o usuario sera administrador (padrao: true).",
     )
     return parser
 

@@ -7047,7 +7047,7 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
   margin-top: 0.8rem;
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
 }
 
 .escorrimento-images__item {
@@ -7059,6 +7059,12 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
   aspect-ratio: 1 / 1;
   position: relative;
   box-shadow: 0 6px 18px rgba(18, 45, 69, 0.12);
+}
+
+@media (max-width: 900px) {
+  .escorrimento-images__grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 200px));
+  }
 }
 
 .escorrimento-images__item img {
