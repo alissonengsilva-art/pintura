@@ -45,12 +45,13 @@ class OperationalShift(Base, TimestampMixin):
     """
     __tablename__ = "operational_shifts"
     __table_args__ = (
-        UniqueConstraint("data_referencia", "turno", name="uq_operational_shift_context"),
+        UniqueConstraint("data_referencia", "turno", "operation_scope", name="uq_operational_shift_context"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     data_referencia: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     turno: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    operation_scope: Mapped[str] = mapped_column(String(40), nullable=False, default="ed", index=True)
     
     # Responsáveis do turno
     responsavel_pted: Mapped[str | None] = mapped_column(String(120), nullable=True)

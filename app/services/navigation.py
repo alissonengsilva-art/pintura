@@ -1,53 +1,42 @@
-from app.services.access_control import SECTOR_OPTIONS, resolve_access_scope
+﻿from app.services.access_control import SECTOR_OPTIONS, resolve_access_scope
 
 
 PRIMARY_LINKS = [
     {"slug": "dashboard", "title": "Dashboard", "url": "/dashboard"},
+    {"slug": "turnos-pt", "title": "PT", "url": "/turnos-pt"},
     {"slug": "turnos", "title": "ED", "url": "/turno-atual"},
     {"slug": "turnos-sigilatura", "title": "Sigilatura", "url": "/turnos-sigilatura"},
     {"slug": "central-tintas", "title": "Central de Tintas", "url": "/central-tintas"},
-    {"slug": "relatorios", "title": "Relatórios", "url": "/relatorios"},
+    {"slug": "relatorios", "title": "Relatorios", "url": "/relatorios"},
 ]
 
 SECTIONS: list[dict] = [
-    {
-        "slug": "visao-geral",
-        "title": "Visão Geral",
-        "links": [PRIMARY_LINKS[0]],
-    },
-    {
-        "slug": "operacao",
-        "title": "Operação",
-        "links": PRIMARY_LINKS[1:4],
-    },
-    {
-        "slug": "relatorios",
-        "title": "Relatórios",
-        "links": [PRIMARY_LINKS[4]],
-    },
+    {"slug": "visao-geral", "title": "Visao Geral", "links": [PRIMARY_LINKS[0]]},
+    {"slug": "operacao", "title": "Operacao", "links": PRIMARY_LINKS[1:5]},
+    {"slug": "relatorios", "title": "Relatorios", "links": [PRIMARY_LINKS[5]]},
 ]
 
 ADMIN_LINKS = [
-    {"slug": "configuracoes", "title": "Configurações", "url": "/configuracoes"},
+    {"slug": "configuracoes", "title": "Configuracoes", "url": "/configuracoes"},
 ]
 
 SETTINGS_HUB_ITEMS = [
     {
         "slug": "responsaveis",
-        "title": "Responsáveis",
+        "title": "Responsaveis",
         "description": "Cadastre e mantenha os colaboradores vinculados aos setores operacionais.",
         "url": "/cadastros/responsaveis",
     },
     {
         "slug": "modelos",
         "title": "Modelos",
-        "description": "Gerencie os modelos usados nos lançamentos e nas consultas operacionais.",
+        "description": "Gerencie os modelos usados nos lancamentos e nas consultas operacionais.",
         "url": "/cadastros/modelos",
     },
     {
         "slug": "setores",
         "title": "Setores",
-        "description": "Ajuste os setores disponíveis para cadastros, filtros e contexto operacional.",
+        "description": "Ajuste os setores disponiveis para cadastros, filtros e contexto operacional.",
         "url": "/cadastros/setores",
     },
     {

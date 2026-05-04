@@ -34,21 +34,22 @@ GENERAL_SCOPE_ED = "ed"
 GENERAL_SCOPE_SIG = "sigilatura"
 
 GENERAL_ED_TABS = [
-    {"code": "ed", "title": "ED", "field_label": "Parâmetro", "editable": True},
+    {"code": "pt", "title": "PT", "field_label": "Parametro", "editable": True},
+    {"code": "ed", "title": "ED", "field_label": "Parmetro", "editable": True},
     {"code": "temperatura-forno-ed", "title": "Temperatura Forno", "field_label": "Faixa", "editable": True},
-    {"code": "pressao-filtros-ed", "title": "Pressão dos Filtros", "field_label": "Limite", "editable": True},
-    {"code": "tensao-retificadores-ed", "title": "Tensão dos Retificadores", "field_label": "Faixa", "editable": True},
-    {"code": "poder-penetracao", "title": "Poder de Penetração", "field_label": "Referência", "editable": True},
+    {"code": "pressao-filtros-ed", "title": "Presso dos Filtros", "field_label": "Limite", "editable": True},
+    {"code": "tensao-retificadores-ed", "title": "Tenso dos Retificadores", "field_label": "Faixa", "editable": True},
+    {"code": "poder-penetracao", "title": "Poder de Penetrao", "field_label": "Referncia", "editable": True},
     {"code": "espessura-ed", "title": "Espessura", "field_label": "Faixa", "editable": True},
-    {"code": "aspecto", "title": "Aspecto", "field_label": "—", "editable": False},
+    {"code": "aspecto", "title": "Aspecto", "field_label": "", "editable": False},
     {"code": "rugosidade", "title": "Rugosidade", "field_label": "Limite", "editable": True},
 ]
 
 GENERAL_SIG_TABS = [
-    {"code": "sigilatura", "title": "Sigilatura", "field_label": "Parâmetro", "editable": True},
-    {"code": "espessura-pvc", "title": "Espessura PVC", "field_label": "Valor referência", "editable": True},
-    {"code": "temperatura-forno-sigilatura", "title": "Temperatura Forno", "field_label": "Referência", "editable": True},
-    {"code": "escorrimento", "title": "Escorrimento", "field_label": "—", "editable": False},
+    {"code": "sigilatura", "title": "Sigilatura", "field_label": "Parmetro", "editable": True},
+    {"code": "espessura-pvc", "title": "Espessura PVC", "field_label": "Valor referncia", "editable": True},
+    {"code": "temperatura-forno-sigilatura", "title": "Temperatura Forno", "field_label": "Referncia", "editable": True},
+    {"code": "escorrimento", "title": "Escorrimento", "field_label": "", "editable": False},
 ]
 
 
@@ -154,15 +155,15 @@ def _build_ed_parameter_rows(db: Session, module_code: str) -> list[dict[str, ob
                 "ordem": item.ordem or item.id,
                 "operacao": item.operacao or "-",
                 "controle": item.controle,
-                "parametro": item.parametro or "",
+                "Parametro": item.Parametro or "",
                 "ids": [item.id],
             }
             grouped[key] = row
             rows.append(row)
             continue
         row["ids"].append(item.id)
-        if not str(row["parametro"] or "").strip() and str(item.parametro or "").strip():
-            row["parametro"] = item.parametro or ""
+        if not str(row["Parametro"] or "").strip() and str(item.Parametro or "").strip():
+            row["Parametro"] = item.Parametro or ""
     return rows
 
 
@@ -177,7 +178,7 @@ def _save_ed_parameter_rows(db: Session, module_code: str, form_data, rows: list
             item = db.get(OperationalModuleItem, item_id)
             if item is None:
                 continue
-            item.parametro = value or None
+            item.Parametro = value or None
     db.commit()
 
 
@@ -191,7 +192,7 @@ def _build_sigilatura_parameter_rows(db: Session, module_code: str) -> list[dict
                 "ordem": int(row.get("ordem") or 0),
                 "operacao": str(row.get("operacao") or "").strip() or "-",
                 "controle": str(row.get("controle") or "").strip() or "-",
-                "parametro": str(row.get("parametro") or "").strip(),
+                "Parametro": str(row.get("Parametro") or "").strip(),
             }
         )
     return rows
@@ -206,7 +207,7 @@ def _save_sigilatura_parameter_rows(db: Session, form_data, rows: list[dict[str,
             {
                 "operacao": str(row["operacao"]),
                 "controle": str(row["controle"]),
-                "parametro": value,
+                "Parametro": value,
             }
         )
     sigilatura_service.save_admin_parameter_overrides(db, module_code, updates)
@@ -231,8 +232,8 @@ def _build_general_editor_context(
         rows = _build_ed_parameter_rows(db, module_code)
 
     return {
-        "page_title": "Edição Geral de Limites e Referências",
-        "page_description": "Ajuste rapidamente os parâmetros operacionais por escopo e módulo.",
+        "page_title": "Edio Geral de Limites e Referncias",
+        "page_description": "Ajuste rapidamente os parmetros operacionais por escopo e mdulo.",
         "scope": scope,
         "tabs": tabs,
         "active_module_code": module_code,
@@ -241,8 +242,8 @@ def _build_general_editor_context(
         "module_editable": editable,
         "rows": rows,
         "error_message": error_message,
-        "success_message": "Parâmetros atualizados com sucesso." if status == "saved" else None,
-        "skip_message": "Este módulo não possui edição nesta tela." if status == "skipped" else None,
+        "success_message": "Parmetros atualizados com sucesso." if status == "saved" else None,
+        "skip_message": "Este mdulo no possui edio nesta tela." if status == "skipped" else None,
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
 
@@ -250,7 +251,7 @@ def _build_general_editor_context(
 @router.get("/configuracoes", name="configuracoes_home")
 def configuracoes_home(request: Request, _admin=Depends(require_admin)):
     context = {
-        "page_title": "Configurações",
+        "page_title": "Configuraes",
         "page_description": "Central administrativa para ajustes estruturais do sistema.",
         "settings_items": SETTINGS_HUB_ITEMS,
         **layout_context(str(request.url.path), active_path="/configuracoes"),
@@ -539,3 +540,4 @@ def admin_delete(entity: str, record_id: int, db: Session = Depends(get_db), _ad
         raise HTTPException(status_code=404, detail="Registro nao encontrado")
 
     return RedirectResponse(url=f"/cadastros/{entity}", status_code=303)
+

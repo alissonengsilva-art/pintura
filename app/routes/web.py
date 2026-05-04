@@ -67,8 +67,16 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter()
 
 
-def _shift_execution_url(shift_id: int, module_code: str | None = None, setor: str | None = None) -> str:
+def _shift_execution_url(
+    shift_id: int,
+    module_code: str | None = None,
+    setor: str | None = None,
+    *,
+    operation_scope: str = "ed",
+) -> str:
     url = f"/turnos/{shift_id}"
+    if operation_scope == "pt":
+        url = f"/turnos-pt/{shift_id}"
     params: list[str] = []
     if module_code:
         params.append(f"modulo={module_code}")
@@ -135,6 +143,7 @@ def _build_module_execution_state(
     *,
     error_message: str | None = None,
     active_sector: str | None = None,
+    operation_scope: str = "ed",
 ) -> dict:
     def _rehydrate_rows_from_source(setor_views: list[dict], payload) -> None:
         if payload is None or not hasattr(payload, "get"):
@@ -229,8 +238,12 @@ def _build_module_execution_state(
         "error_message": error_message,
         "active_sector": active_sector if active_sector in config.sector_sequence else config.sector_sequence[0],
         "execution_url": _shift_execution_url(shift.id, config.code),
-        "execution_save_base_url": f"/turnos/{shift.id}/modulos/{config.code}/setores",
-        "turnos_url": "/turno-atual",
+        "execution_save_base_url": (
+            f"/turnos-pt/{shift.id}/modulos/{config.code}/setores"
+            if operation_scope == "pt"
+            else f"/turnos/{shift.id}/modulos/{config.code}/setores"
+        ),
+        "turnos_url": "/turnos-pt" if operation_scope == "pt" else "/turno-atual",
         "inherited_context": inherited_context,
     }
 
@@ -246,12 +259,14 @@ def _render_shift_execution(
     active_sector: str | None = None,
     readonly_mode: bool = False,
     status_code: int = 200,
+    operation_scope: str = "ed",
+    module_codes: list[str] | None = None,
 ):
     shift = get_shift_by_id(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
 
-    shift_detail = build_shift_detail(db, shift)
+    shift_detail = build_shift_detail(db, shift, module_codes=module_codes)
     active_module_code = _resolve_active_module(shift_detail, module_code)
     module_state = _build_module_execution_state(
         db,
@@ -261,6 +276,7 @@ def _render_shift_execution(
         source,
         error_message=error_message,
         active_sector=active_sector,
+        operation_scope=operation_scope,
     )
 
     context = {
@@ -274,7 +290,11 @@ def _render_shift_execution(
         "setor_sequence": module_state["module_config"].sector_sequence,
         "setor_labels": SETOR_LABELS,
         "schema_error_message": None if operational_schema_available(db) and shift_schema_available(db) else MISSING_SCHEMA_MESSAGE,
-        **layout_context(str(request.url.path), active_path="/turno-atual", scope_source=request.query_params),
+        **layout_context(
+            str(request.url.path),
+            active_path="/turnos-pt" if operation_scope == "pt" else "/turno-atual",
+            scope_source=request.query_params,
+        ),
     }
     return templates.TemplateResponse(request=request, name="turnos_execution.html", context=context, status_code=status_code)
 
@@ -286,13 +306,24 @@ def _render_turnos_index(
     error_message: str | None = None,
     form_data: dict | None = None,
     open_start_modal: bool = False,
+    operation_scope: str = "ed",
+    module_codes: list[str] | None = None,
 ):
     options = shift_list_options(db)
     active_tab = request.query_params.get("tab")
     if active_tab not in {"andamento", "concluidos"}:
         active_tab = "andamento"
 
-    shifts = build_shifts_history(db, limit=100) if shift_schema_available(db) else []
+    shifts = (
+        build_shifts_history(
+            db,
+            limit=100,
+            operation_scope=operation_scope,
+            module_codes=module_codes,
+        )
+        if shift_schema_available(db)
+        else []
+    )
     shifts_em_andamento = [shift for shift in shifts if shift["status_geral"] != SHIFT_STATUS_CONCLUIDO]
     shifts_concluidos = [shift for shift in shifts if shift["status_geral"] == SHIFT_STATUS_CONCLUIDO]
 
@@ -300,6 +331,8 @@ def _render_turnos_index(
         "request": request,
         "page_title": "Turnos",
         "page_description": "Entrada operacional principal para iniciar e acompanhar turnos.",
+        "operation_scope": operation_scope,
+        "is_pt_operation": operation_scope == "pt",
         "active_tab": active_tab,
         "shifts_em_andamento": shifts_em_andamento,
         "shifts_concluidos": shifts_concluidos,
@@ -310,7 +343,11 @@ def _render_turnos_index(
         "form_data": form_data or {},
         "open_start_modal": open_start_modal or request.query_params.get("modal") == "iniciar",
         "schema_error_message": None if shift_schema_available(db) else MISSING_SCHEMA_MESSAGE,
-        **layout_context(str(request.url.path), active_path="/turno-atual", scope_source=request.query_params),
+        **layout_context(
+            str(request.url.path),
+            active_path="/turnos-pt" if operation_scope == "pt" else "/turno-atual",
+            scope_source=request.query_params,
+        ),
     }
     return templates.TemplateResponse(request=request, name="turnos_index.html", context=context)
 
@@ -371,7 +408,7 @@ def pendencias(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/turno-atual", name="turno_atual")
 def turno_atual(request: Request, db: Session = Depends(get_db)):
-    return _render_turnos_index(request, db)
+    return _render_turnos_index(request, db, operation_scope="ed")
 
 
 @router.get("/turno-atual/iniciar", name="turno_iniciar")
@@ -399,8 +436,9 @@ def turno_iniciar_post(
             responsavel_pted=responsavel_pted.strip() if responsavel_pted else None,
             responsavel_lab=responsavel_lab.strip() if responsavel_lab else None,
             observacoes=observacoes.strip() if observacoes else None,
+            operation_scope="ed",
         )
-        return RedirectResponse(url=_shift_execution_url(shift.id), status_code=303)
+        return RedirectResponse(url=_shift_execution_url(shift.id, operation_scope="ed"), status_code=303)
     except ShiftValidationError as error:
         return _render_turnos_index(
             request,
@@ -414,6 +452,55 @@ def turno_iniciar_post(
                 "observacoes": observacoes,
             },
             open_start_modal=True,
+            operation_scope="ed",
+        )
+
+
+@router.get("/turnos-pt", name="turnos_pt")
+def turnos_pt(request: Request, db: Session = Depends(get_db)):
+    return _render_turnos_index(request, db, operation_scope="pt", module_codes=["pt", "pressao-filtros-pt"])
+
+
+@router.get("/turnos-pt/iniciar", name="turno_pt_iniciar")
+def turno_pt_iniciar_form():
+    return RedirectResponse(url="/turnos-pt?modal=iniciar", status_code=302)
+
+
+@router.post("/turnos-pt/iniciar", name="turno_pt_iniciar_post")
+def turno_pt_iniciar_post(
+    request: Request,
+    db: Session = Depends(get_db),
+    data_referencia: str = Form(...),
+    turno: str = Form(None),
+    responsavel_pted: str = Form(None),
+):
+    data_ref = _coerce_date(data_referencia)
+    turno_value = turno.strip() if turno else None
+    try:
+        shift = create_shift(
+            session=db,
+            data_referencia=data_ref,
+            turno=turno_value,
+            responsavel_pted=responsavel_pted.strip() if responsavel_pted else None,
+            responsavel_lab=None,
+            observacoes=None,
+            operation_scope="pt",
+            module_codes=["pt", "pressao-filtros-pt"],
+        )
+        return RedirectResponse(url=_shift_execution_url(shift.id, operation_scope="pt"), status_code=303)
+    except ShiftValidationError as error:
+        return _render_turnos_index(
+            request,
+            db,
+            error_message=str(error),
+            form_data={
+                "data_referencia": data_referencia,
+                "turno": turno,
+                "responsavel_pted": responsavel_pted,
+            },
+            open_start_modal=True,
+            operation_scope="pt",
+            module_codes=["pt", "pressao-filtros-pt"],
         )
 
 
@@ -429,14 +516,26 @@ def turno_execucao(
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
     if shift.status_geral == SHIFT_STATUS_CONCLUIDO:
+        operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
         query_parts: list[str] = []
         if modulo:
             query_parts.append(f"modulo={modulo}")
         if setor:
             query_parts.append(f"setor={setor}")
         query = f"?{'&'.join(query_parts)}" if query_parts else ""
-        return RedirectResponse(url=f"/turnos/{shift_id}/visualizar{query}", status_code=303)
-    return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor)
+        base = "/turnos-pt" if operation_scope == "pt" else "/turnos"
+        return RedirectResponse(url=f"{base}/{shift_id}/visualizar{query}", status_code=303)
+    operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+    module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+    return _render_shift_execution(
+        request,
+        db,
+        shift_id,
+        modulo,
+        active_sector=setor,
+        operation_scope=operation_scope,
+        module_codes=module_codes,
+    )
 
 
 @router.get("/turnos/{shift_id}/visualizar", name="turno_visualizacao")
@@ -446,7 +545,18 @@ def turno_visualizacao(shift_id: int, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
     modulo = request.query_params.get("modulo")
     setor = request.query_params.get("setor")
-    return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor, readonly_mode=True)
+    operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+    module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+    return _render_shift_execution(
+        request,
+        db,
+        shift_id,
+        modulo,
+        active_sector=setor,
+        readonly_mode=True,
+        operation_scope=operation_scope,
+        module_codes=module_codes,
+    )
 
 
 @router.post("/turnos/{shift_id}/concluir", name="turno_concluir")
@@ -460,12 +570,47 @@ def turno_concluir(
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
 
     try:
-        conclude_shift(db, shift)
-        return RedirectResponse(url="/turno-atual?tab=concluidos", status_code=303)
+        operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+        required_modules = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else ["ed"]
+        conclude_shift(db, shift, required_module_codes=required_modules)
+        return RedirectResponse(url="/turnos-pt?tab=concluidos" if operation_scope == "pt" else "/turno-atual?tab=concluidos", status_code=303)
     except ShiftValidationError as error:
         modulo = request.query_params.get("modulo")
         setor = request.query_params.get("setor")
-        return _render_shift_execution(request, db, shift_id, modulo, active_sector=setor, error_message=str(error), status_code=400)
+        operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+        module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+        return _render_shift_execution(
+            request,
+            db,
+            shift_id,
+            modulo,
+            active_sector=setor,
+            error_message=str(error),
+            status_code=400,
+            operation_scope=operation_scope,
+            module_codes=module_codes,
+        )
+
+
+@router.get("/turnos-pt/{shift_id}", name="turno_pt_execucao")
+def turno_pt_execucao(
+    shift_id: int,
+    request: Request,
+    modulo: str | None = None,
+    setor: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return turno_execucao(shift_id, request, modulo, setor, db)
+
+
+@router.get("/turnos-pt/{shift_id}/visualizar", name="turno_pt_visualizacao")
+def turno_pt_visualizacao(shift_id: int, request: Request, db: Session = Depends(get_db)):
+    return turno_visualizacao(shift_id, request, db)
+
+
+@router.post("/turnos-pt/{shift_id}/concluir", name="turno_pt_concluir")
+def turno_pt_concluir(shift_id: int, request: Request, db: Session = Depends(get_db)):
+    return turno_concluir(shift_id, request, db)
 
 
 @router.post("/turnos/{shift_id}/modulos/{module_code}/setores/{setor_tipo}/salvar", name="turno_modulo_salvar_setor")
@@ -496,7 +641,11 @@ async def turno_modulo_salvar_setor(
         parsed_context = build_context_from_source(config, form_data)
         save_sector(db, config, parsed_context, setor_tipo, form, action, shift_id=shift_id)
         update_shift_status(db, shift)
-        return RedirectResponse(url=_shift_execution_url(shift_id, config.code, setor_tipo), status_code=303)
+        operation_scope = getattr(shift, "operation_scope", "ed")
+        return RedirectResponse(
+            url=_shift_execution_url(shift_id, config.code, setor_tipo, operation_scope=operation_scope),
+            status_code=303,
+        )
     except ValueError as error:
         return _render_shift_execution(
             request,
@@ -507,7 +656,20 @@ async def turno_modulo_salvar_setor(
             error_message=str(error),
             active_sector=setor_tipo,
             status_code=400,
+            operation_scope=getattr(shift, "operation_scope", "ed"),
+            module_codes=["pt", "pressao-filtros-pt"] if getattr(shift, "operation_scope", "ed") == "pt" else None,
         )
+
+
+@router.post("/turnos-pt/{shift_id}/modulos/{module_code}/setores/{setor_tipo}/salvar", name="turno_pt_modulo_salvar_setor")
+async def turno_pt_modulo_salvar_setor(
+    shift_id: int,
+    module_code: str,
+    setor_tipo: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    return await turno_modulo_salvar_setor(shift_id, module_code, setor_tipo, request, db)
 
 
 @router.post("/turnos/execution/{shift_id}/items/{item_id}/applicability", name="turno_item_applicability_override")

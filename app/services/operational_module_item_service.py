@@ -47,6 +47,8 @@ def _norm(value: str | None) -> str:
 
 def _scope_for_module(module_code: str) -> str:
     code = _norm(module_code)
+    if code in {"pt", "pressao-filtros-pt"}:
+        return "pt"
     if code in {"sigilatura", "espessura-pvc", "temperatura-forno-sigilatura", "escorrimento"}:
         return "sigilatura"
     if code == "central-tintas":

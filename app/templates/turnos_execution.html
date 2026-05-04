@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 {% set progress = namespace(filled=shift.total_concluidos or 0, total=shift.total_exigiveis or 0, disabled=shift.total_desativados or 0) %}
@@ -14,14 +14,14 @@
         <div class="turno-workspace__heading">
             <span class="turno-workspace__kicker">{% if readonly_mode %}RELATÓRIO FINAL{% else %}EXECUÇÃO DO TURNO{% endif %}</span>
             <h1 class="turno-workspace__title">{{ shift.data_label }}{% if shift.turno %} · Turno {{ shift.turno }}{% endif %}</h1>
-            <p class="turno-workspace__subtitle">{% if readonly_mode %}Visualização somente leitura.{% else %}Os oito controles executam dentro do mesmo turno mestre.{% endif %}</p>
+            <p class="turno-workspace__subtitle">{% if readonly_mode %}Visualização somente leitura.{% else %}Controle operacional do turno em andamento.{% endif %}</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
             {% if not readonly_mode and shift.status_geral != 'CONCLUIDO' %}
             <button type="button" class="op-btn op-btn--primary op-btn--sm" data-open-close-shift-modal>Concluir turno</button>
             {% endif %}
-            <a href="/turno-atual" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
+            <a href="{{ module_state.turnos_url }}" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
     </header>
 
@@ -68,7 +68,7 @@
                 </div>
             </article>
             <article class="turno-overview__metric">
-                <span class="turno-overview__label">Concluidos</span>
+                <span class="turno-overview__label">Concluídos</span>
                 <div class="turno-overview__value-row">
                     <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none">
@@ -111,7 +111,7 @@
         </div>
     </section>
 
-    <nav class="turno-browser-tabs" aria-label="Modulos do turno">
+    <nav class="turno-browser-tabs" aria-label="Módulos do turno">
         {% for module in shift.modules %}
         {% set module_total = module.total_exigiveis if module.total_exigiveis is defined else (module.pted_progress.total + module.lab_progress.total) %}
         {% set module_filled = module.total_concluidos if module.total_concluidos is defined else (module.pted_progress.preenchidos + module.lab_progress.preenchidos) %}
@@ -126,7 +126,7 @@
             {% set module_status_short = 'Em andamento' %}
         {% endif %}
         {% set scheduled_count = module.total_desativados if module.total_desativados is defined else (module.non_applicable_count + module.on_demand_count) %}
-        <a href="/turnos/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
+        <a href="/{% if shift.operation_scope == 'pt' %}turnos-pt{% else %}turnos{% endif %}/{{ shift.id }}?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
             <span class="turno-browser-tab__icon" aria-hidden="true">
                 {% set module_code = module.code %}
                 {% include 'modules/_module_icon.html' %}
@@ -166,14 +166,14 @@
     <div class="op-modal__content turno-close-modal">
         <div class="turno-close-modal__hero">
             <span class="turno-close-modal__eyebrow">Encerramento do turno</span>
-            <h2 class="op-modal__title turno-close-modal__title">Confirmar conclusao do turno</h2>
+            <h2 class="op-modal__title turno-close-modal__title">Confirmar conclusão do turno</h2>
             {% if shift.pending_count %}
             <p class="op-modal__subtitle turno-close-modal__subtitle">
-                Ainda existem {{ shift.pending_count }} modulo(s) em aberto. Ao concluir, o turno sera encerrado mesmo com pendencias.
+                Ainda existem {{ shift.pending_count }} módulo(s) em aberto. Ao concluir, o turno será encerrado mesmo com pendências.
             </p>
             {% else %}
             <p class="op-modal__subtitle turno-close-modal__subtitle">
-                Nao existem itens em aberto. Deseja realmente encerrar este turno agora?
+                Não existem itens em aberto. Deseja realmente encerrar este turno agora?
             </p>
             {% endif %}
         </div>
@@ -189,7 +189,7 @@
                     <strong>{{ shift.turno or '-' }}</strong>
                 </div>
                 <div class="turno-close-modal__metric">
-                    <span class="turno-close-modal__metric-label">Concluidos</span>
+                    <span class="turno-close-modal__metric-label">Concluídos</span>
                     <strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong>
                 </div>
                 <div class="turno-close-modal__metric">
@@ -200,8 +200,8 @@
 
             {% if shift.pending_count %}
             <div class="turno-close-modal__alert">
-                <span class="turno-close-modal__alert-badge">Atencao</span>
-                <p class="turno-close-modal__alert-text">Os modulos abaixo ainda nao foram concluidos:</p>
+                <span class="turno-close-modal__alert-badge">Atenção</span>
+                <p class="turno-close-modal__alert-text">Os módulos abaixo ainda não foram concluídos:</p>
                 <ul class="turno-close-modal__list">
                     {% for module in shift.pending_modules %}
                     <li>
@@ -216,7 +216,7 @@
 
         <div class="op-modal__actions turno-close-modal__actions">
             <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-close-shift-modal>Cancelar</button>
-            <form method="post" action="/turnos/{{ shift.id }}/concluir">
+            <form method="post" action="/{% if shift.operation_scope == 'pt' %}turnos-pt{% else %}turnos{% endif %}/{{ shift.id }}/concluir">
                 <button type="submit" class="op-btn op-btn--primary op-btn--sm">Concluir turno</button>
             </form>
         </div>

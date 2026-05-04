@@ -1069,6 +1069,116 @@ def _ed_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_d
     return rows, summary
 
 
+def _pt_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
+    items = _module_items(session, "pt", setor_tipo)
+    return [
+        {
+            "reference": str(item.id),
+            "order": item.ordem or item.id,
+            "operacao": item.operacao or "-",
+            "descricao": item.controle,
+            "norma": item.norma or "-",
+            "parametro": module_parameter_validation.display_parameter(item),
+            "numero_coleta": str(item.numero_coleta or "-"),
+            "value": "",
+            "row_observation": "",
+            "status_label": _runtime_item_state(session, context, item)["applicability_label"]
+            if not _runtime_item_state(session, context, item)["is_applicable"]
+            else "NÃO AVALIADO",
+            "flag": False,
+            "item_id": item.id,
+            **_item_validation_meta(item),
+            **_runtime_item_state(session, context, item),
+        }
+        for item in items
+    ]
+
+
+def _pt_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows = _pt_rows(session, context, setor_tipo)
+    flagged = 0
+    has_ko_without_observation = False
+    for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "row_observation": "", "flag": False})
+            continue
+        reference = row["reference"]
+        value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        evaluation = _evaluate_item_input(row, value)
+        if not value:
+            status_label = "NÃO AVALIADO"
+            is_ko = False
+        else:
+            is_ko = bool(evaluation.fora_padrao)
+            status_label = "KO" if is_ko else "OK"
+        if is_ko and not observation:
+            has_ko_without_observation = True
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": evaluation.value_number,
+                "status_label": status_label,
+                "flag": is_ko,
+            }
+        )
+        flagged += int(is_ko)
+    if _is_conclude_action(form_data) and has_ko_without_observation:
+        raise OperationalModuleValidationError(
+            "Existem itens KO sem observação. Preencha a observação antes de concluir o turno."
+        )
+    summary = _summarize_rows(rows)
+    summary["flag_count"] = flagged
+    return rows, summary
+
+
+def _pt_pressao_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
+    items = _module_items(session, "pressao-filtros-pt", setor_tipo)
+    return [
+        {
+            "reference": str(item.id),
+            "order": item.ordem or item.id,
+            "label": item.controle or f"FILTRO {item.ordem or item.id}",
+            "value": "",
+            "row_observation": "",
+            "status_label": _runtime_item_state(session, context, item)["applicability_label"]
+            if not _runtime_item_state(session, context, item)["is_applicable"]
+            else "NÃO AVALIADO",
+            "flag": False,
+            "item_id": item.id,
+            **_item_validation_meta(item),
+            **_runtime_item_state(session, context, item),
+        }
+        for item in items
+    ]
+
+
+def _pt_pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows = _pt_pressao_rows(session, context, setor_tipo)
+    for row in rows:
+        if not row.get("is_applicable"):
+            row.update({"value": "", "row_observation": "", "flag": False})
+            continue
+        reference = row["reference"]
+        value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
+        observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
+        row.update(
+            {
+                "value": value,
+                "row_observation": observation,
+                "value_number": module_parameter_validation.parse_numeric_value(value),
+                "status_label": "NÃO AVALIADO" if not value else "OK",
+                "flag": False,
+            }
+        )
+    if _is_conclude_action(form_data):
+        _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
+    summary = _summarize_rows(rows)
+    summary["flag_count"] = 0
+    return rows, summary
+
+
 def _module_items(session: Session, module_code: str, setor_tipo: str):
     return operational_module_item_service.get_items_by_module_and_setor(session, module_code, setor_tipo)
 
@@ -1535,6 +1645,59 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
 
 
 MODULE_CONFIGS: dict[str, ModuleConfig] = {
+    "pt": ModuleConfig(
+        code="pt",
+        slug="pt",
+        title="PT",
+        description="Controle operacional de Pré-Tratamento em turno dedicado.",
+        history_title="Histórico consolidado · PT",
+        report_title="Relatório consolidado · PT",
+        context_fields=(
+            ContextField("data_referencia", "Data", "date", True),
+            ContextField("turno", "Turno", "select", True, "turnos"),
+        ),
+        columns=(
+            TableColumn("operacao", "Operação / Equipamento"),
+            TableColumn("descricao", "Descrição do controle"),
+            TableColumn("norma", "Norma"),
+            TableColumn("parametro", "Parâmetro"),
+            TableColumn("numero_coleta", "Nr da Coleta"),
+            TableColumn("value", "Valor", "input"),
+            TableColumn("row_observation", "Observação", "input"),
+            TableColumn("status_label", "Status", "status"),
+        ),
+        default_rows_builder=_pt_rows,
+        parse_rows=_pt_parse,
+        legacy_history_builder=lambda _session: [],
+        legacy_detail_loader=lambda _session, _legacy_id: None,
+        legacy_detail_template="modules/legacy_detail.html",
+        sector_sequence=(SETOR_PTED,),
+        supports_turno=True,
+    ),
+    "pressao-filtros-pt": ModuleConfig(
+        code="pressao-filtros-pt",
+        slug="pressao-filtros-pt",
+        title="Pressão nos Filtros",
+        description="Leitura dos filtros do processo PT.",
+        history_title="Histórico consolidado · Pressão nos Filtros PT",
+        report_title="Relatório consolidado · Pressão nos Filtros PT",
+        context_fields=(
+            ContextField("data_referencia", "Data", "date", True),
+            ContextField("turno", "Turno", "select", True, "turnos"),
+        ),
+        columns=(
+            TableColumn("label", "ITEM"),
+            TableColumn("value", "VALOR", "input"),
+            TableColumn("row_observation", "OBSERVAÇÃO", "input"),
+        ),
+        default_rows_builder=_pt_pressao_rows,
+        parse_rows=_pt_pressao_parse,
+        legacy_history_builder=lambda _session: [],
+        legacy_detail_loader=lambda _session, _legacy_id: None,
+        legacy_detail_template="modules/legacy_detail.html",
+        sector_sequence=(SETOR_PTED,),
+        supports_turno=True,
+    ),
     "ed": ModuleConfig(
         code="ed",
         slug="ed",

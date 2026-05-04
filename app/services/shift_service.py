@@ -106,6 +106,7 @@ def get_active_shift(
     session: Session,
     data_referencia: date | None = None,
     turno: str | None = None,
+    operation_scope: str = "ed",
 ) -> OperationalShift | None:
     """
     Busca turno operacional ativo para a data/turno especificados.
@@ -120,6 +121,7 @@ def get_active_shift(
         select(OperationalShift)
         .options(joinedload(OperationalShift.modulos))
         .where(OperationalShift.data_referencia == target_date)
+        .where(OperationalShift.operation_scope == operation_scope)
     )
     
     if turno:
@@ -178,6 +180,8 @@ def create_shift(
     responsavel_pted: str | None = None,
     responsavel_lab: str | None = None,
     observacoes: str | None = None,
+    operation_scope: str = "ed",
+    module_codes: list[str] | None = None,
 ) -> OperationalShift:
     """
     Cria um novo turno operacional.
@@ -192,7 +196,7 @@ def create_shift(
         )
     
     # Verifica se já existe turno para esta data/turno
-    existing = get_active_shift(session, data_referencia, turno)
+    existing = get_active_shift(session, data_referencia, turno, operation_scope=operation_scope)
     if existing:
         raise ShiftValidationError(
             f"Já existe um turno operacional para {data_referencia.strftime('%d/%m/%Y')}"
@@ -205,6 +209,7 @@ def create_shift(
     shift = OperationalShift(
         data_referencia=data_referencia,
         turno=turno,
+        operation_scope=operation_scope,
         responsavel_pted=responsavel_pted,
         responsavel_lab=responsavel_lab,
         status_geral=SHIFT_STATUS_EM_ANDAMENTO,
@@ -216,7 +221,10 @@ def create_shift(
     session.flush()  # Para obter o ID
     
     # Cria registros de previsão para cada módulo
+    allowed_codes = set(module_codes) if module_codes else set(MODULE_CONFIGS.keys())
     for code, config in MODULE_CONFIGS.items():
+        if code not in allowed_codes:
+            continue
         # Define previsão baseada na frequência
         if config.frequency == "daily":
             previsao = MODULE_PREVISAO_OBRIGATORIO
@@ -298,18 +306,22 @@ def update_shift_status(session: Session, shift: OperationalShift) -> None:
         session.commit()
 
 
-def conclude_shift(session: Session, shift: OperationalShift) -> None:
+def conclude_shift(session: Session, shift: OperationalShift, required_module_codes: list[str] | None = None) -> None:
     """Encerra manualmente o turno operacional."""
     if not shift_schema_available(session):
         return
 
-    ed_record = session.scalars(
-        select(OperationalModuleRecord)
-        .where(OperationalModuleRecord.shift_id == shift.id)
-        .where(OperationalModuleRecord.module_code == "ed")
-    ).first()
-    if ed_record is not None and ed_record.status_geral != MODULE_STATUS_CONCLUIDO:
-        raise ShiftValidationError("Nao e possivel concluir o turno: o modulo ED ainda possui itens pendentes.")
+    required_codes = required_module_codes or ["ed"]
+    for code in required_codes:
+        record = session.scalars(
+            select(OperationalModuleRecord)
+            .where(OperationalModuleRecord.shift_id == shift.id)
+            .where(OperationalModuleRecord.module_code == code)
+        ).first()
+        if record is None or record.status_geral != MODULE_STATUS_CONCLUIDO:
+            raise ShiftValidationError(
+                f"Nao e possivel concluir o turno: o modulo {code.upper()} ainda possui itens pendentes."
+            )
 
     shift.status_geral = SHIFT_STATUS_CONCLUIDO
     shift.updated_at = datetime.now(UTC).replace(tzinfo=None)
@@ -352,6 +364,7 @@ def update_module_previsao(
 def build_shift_detail(
     session: Session,
     shift: OperationalShift,
+    module_codes: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Monta detalhes completos de um turno para exibição.
@@ -385,7 +398,10 @@ def build_shift_detail(
     
     # Monta lista de módulos
     modules_list = []
+    allowed_codes = set(module_codes) if module_codes else set(MODULE_CONFIGS.keys())
     for code, config in MODULE_CONFIGS.items():
+        if code not in allowed_codes:
+            continue
         record = modulos_dict.get(code)
         prev_info = previsoes.get(code, {
             "previsao": MODULE_PREVISAO_PREVISTO,
@@ -549,6 +565,7 @@ def build_shift_detail(
         "data": shift.data_referencia,
         "data_label": shift.data_referencia.strftime("%d/%m/%Y"),
         "turno": shift.turno,
+        "operation_scope": getattr(shift, "operation_scope", "ed"),
         "responsavel_pted": shift.responsavel_pted,
         "responsavel_lab": shift.responsavel_lab,
         "status_geral": display_shift_status,
@@ -612,6 +629,8 @@ def build_shifts_history(
     data_fim: date | None = None,
     turno: str | None = None,
     status: str | None = None,
+    operation_scope: str | None = None,
+    module_codes: list[str] | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """
@@ -638,7 +657,9 @@ def build_shifts_history(
         statement = statement.where(OperationalShift.turno == turno)
     if status:
         statement = statement.where(OperationalShift.status_geral == status)
+    if operation_scope:
+        statement = statement.where(OperationalShift.operation_scope == operation_scope)
     
     shifts = session.scalars(statement).unique().all()
     
-    return [build_shift_detail(session, s) for s in shifts]
+    return [build_shift_detail(session, s, module_codes=module_codes) for s in shifts]
