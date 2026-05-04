@@ -43,6 +43,7 @@ from app.services.operational_module_service import (
     get_or_create_master,
 )
 from app.services.shift_service import build_shift_detail
+from app.services.sigilatura_service import _escorrimento_field_key, _evaluate_param_rule
 
 
 @pytest.fixture()
@@ -127,6 +128,18 @@ def _login_admin(client: TestClient) -> None:
         follow_redirects=False,
     )
     assert response.status_code == 303
+
+
+def test_sigilatura_temperature_rule_accepts_plus_minus_tolerance() -> None:
+    assert _evaluate_param_rule("150 +- 10 °C", "150") == ("DENTRO", "NAO")
+    assert _evaluate_param_rule("150 +/- 10 °C", "140") == ("DENTRO", "NAO")
+    assert _evaluate_param_rule("150 ± 10 °C", "161") == ("FORA", "SIM")
+
+
+def test_sigilatura_escorrimento_catalog_uses_real_model_fields() -> None:
+    item = SimpleNamespace(operacao="ESCORRIMENTO", controle="REAL ESTUFA MANUAL", ordem=6)
+
+    assert _escorrimento_field_key(item, 6) == "real_estufa_manual"
 
 
 def _enable_admin_override() -> None:
@@ -909,7 +922,7 @@ def test_turno_execution_hides_laboratorio_tab_for_pted_only_modules(test_env: t
     assert f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/PTED/salvar" in response.text
 
 
-def test_turno_execution_keeps_dual_tabs_for_rugosidade(test_env: tuple[TestClient, sessionmaker]) -> None:
+def test_turno_execution_shows_only_laboratorio_tab_for_rugosidade(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
     _create_shift(client, data_referencia="2026-04-20", turno="2")
     shift_id = _get_shift_id(session_factory, data_referencia="2026-04-20", turno="2")
@@ -917,8 +930,15 @@ def test_turno_execution_keeps_dual_tabs_for_rugosidade(test_env: tuple[TestClie
     response = client.get(f"/turnos/{shift_id}?modulo=rugosidade")
 
     assert response.status_code == 200
-    assert 'data-tab-target="PTED"' in response.text
-    assert 'data-tab-target="LABORATORIO"' in response.text
+    assert 'data-tab-target="PTED"' not in response.text
+    assert f"/turnos/{shift_id}/modulos/rugosidade/setores/PTED/salvar" not in response.text
+    assert f"/turnos/{shift_id}/modulos/rugosidade/setores/LABORATORIO/salvar" in response.text
+    with session_factory() as session:
+        item = session.scalars(
+            select(OperationalModuleItem).where(OperationalModuleItem.module_code == "rugosidade")
+        ).first()
+        assert item is not None
+        assert item.setor_tipo == "LABORATORIO"
 
 
 def test_legacy_shift_module_route_redirects_to_new_execution_workspace(test_env: tuple[TestClient, sessionmaker]) -> None:

@@ -147,6 +147,24 @@
                                             placeholder="Obs."
                                             {% if setor_readonly or row_scheduled %}disabled readonly{% endif %}
                                         >
+                                        {% elif module_state.module_config.code == 'poder-penetracao' and column.key == 'zinco' %}
+                                        <input
+                                            type="text"
+                                            name="zinc_{{ setor_view.setor_tipo }}_{{ row.reference }}"
+                                            value="{{ row[column.key] }}"
+                                            class="op-input op-input--compact op-input--value {% if row_scheduled %}field--disabled-scheduled{% endif %}"
+                                            {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
+                                            {% if setor_readonly or row_scheduled %}disabled{% endif %}
+                                        >
+                                        {% elif module_state.module_config.code == 'poder-penetracao' and column.key == 'total' %}
+                                        <input
+                                            type="text"
+                                            name="total_{{ setor_view.setor_tipo }}_{{ row.reference }}"
+                                            value="{{ row[column.key] }}"
+                                            class="op-input op-input--compact op-input--value {% if row_scheduled %}field--disabled-scheduled{% endif %}"
+                                            {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
+                                            {% if setor_readonly or row_scheduled %}disabled{% endif %}
+                                        >
                                         {% else %}
                                         <input
                                             type="text"
@@ -188,6 +206,17 @@
                         </tbody>
                     </table>
                 </div>
+                {% if module_state.module_config.code == 'aspecto' and not setor_readonly %}
+                <div class="op-sector__actions-buttons" style="margin-top:8px;">
+                    <button type="button" class="op-btn op-btn--ghost" data-add-aspecto-row data-setor="{{ setor_view.setor_tipo }}">Adicionar linha</button>
+                </div>
+                {% endif %}
+                {% if module_state.module_config.code == 'poder-penetracao' %}
+                <div class="op-sector__actions-info" style="margin-top:8px;">
+                    <span class="op-sector__progress">Resumo: ECOAT = Total - Zinco</span>
+                    <span class="op-sector__progress">Resultado (menor ECOAT): {{ setor_view.metricas.resultado_label if setor_view.metricas and setor_view.metricas.resultado_label is defined else '-' }}</span>
+                </div>
+                {% endif %}
 
                 <div class="turno-sector-notes">
                     <label for="observacoes_setor_{{ setor_view.setor_tipo }}">Observações</label>
@@ -263,6 +292,49 @@
                     hidden.value = pair[1];
                 }
             }
+        });
+    });
+
+    editor.querySelectorAll('[data-add-aspecto-row]').forEach(function(button) {
+        button.addEventListener('click', function() {
+            var setor = button.getAttribute('data-setor');
+            var form = button.closest('form');
+            if (!form || !setor) return;
+            var tbody = form.querySelector('tbody');
+            if (!tbody) return;
+            var currentRows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+            var maxIndex = 0;
+            currentRows.forEach(function(row) {
+                var input = row.querySelector('input[name^="cis_' + setor + '_"]');
+                if (!input) return;
+                var parts = input.name.split('_');
+                var ref = parts.slice(2).join('_');
+                var match = /^extra_(\d+)$/i.exec(ref);
+                if (match) {
+                    maxIndex = Math.max(maxIndex, Number(match[1]));
+                }
+            });
+            var nextRef = 'extra_' + String(maxIndex + 1);
+
+            var templateRow = currentRows.length ? currentRows[currentRows.length - 1] : null;
+            if (!templateRow) return;
+            var newRow = templateRow.cloneNode(true);
+            newRow.classList.remove('op-table__row--flagged');
+            newRow.classList.remove('check-row--scheduled');
+            newRow.querySelectorAll('input').forEach(function(input) {
+                var name = input.getAttribute('name') || '';
+                if (name.indexOf('_' + setor + '_') > -1) {
+                    var prefix = name.split('_' + setor + '_')[0];
+                    input.setAttribute('name', prefix + '_' + setor + '_' + nextRef);
+                }
+                input.value = '';
+                input.removeAttribute('readonly');
+                input.removeAttribute('disabled');
+            });
+            newRow.querySelectorAll('.op-badge').forEach(function(badge) {
+                badge.textContent = '';
+            });
+            tbody.appendChild(newRow);
         });
     });
 })();

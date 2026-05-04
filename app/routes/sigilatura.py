@@ -179,13 +179,13 @@ def turnos_sigilatura_visualizacao(
     module_state = build_module_editor_state(db, shift_obj, active_module_code)
     context = {
         "request": request,
-        "page_title": f"VisualizaÃ§Ã£o Sigilatura {shift['data_label']}",
-        "page_description": "VisualizaÃ§Ã£o somente leitura do turno de Sigilatura concluÃ­do.",
+        "page_title": f"Visualização Sigilatura {shift['data_label']}",
+        "page_description": "Visualização somente leitura do turno de Sigilatura concluído.",
         "shift": shift,
         "active_module_code": active_module_code,
         "module_state": module_state,
         "module_meta": MODULE_META,
-        "schema_error_message": None if sigilatura_schema_available(db) else "Estrutura de Sigilatura nÃ£o instalada.",
+        "schema_error_message": None if sigilatura_schema_available(db) else "Estrutura de Sigilatura não instalada.",
         **layout_context(str(request.url.path), active_path="/turnos-sigilatura", scope_source=request.query_params),
     }
     return templates.TemplateResponse(request=request, name="turnos_sigilatura_view.html", context=context)

@@ -61,25 +61,21 @@
     </div>
 
     <div class="turnos-panel {% if active_tab == 'concluidos' %}turnos-panel--active{% endif %}" data-turnos-panel="concluidos">
-        <div class="turnos-list turnos-list--table">
+        <div class="turnos-list turnos-list--table turnos-list--table-concluded">
             <div class="turno-table-header turno-table-header--concluded panel-card">
                 <span>Data</span>
                 <span>Turno</span>
                 <span>Responsável</span>
                 <span>Status</span>
-                <span>Concluídos</span>
-                <span>Andamento</span>
                 <span>Ações</span>
             </div>
             {% for shift in shifts_concluidos %}
             <article class="turno-card turno-card--table turno-card--done panel-card">
                 <div class="turno-table-row turno-table-row--concluded">
                     <strong class="turno-card__value">{{ shift.data_label }}</strong>
-                    <strong class="turno-card__value">{{ shift.turno }}</strong>
-                    <strong class="turno-card__value">{{ shift.responsavel }}</strong>
-                    <span class="op-status-badge op-status-badge--concluido">{{ shift.status_geral_label }}</span>
-                    <span>{{ shift.concluidos }}/{{ shift.total_modules }}</span>
-                    <span>{{ shift.em_andamento }}</span>
+                    <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ shift.responsavel or '-' }}</strong>
+                    <span class="turno-card__status-text">{{ shift.status_geral_label }} - {{ shift.concluidos }}/{{ shift.total_modules }} módulos</span>
                     <a href="/turnos-sigilatura/{{ shift.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
                 </div>
             </article>

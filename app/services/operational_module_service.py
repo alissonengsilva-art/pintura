@@ -364,6 +364,36 @@ def build_sector_view(
     entry_map = _entry_map(sector_record) if sector_record else {}
     rows = config.default_rows_builder(session, context, setor_tipo)
     hydrated_rows = _hydrate_rows(rows, entry_map)
+    if config.code == "aspecto" and entry_map:
+        known_refs = {str(row.get("reference")) for row in hydrated_rows}
+        extra_rows: list[dict[str, Any]] = []
+        for reference, stored_row in entry_map.items():
+            if str(reference) in known_refs:
+                continue
+            extra_row = {
+                "reference": str(reference),
+                "order": int(stored_row.get("order") or 9999),
+                "item_id": stored_row.get("item_id"),
+                "item_observation": stored_row.get("item_observation", ""),
+                "cis": "",
+                "cod_posicao": "",
+                "local": "",
+                "anomalia": "",
+                "lado": "",
+                "geracao": "",
+                "quantidade": "",
+                "row_observation": "",
+                "value": "",
+                "status_label": "Linha vazia",
+                "flag": False,
+                "is_applicable": True,
+                "applicability_label": "Aplicável",
+            }
+            extra_row.update(stored_row)
+            extra_rows.append(extra_row)
+        if extra_rows:
+            extra_rows.sort(key=lambda row: (int(row.get("order") or 9999), str(row.get("reference") or "")))
+            hydrated_rows.extend(extra_rows)
     summary = _summarize_rows(hydrated_rows)
     return {
         "setor_tipo": setor_tipo,
@@ -1205,6 +1235,8 @@ def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tip
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "expected": module_parameter_validation.display_parameter(item),
             "value": "",
+            "zinco": "",
+            "total": "",
             "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
@@ -1222,17 +1254,40 @@ def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, for
     rows = _build_poder_item_rows(session, context, setor_tipo)
     approved = 0
     filled = 0
+    min_ecoat: float | None = None
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
+            row.update(
+                {
+                    "value": "",
+                    "zinco": "",
+                    "total": "",
+                    "row_observation": "",
+                    "value_number": None,
+                    "flag": False,
+                }
+            )
             continue
         reference = row["reference"]
-        value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
+        zinco = (form_data.get(f"zinc_{setor_tipo}_{reference}") or "").strip()
+        total = (form_data.get(f"total_{setor_tipo}_{reference}") or "").strip()
+        value_input = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
-        evaluation = _evaluate_item_input(row, value)
+        ecoat_value = value_input
+        try:
+            if zinco and total:
+                zinc_num = float(zinco.replace(",", "."))
+                total_num = float(total.replace(",", "."))
+                ecoat_value = f"{(total_num - zinc_num):.2f}".rstrip("0").rstrip(".")
+        except ValueError:
+            ecoat_value = value_input
+
+        evaluation = _evaluate_item_input(row, ecoat_value)
         row.update(
             {
-                "value": value,
+                "value": ecoat_value,
+                "zinco": zinco,
+                "total": total,
                 "row_observation": observation,
                 "value_number": evaluation.value_number,
                 "status_label": evaluation.label,
@@ -1243,12 +1298,16 @@ def _poder_parse(session: Session, context: dict[str, Any], setor_tipo: str, for
             filled += 1
             if not bool(evaluation.fora_padrao):
                 approved += 1
+            if min_ecoat is None or evaluation.value_number < min_ecoat:
+                min_ecoat = evaluation.value_number
     if _is_conclude_action(form_data):
         _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
     summary["aprovados"] = approved
     summary["percentual_aprovacao"] = int(round((approved / filled) * 100)) if filled else 0
+    summary["resultado"] = min_ecoat
+    summary["resultado_label"] = "-" if min_ecoat is None else f"{min_ecoat:.2f}".rstrip("0").rstrip(".")
     return rows, summary
 
 
@@ -1377,6 +1436,39 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
 def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base_rows = _build_aspecto_item_rows(session, context, setor_tipo)
     base_rows_by_reference = {row["reference"]: row for row in base_rows}
+    max_order = max((int(row.get("order") or 0) for row in base_rows), default=0)
+    dynamic_references: set[str] = set()
+    for field_key in ("cis", "cod_posicao", "local", "anomalia", "lado", "geracao", "quantidade", "row_observation"):
+        prefix = f"{field_key}_{setor_tipo}_"
+        for form_key in form_data.keys():
+            if str(form_key).startswith(prefix):
+                dynamic_references.add(str(form_key)[len(prefix):])
+    for reference in sorted(dynamic_references):
+        if reference in base_rows_by_reference:
+            continue
+        max_order += 1
+        base_rows.append(
+            {
+                "reference": reference,
+                "order": max_order,
+                "item_id": None,
+                "item_observation": "",
+                "cis": "",
+                "cod_posicao": "",
+                "local": "",
+                "anomalia": "",
+                "lado": "",
+                "geracao": "",
+                "quantidade": "",
+                "row_observation": "",
+                "value": "",
+                "status_label": "Linha vazia",
+                "flag": False,
+                "is_applicable": True,
+                "applicability_label": "Aplicável",
+            }
+        )
+    base_rows_by_reference = {row["reference"]: row for row in base_rows}
     rows: list[dict[str, Any]] = []
     total_quantidade = 0
     for base_row in base_rows:
@@ -1393,7 +1485,8 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
         quantidade = (form_data.get(f"quantidade_{setor_tipo}_{reference}") or "").strip()
         row_observation = (form_data.get(f"row_observation_{setor_tipo}_{reference}") or "").strip()
         if not any([cis, cod_posicao, local, anomalia, lado, geracao, quantidade]):
-            if int(reference) <= 5:
+            required_base_row = reference in base_rows_by_reference and int(base_row.get("order") or 0) <= 5
+            if required_base_row:
                 rows.append(dict(base_rows_by_reference[reference]))
             continue
         missing = [
@@ -1562,7 +1655,9 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         columns=(
             TableColumn("label", "Ponto"),
             TableColumn("expected", "Referência"),
-            TableColumn("value", "Valor medido", "input"),
+            TableColumn("value", "ECOAT"),
+            TableColumn("zinco", "Zinco", "input"),
+            TableColumn("total", "Total", "input"),
             TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
@@ -1636,7 +1731,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         code="rugosidade",
         slug="rugosidade",
         title="Rugosidade",
-        description="Matriz fixa por sequência com controle setorial independente e consolidação automática do módulo.",
+        description="Matriz fixa por sequência com controle do Laboratório e consolidação automática do módulo.",
         history_title="Histórico consolidado · Rugosidade",
         report_title="Relatório · Rugosidade",
         context_fields=(
@@ -1655,6 +1750,7 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         legacy_history_builder=_legacy_rugosidade_history,
         legacy_detail_loader=rugosidade_service.get_lancamento,
         legacy_detail_template="rugosidade/detail.html",
+        sector_sequence=(SETOR_LAB,),
     ),
 }
 

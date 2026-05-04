@@ -10,36 +10,85 @@
             </svg>
         </div>
         <div class="turno-workspace__heading" style="min-width:0;">
-            <span class="turno-workspace__kicker" style="white-space:nowrap;">RELATÓRIO FINAL</span>
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">RELATORIO FINAL</span>
             <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Sigilatura - {{ shift.data_label }}{% if shift.turno %} - Turno {{ shift.turno }}{% endif %}</h1>
-            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualização somente leitura.</p>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualizacao somente leitura.</p>
         </div>
         <div class="turno-workspace__header-meta">
+            <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
             <a href="/turnos-sigilatura?tab=concluidos" class="op-btn op-btn--ghost op-btn--sm">Voltar</a>
         </div>
     </header>
 
     <section class="turno-overview panel-card">
         <div class="turno-overview__grid">
-            <article class="turno-overview__metric"><span class="turno-overview__label">Responsável</span><div class="turno-overview__value-row"><strong>{{ shift.responsavel or '-' }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Status</span><div class="turno-overview__value-row"><strong>{{ shift.status_geral_label }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Concluídos</span><div class="turno-overview__value-row"><strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Em andamento</span><div class="turno-overview__value-row"><strong>{{ shift.em_andamento }}</strong></div></article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Responsavel</span>
+                <div class="turno-overview__value-row"><strong>{{ shift.responsavel or '-' }}</strong></div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Status</span>
+                <div class="turno-overview__value-row"><strong>{{ shift.status_geral_label }}</strong></div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Concluidos</span>
+                <div class="turno-overview__value-row"><strong>{{ shift.concluidos }}/{{ shift.total_modules }}</strong></div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Em andamento</span>
+                <div class="turno-overview__value-row"><strong>{{ shift.em_andamento }}</strong></div>
+            </article>
+            <article class="turno-overview__metric turno-overview__metric--progress">
+                <span class="turno-overview__label">Progresso geral</span>
+                <div class="turno-overview__progress-row">
+                    <div class="turno-overview__progress-copy">
+                        <strong>{{ shift.progresso }}%</strong>
+                        <span class="turno-overview__progress-total">{{ shift.total_filled }}/{{ shift.total_items }} itens</span>
+                    </div>
+                    <div class="turno-overview__progress">
+                        <div class="op-shift-summary__progress-bar">
+                            <div class="op-shift-summary__progress-fill" style="width: {{ shift.progresso }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </article>
         </div>
     </section>
 
     <nav class="turno-browser-tabs" aria-label="Modulos do turno">
         {% for module in shift.modules %}
-        {% set module_state = 'nao-iniciado' %}
+        {% set module_card_state = 'nao-iniciado' %}
+        {% set module_status_short = 'Nao iniciado' %}
         {% if module.status == 'CONCLUIDO' %}
-            {% set module_state = 'concluido' %}
+            {% set module_card_state = 'concluido' %}
+            {% set module_status_short = 'Concluido' %}
         {% elif module.status in ['EM_ANDAMENTO', 'PARCIAL'] %}
-            {% set module_state = 'em-andamento' %}
+            {% set module_card_state = 'em-andamento' %}
+            {% set module_status_short = 'Em andamento' %}
         {% endif %}
-        <a href="/turnos-sigilatura/{{ shift.id }}/visualizar?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}">
+        <a href="/turnos-sigilatura/{{ shift.id }}/visualizar?modulo={{ module.code }}" class="turno-browser-tab turno-browser-tab--state-{{ module_card_state }} {% if active_module_code == module.code %}turno-browser-tab--active{% endif %}" data-module-card data-module-code="{{ module.code }}">
+            <span class="turno-browser-tab__icon" aria-hidden="true">
+                {% set module_code = module.code %}
+                {% include 'modules/_module_icon.html' %}
+            </span>
             <span class="turno-browser-tab__content">
-                <span class="turno-browser-tab__title-band"><span class="turno-browser-tab__title-wrap"><span class="turno-browser-tab__title">{{ module.title }}</span></span></span>
-                <span class="turno-browser-tab__progress-band turno-browser-tab__meta"><span>{{ module.preenchidos }}/{{ module.total }} itens</span></span>
+                <span class="turno-browser-tab__title-band">
+                    <span class="turno-browser-tab__title-wrap">
+                        <span class="turno-browser-tab__title">{{ module.title }}</span>
+                        {% if module.desvios > 0 %}
+                        <span class="turno-browser-tab__alert" aria-label="{{ module.desvios }} desvios">{{ module.desvios }} desvios</span>
+                        {% endif %}
+                    </span>
+                </span>
+                <span class="turno-browser-tab__status-band">
+                    <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ module_card_state }}" data-module-status>{{ module_status_short }}</span>
+                </span>
+                <span class="turno-browser-tab__progress">
+                    <span class="turno-browser-tab__progress-fill" style="width: {{ module.percent }}%"></span>
+                </span>
+                <span class="turno-browser-tab__progress-band turno-browser-tab__meta" data-module-progress-band>
+                    <span>{{ module.preenchidos }}/{{ module.total }} itens</span>
+                </span>
             </span>
         </a>
         {% endfor %}
@@ -51,6 +100,9 @@
                 <div class="turno-module-editor__title-row">
                     <h2 class="turno-module-editor__title">{{ module_state.summary.title }}</h2>
                     <span class="op-status-badge op-status-badge--{{ module_state.summary.status|lower|replace('_', '-') }}">{{ module_state.summary.status_label }}</span>
+                    {% if module_state.summary.desvios > 0 %}
+                    <span class="turno-chip turno-chip--alert">{{ module_state.summary.desvios }} desvio{% if module_state.summary.desvios != 1 %}s{% endif %}</span>
+                    {% endif %}
                 </div>
                 <p class="turno-module-editor__description">{{ module_state.summary.description }}</p>
             </div>
@@ -76,7 +128,23 @@
                 </tbody>
             </table>
         </div>
+
+        {% if active_module_code == 'escorrimento' and module_state.escorrimento_images %}
+        <section class="escorrimento-images" data-escorrimento-images>
+            <div class="escorrimento-images__header">
+                <span class="escorrimento-images__kicker">Evidencias Visuais</span>
+                <h3>Anexos de imagem</h3>
+            </div>
+            <div class="escorrimento-images__grid">
+                {% for image in module_state.escorrimento_images %}
+                <figure class="escorrimento-images__item">
+                    <img src="{{ image.url }}" alt="Imagem de escorrimento {{ loop.index }}" loading="lazy">
+                    <figcaption>Foto {{ loop.index }}</figcaption>
+                </figure>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
     </section>
 </section>
 {% endblock %}
-

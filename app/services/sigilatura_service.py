@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from pathlib import Path
+import re
 from typing import Any
 from uuid import uuid4
 
@@ -112,6 +113,17 @@ class SigilaturaValidationError(ValueError):
 
 ESCORRIMENTO_MAX_IMAGES = 2
 ESCORRIMENTO_ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+ESCORRIMENTO_FIELDS = (
+    ("numero_amostra", "N° AMOSTRA"),
+    ("lote", "LOTE"),
+    ("real_temp_amb_auto", "REAL TEMP. AMB. AUTOMÁTICA"),
+    ("real_estufa_auto", "REAL ESTUFA AUTOMÁTICA"),
+    ("real_temp_amb_manual", "REAL TEMP. AMB. MANUAL"),
+    ("real_estufa_manual", "REAL ESTUFA MANUAL"),
+    ("resultados_obtidos", "RESULTADOS OBTIDOS"),
+    ("acao_corretiva", "AÇÃO CORRETIVA"),
+)
+ESCORRIMENTO_FIELD_KEYS = {field_key for field_key, _label in ESCORRIMENTO_FIELDS}
 
 
 def _escorrimento_upload_root() -> Path:
@@ -169,6 +181,28 @@ def _catalog_items(session: Session, module_code: str, *, turno: str | None = No
 
 def _item_parameter(item: OperationalModuleItem) -> str:
     return module_parameter_validation.display_parameter(item)
+
+
+def _normalize_catalog_key(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _escorrimento_field_key(item: OperationalModuleItem, index: int) -> str:
+    operation_key = _normalize_catalog_key(item.operacao)
+    if operation_key in ESCORRIMENTO_FIELD_KEYS:
+        return operation_key
+
+    control_key = _normalize_catalog_key(item.controle)
+    for field_key, label in ESCORRIMENTO_FIELDS:
+        if control_key == _normalize_catalog_key(label):
+            return field_key
+
+    ordem = int(item.ordem or index)
+    if 1 <= ordem <= len(ESCORRIMENTO_FIELDS):
+        return ESCORRIMENTO_FIELDS[ordem - 1][0]
+    if 1 <= index <= len(ESCORRIMENTO_FIELDS):
+        return ESCORRIMENTO_FIELDS[index - 1][0]
+    return "acao_corretiva"
 
 
 def _sigilatura_base_items(turno: str, session: Session | None = None) -> list[dict[str, Any]]:
@@ -286,7 +320,7 @@ def _escorrimento_base_items(session: Session | None = None, turno: str | None =
                     "item_key": f"ESC-ITEM-{item.id}",
                     "ordem": item.ordem or idx,
                     "item": str(item.controle or "").strip(),
-                    "field_key": str(item.operacao or "").strip().lower().replace(" ", "_") or f"field_{idx}",
+                    "field_key": _escorrimento_field_key(item, idx),
                     "item_id": item.id,
                 }
             )
@@ -303,7 +337,7 @@ def _escorrimento_base_items(session: Session | None = None, turno: str | None =
         ("acao_corretiva", "AÇÃO CORRETIVA"),
     ]
     rows: list[dict[str, Any]] = []
-    for ordem, (field_key, label) in enumerate(controls, start=1):
+    for ordem, (field_key, label) in enumerate(ESCORRIMENTO_FIELDS, start=1):
         rows.append(
             {
                 "item_key": f"ESC-ITEM-{ordem:02d}",
@@ -332,6 +366,17 @@ def _evaluate_param_rule(parametro: str | None, valor: str | None) -> tuple[str,
     if rule.startswith("<") and number is not None:
         limit = float(rule.replace("<", "").strip().split(" ")[0])
         return ("DENTRO", "NAO") if number < limit else ("FORA", "SIM")
+    if number is not None:
+        tolerance_rule = rule.replace(" ", "").replace("±", "+-").replace("+/-", "+-")
+        if "+-" in tolerance_rule:
+            center_text, delta_text = tolerance_rule.split("+-", 1)
+            delta_match = re.search(r"-?\d+(?:[.,]\d+)?", delta_text)
+            try:
+                center = float(center_text.replace(",", "."))
+                dev = float(delta_match.group(0).replace(",", ".")) if delta_match else 0.0
+            except ValueError:
+                return ("DENTRO", "NAO")
+            return ("DENTRO", "NAO") if (center - dev) <= number <= (center + dev) else ("FORA", "SIM")
     if "-" in rule and number is not None:
         parts = rule.replace("°C", "").replace("MM", "").split("-")
         if len(parts) == 2:

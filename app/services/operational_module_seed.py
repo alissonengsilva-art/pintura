@@ -179,6 +179,7 @@ def _build_non_ed_items() -> list[dict[str, Any]]:
                 "rugosidade",
                 ordem,
                 f"Modelo {codigo}",
+                setor_tipo="LABORATORIO",
                 operacao=codigo,
                 parametro="≤ 14 µin ou ≤ 0.356 µm",
                 unidade="µin",

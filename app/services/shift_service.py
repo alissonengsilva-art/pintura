@@ -416,11 +416,15 @@ def build_shift_detail(
             status_lab = SETOR_STATUS_NAO_INICIADO
             desvios = 0
 
-        pted_view = build_sector_view(session, config, shift_context, record, SETOR_PTED)
+        pted_view = (
+            build_sector_view(session, config, shift_context, record, SETOR_PTED)
+            if SETOR_PTED in config.sector_sequence
+            else None
+        )
         pted_progress = {
             "preenchidos": int(pted_view["summary"]["preenchidos"]),
             "total": int(pted_view["summary"]["total"]),
-        }
+        } if pted_view is not None else {"preenchidos": 0, "total": 0}
         lab_view = (
             build_sector_view(session, config, shift_context, record, SETOR_LAB)
             if SETOR_LAB in config.sector_sequence
@@ -430,17 +434,17 @@ def build_shift_detail(
             "preenchidos": int(lab_view["summary"]["preenchidos"]),
             "total": int(lab_view["summary"]["total"]),
         } if lab_view is not None else {"preenchidos": 0, "total": 0}
-        total_configurados = int(pted_view["summary"].get("total_rows", 0)) + int(
+        total_configurados = int(pted_view["summary"].get("total_rows", 0) if pted_view else 0) + int(
             lab_view["summary"].get("total_rows", 0) if lab_view else 0
         )
         total_exigiveis = pted_progress["total"] + lab_progress["total"]
         total_concluidos = pted_progress["preenchidos"] + lab_progress["preenchidos"]
         progress_percent = _progress_percent(total_concluidos, total_exigiveis)
         has_applicable_items = total_exigiveis > 0
-        non_applicable_count = int(pted_view["summary"].get("not_applicable_count", 0)) + int(
+        non_applicable_count = int(pted_view["summary"].get("not_applicable_count", 0) if pted_view else 0) + int(
             lab_view["summary"].get("not_applicable_count", 0) if lab_view else 0
         )
-        on_demand_count = int(pted_view["summary"].get("on_demand_count", 0)) + int(
+        on_demand_count = int(pted_view["summary"].get("on_demand_count", 0) if pted_view else 0) + int(
             lab_view["summary"].get("on_demand_count", 0) if lab_view else 0
         )
         total_desativados = non_applicable_count + on_demand_count
