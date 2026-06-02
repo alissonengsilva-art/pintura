@@ -24,6 +24,7 @@ VALIDATION_TYPE_OPTIONS = [
     {"value": module_parameter_validation.VALIDATION_TEXT, "label": "texto"},
     {"value": "referencia", "label": "referência"},
     {"value": module_parameter_validation.VALIDATION_BOOLEAN, "label": "booleano"},
+    {"value": module_parameter_validation.VALIDATION_SETPOINT_MARGIN, "label": "Setpoint + margem %"},
     {"value": module_parameter_validation.VALIDATION_NONE, "label": "nenhum"},
 ]
 
@@ -230,6 +231,7 @@ def _serialize_group(group: list[OperationalModuleItem]) -> dict[str, object | N
         "setor_tipo": item.setor_tipo,
         "setor_label": operational_module_item_service.SETOR_LABELS.get(item.setor_tipo, item.setor_tipo),
         "frequencia_tipo": item.frequencia_tipo or operational_module_item_service.FREQUENCY_DIARIO,
+        "prioridade": _normalize_priority(item.prioridade),
         "dia_semana": _normalize_weekday(item.dia_semana),
         "dia_mes": item.dia_mes,
         "ordem": item.ordem,
@@ -282,6 +284,7 @@ def _normalize_row_payload(
     frequencia_tipo = str(payload.get("frequencia_tipo") or "").strip().lower()
     if frequencia_tipo not in operational_module_item_service.FREQUENCY_TYPES:
         raise ValueError("Frequencia invalida.")
+    prioridade = _normalize_priority(payload.get("prioridade"))
 
     dia_semana = _normalize_weekday(_normalize_nullable_int(payload.get("dia_semana")))
     dia_mes = _normalize_nullable_int(payload.get("dia_mes"))
@@ -327,6 +330,7 @@ def _normalize_row_payload(
         "operacao": str(payload.get("operacao") or "").strip() or None,
         "setor_tipo": setor_tipo,
         "frequencia_tipo": frequencia_tipo,
+        "prioridade": prioridade,
         "dia_semana": dia_semana,
         "dia_mes": dia_mes,
         "ordem": _normalize_nullable_int(payload.get("ordem")) or 0,
@@ -352,6 +356,7 @@ def _apply_row_payload(item: OperationalModuleItem, payload: dict[str, object | 
     item.operacao = payload["operacao"]
     item.setor_tipo = str(payload["setor_tipo"])
     item.frequencia_tipo = str(payload["frequencia_tipo"])
+    item.prioridade = _normalize_priority(payload.get("prioridade"))
     item.dia_semana = payload["dia_semana"]
     item.dia_mes = payload["dia_mes"]
     item.ordem = int(payload["ordem"] or 0)
@@ -427,3 +432,11 @@ def _normalize_validation_type(value: object | None) -> str:
     if normalized not in module_parameter_validation.VALIDATION_TYPES:
         raise ValueError("Tipo de validação inválido.")
     return normalized
+
+
+def _normalize_priority(value: object | None) -> str:
+    normalized = str(value or '').strip().lower()
+    if normalized not in operational_module_item_service.PRIORITY_TYPES:
+        return operational_module_item_service.PRIORITY_MEDIO
+    return normalized
+

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
+    Modelo,
     OperationalModuleItem,
     OperationalModuleRecord,
     OperationalModuleSectorRecord,
@@ -32,6 +33,7 @@ class ReportFilters:
     modulo: str | None = None
     parametro: str | None = None
     setor: str | None = None
+    prioridade: str | None = None
     agrupamento: str = "dia"
     # Secundários (mantidos por compatibilidade)
     turno: str | None = None
@@ -78,6 +80,12 @@ def report_filter_options(session: Session) -> dict[str, Any]:
             {"value": "", "label": "Todos"},
             {"value": "PTED", "label": SETOR_LABELS["PTED"]},
             {"value": "LABORATORIO", "label": SETOR_LABELS["LABORATORIO"]},
+        ],
+        "prioridades": [
+            {"value": "", "label": "Todas"},
+            {"value": "baixo", "label": "Baixo"},
+            {"value": "medio", "label": "Médio"},
+            {"value": "alto", "label": "Alto"},
         ],
         "agrupamentos": [
             {"value": "parametro", "label": "Por parâmetro"},
@@ -152,6 +160,15 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
 
     item_lookup = _build_item_lookup(session)
     item_lookup_by_id = _build_item_lookup_by_id(session)
+    group_models_lookup: dict[str, str] = {}
+    for model in session.scalars(select(Modelo).where(Modelo.ativo.is_(True)).order_by(Modelo.nome, Modelo.codigo)).all():
+        group_code = _normalize_text(getattr(model, "grupo_retificador", "")).lower()
+        if not group_code:
+            continue
+        label = f"{_normalize_text(model.nome)} ({_normalize_text(model.codigo)})" if _normalize_text(model.codigo) else _normalize_text(model.nome)
+        if not label:
+            continue
+        group_models_lookup[group_code] = f"{group_models_lookup[group_code]}, {label}" if group_code in group_models_lookup else label
     statement = (
         select(OperationalModuleRecord)
         .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
@@ -231,10 +248,24 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
 
                 if not checklist_item:
                     continue
+                prioridade = _normalize_text(dados.get("prioridade") or (item.prioridade if item else None) or "medio").lower()
+                if prioridade not in {"baixo", "medio", "alto"}:
+                    prioridade = "medio"
+                if filters.prioridade and filters.prioridade != prioridade:
+                    continue
                 valor = _normalize_text(entry.valor_texto or dados.get("value") or dados.get("quantidade") or "—")
                 expected_limits = _extract_expected_limits(item_lookup, record.module_code, controle, dados)
                 observacao = _normalize_text(entry.observacao or dados.get("row_observation") or "—")
                 turno_label = _normalize_text(record.turno) or "—"
+                grupo_retificador = _normalize_text((record.context_data or {}).get("grupo_retificador")) or "—"
+                group_models_text = group_models_lookup.get(grupo_retificador.lower(), "—") if grupo_retificador != "—" else "—"
+                modelo_nome = _normalize_text(dados.get("modelo_nome"))
+                modelo_codigo = _normalize_text(dados.get("modelo_codigo"))
+                modelo_retificador = (
+                    f"{modelo_nome} ({modelo_codigo})".strip()
+                    if modelo_nome and modelo_codigo
+                    else modelo_nome or modelo_codigo or _normalize_text((record.context_data or {}).get("modelo")) or "—"
+                )
                 data_label = record.data_referencia.strftime("%d/%m/%Y")
                 updated_at_label = _format_datetime(entry.updated_at)
                 setor_label = SETOR_LABELS.get(setor.setor_tipo, setor.setor_tipo)
@@ -245,6 +276,9 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                         "sort_date": record.data_referencia,
                         "data_label": data_label,
                         "turno_label": turno_label,
+                        "grupo_retificador": grupo_retificador,
+                        "group_models_text": group_models_text,
+                        "modelo_retificador": modelo_retificador,
                         "modulo_code": record.module_code,
                         "modulo_label": config.title,
                         "setor": setor.setor_tipo,
@@ -263,6 +297,8 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
                         "expected_limits": expected_limits,
                         "updated_at_label": updated_at_label,
                         "history_key": f"{record.module_code}|{setor.setor_tipo}|{(item.id if item else _normalize_text(entry.referencia))}|{controle.lower()}",
+                        "prioridade": prioridade,
+                        "prioridade_label": {"baixo": "Baixo", "medio": "Médio", "alto": "Alto"}[prioridade],
                     }
                 )
 
@@ -278,11 +314,15 @@ def _build_analytic_rows(session: Session, filters: ReportFilters) -> list[dict[
             "data": row["data_label"],
             "turno": row["turno_label"],
             "modulo": row["modulo_label"],
+            "grupo_retificador": row.get("grupo_retificador", "—"),
+            "group_models_text": row.get("group_models_text", "—"),
+            "modelo_retificador": row.get("modelo_retificador", "—"),
             "setor": row["setor_label"],
             "operacao": row["operacao"],
             "controle": row["controle"],
             "parametro": row["parametro"],
             "checklist_item": row["checklist_item"],
+            "prioridade": row["prioridade_label"],
             "valor": row["valor"],
             "status": row["status_label"],
             "desvio": row["desvio_label"],

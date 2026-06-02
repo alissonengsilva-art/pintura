@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+import re
 from typing import Any, Callable
 
 from sqlalchemy import Select, case, inspect, select
@@ -58,6 +59,7 @@ STATUS_LABELS = {
     MODULE_STATUS_PARCIAL: "Parcial",
     MODULE_STATUS_CONCLUIDO: "Concluído",
 }
+PRIORIDADE_LABELS = {"baixo": "Baixo", "medio": "Médio", "alto": "Alto"}
 
 WEEKDAY_LABELS_SHORT = {
     0: "segunda",
@@ -68,6 +70,13 @@ WEEKDAY_LABELS_SHORT = {
     5: "sabado",
     6: "domingo",
 }
+
+RETIFICADOR_GROUPS: dict[str, dict[str, Any]] = {
+    "grupo_1": {"label": "Grupo 1", "rodada": 1},
+    "grupo_2": {"label": "Grupo 2", "rodada": 2},
+    "grupo_3": {"label": "Grupo 3", "rodada": 3},
+}
+RETIFICADOR_GROUP_ORDER = ["grupo_1", "grupo_2", "grupo_3"]
 
 
 @dataclass(frozen=True)
@@ -167,7 +176,29 @@ def list_shared_options(session: Session) -> dict[str, list[Any]]:
             {"value": "2a coleta", "label": "2\u00aa coleta"},
             {"value": "3a coleta", "label": "3\u00aa coleta"},
         ],
+        "grupos_retificador": [
+            {"value": code, "label": data["label"]}
+            for code, data in RETIFICADOR_GROUPS.items()
+        ],
     }
+
+
+def _active_retificador_models(session: Session, group_code: str) -> list[Modelo]:
+    if group_code not in RETIFICADOR_GROUPS:
+        return []
+    statement = (
+        select(Modelo)
+        .where(Modelo.ativo.is_(True))
+        .where(Modelo.grupo_retificador == group_code)
+        .order_by(Modelo.nome, Modelo.codigo)
+    )
+    return list(session.scalars(statement).all())
+
+
+def _validate_retificador_context(values: dict[str, Any]) -> None:
+    group_code = str(values.get("grupo_retificador") or "").strip().lower()
+    if group_code not in RETIFICADOR_GROUPS:
+        raise OperationalModuleValidationError("Grupo de retificadores inválido.")
 
 
 def resolve_context_defaults(config: ModuleConfig, session: Session, source: Any | None = None) -> tuple[dict[str, Any], dict[str, list[Any]]]:
@@ -186,6 +217,12 @@ def resolve_context_defaults(config: ModuleConfig, session: Session, source: Any
             elif field.options_key:
                 raw = _first_option_value(options.get(field.options_key, [])) or ""
         values[field.name] = raw
+    if config.code == "tensao-retificadores-ed":
+        requested_group = str(values.get("grupo_retificador") or "grupo_1").strip().lower()
+        if requested_group not in RETIFICADOR_GROUPS:
+            requested_group = "grupo_1"
+        values["grupo_retificador"] = requested_group
+        options["modelos"] = _active_retificador_models(session, requested_group)
     return values, options
 
 
@@ -207,6 +244,9 @@ def build_context_from_source(config: ModuleConfig, source: Any) -> dict[str, An
         values["data_referencia"] = date.fromisoformat(str(values["data_referencia"]))
     except ValueError as error:
         raise OperationalModuleValidationError("Data inválida para o contexto.") from error
+
+    if config.code == "tensao-retificadores-ed":
+        _validate_retificador_context(values)
 
     return values
 
@@ -272,9 +312,16 @@ def get_or_create_master(
     )
 
     if shift_id is not None:
-        master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
-        if master is None:
-            master = session.scalars(by_context_statement).unique().first()
+        if config.code == "tensao-retificadores-ed":
+            master = session.scalars(
+                by_shift_statement
+                .where(OperationalModuleRecord.shift_id == shift_id)
+                .where(OperationalModuleRecord.context_key == key)
+            ).unique().first()
+        else:
+            master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
+            if master is None:
+                master = session.scalars(by_context_statement).unique().first()
     else:
         master = session.scalars(by_context_statement).unique().first()
     if master is None:
@@ -303,7 +350,14 @@ def get_or_create_master(
             )
         session.flush()
         if shift_id is not None:
-            master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
+            if config.code == "tensao-retificadores-ed":
+                master = session.scalars(
+                    by_shift_statement
+                    .where(OperationalModuleRecord.shift_id == shift_id)
+                    .where(OperationalModuleRecord.context_key == key)
+                ).unique().first()
+            else:
+                master = session.scalars(by_shift_statement.where(OperationalModuleRecord.shift_id == shift_id)).unique().first()
         else:
             master = session.scalars(by_context_statement).unique().first()
     else:
@@ -339,6 +393,19 @@ def get_master_by_shift(session: Session, shift_id: int, module_code: str) -> Op
         .where(OperationalModuleRecord.module_code == module_code)
     )
     return session.scalars(statement).unique().first()
+
+
+def list_masters_by_shift_module(session: Session, shift_id: int, module_code: str) -> list[OperationalModuleRecord]:
+    if not operational_schema_available(session):
+        return []
+    statement = (
+        select(OperationalModuleRecord)
+        .options(joinedload(OperationalModuleRecord.setores).joinedload(OperationalModuleSectorRecord.respostas))
+        .where(OperationalModuleRecord.shift_id == shift_id)
+        .where(OperationalModuleRecord.module_code == module_code)
+        .order_by(OperationalModuleRecord.id.asc())
+    )
+    return list(session.scalars(statement).unique().all())
 
 
 def get_master_by_context(session: Session, config: ModuleConfig, context: dict[str, Any]) -> OperationalModuleRecord | None:
@@ -638,7 +705,17 @@ def _deserialize_context(config: ModuleConfig, raw: dict[str, Any]) -> dict[str,
 def _entry_map(sector_record: OperationalModuleSectorRecord | None) -> dict[str, dict[str, Any]]:
     if sector_record is None:
         return {}
-    return {entry.referencia: dict(entry.dados or {}) for entry in sector_record.respostas}
+    mapped: dict[str, dict[str, Any]] = {}
+    for entry in sector_record.respostas:
+        row_data = dict(entry.dados or {})
+        reference = str(entry.referencia or "")
+        mapped[reference] = row_data
+        legacy_match = re.match(r"^m\d+:(.+)$", reference)
+        if legacy_match:
+            base_ref = legacy_match.group(1)
+            if base_ref not in mapped:
+                mapped[base_ref] = row_data
+    return mapped
 
 
 def _override_map_for_context(session: Session, context: dict[str, Any]) -> dict[int, Any]:
@@ -1028,6 +1105,7 @@ def _ed_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
             else ed_service.EVALUATION_LABELS["neutral"],
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, context, item),
         }
@@ -1087,6 +1165,7 @@ def _pt_rows(session: Session, context: dict[str, Any], setor_tipo: str) -> list
             else "NÃO AVALIADO",
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, context, item),
         }
@@ -1147,6 +1226,7 @@ def _pt_pressao_rows(session: Session, context: dict[str, Any], setor_tipo: str)
             else "NÃO AVALIADO",
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, context, item),
         }
@@ -1189,6 +1269,18 @@ def _module_reference(module_code: str, item) -> str:
     return str(item.ordem)
 
 
+def _normalize_priority(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized not in PRIORIDADE_LABELS:
+        return "medio"
+    return normalized
+
+
+def _item_priority_payload(item: Any) -> dict[str, str]:
+    prioridade = _normalize_priority(getattr(item, "prioridade", None))
+    return {"prioridade": prioridade, "prioridade_label": PRIORIDADE_LABELS[prioridade]}
+
+
 def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
     return [
         {
@@ -1196,7 +1288,7 @@ def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_t
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": module_parameter_validation.display_parameter(item),
+            "expected": module_parameter_validation.display_parameter_operator(item),
             "value": "",
             "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
@@ -1204,6 +1296,7 @@ def _build_pressao_item_rows(session: Session, _context: dict[str, Any], setor_t
             else "Normal",
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
@@ -1246,9 +1339,10 @@ def _build_temperatura_item_rows(session: Session, _context: dict[str, Any], set
                 "reference": _module_reference("temperatura-forno-ed", item),
                 "order": item.ordem,
                 "item_id": item.id,
+            **_item_priority_payload(item),
                 "label": item.controle,
                 "item_observation": (item.observacao or "").strip() if item.observacao else "",
-                "expected": module_parameter_validation.display_parameter(item),
+                "expected": module_parameter_validation.display_parameter_operator(item),
                 "value": "",
                 "row_observation": "",
                 "status_label": applicability["applicability_label"]
@@ -1289,25 +1383,35 @@ def _temperatura_parse(session: Session, context: dict[str, Any], setor_tipo: st
 
 
 def _build_tensao_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "reference": _module_reference("tensao-retificadores-ed", item),
-            "order": item.ordem,
-            "label": item.controle,
-            "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": module_parameter_validation.display_parameter(item),
-            "value": "",
-            "row_observation": "",
-            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
-            if not _runtime_item_state(session, _context, item)["is_applicable"]
-            else tensao_retificadores_service.STATUS_LABELS["neutral"],
-            "flag": False,
-            "item_id": item.id,
-            **_item_validation_meta(item),
-            **_runtime_item_state(session, _context, item),
-        }
-        for item in _module_items(session, "tensao-retificadores-ed", setor_tipo)
-    ]
+    group_code = str(_context.get("grupo_retificador") or "").strip().lower()
+    models = _active_retificador_models(session, group_code)
+    models_text = ", ".join(
+        f"{str(model.nome or '').strip()}{f' ({str(model.codigo or '').strip()})' if str(model.codigo or '').strip() else ''}"
+        for model in models
+    )
+    rows: list[dict[str, Any]] = []
+    for item in _module_items(session, "tensao-retificadores-ed", setor_tipo):
+        runtime = _runtime_item_state(session, _context, item)
+        item_ref = _module_reference("tensao-retificadores-ed", item)
+        rows.append(
+            {
+                "reference": item_ref,
+                "order": int(item.ordem or 0),
+                "group_models_text": models_text,
+                "label": item.controle,
+                "item_observation": (item.observacao or "").strip() if item.observacao else "",
+                "expected": module_parameter_validation.display_parameter_operator(item),
+                "value": "",
+                "row_observation": "",
+                "status_label": runtime["applicability_label"] if not runtime["is_applicable"] else tensao_retificadores_service.STATUS_LABELS["neutral"],
+                "flag": False,
+                "item_id": item.id,
+                **_item_priority_payload(item),
+                **_item_validation_meta(item),
+                **runtime,
+            }
+        )
+    return rows
 
 
 def _tensao_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -1343,7 +1447,7 @@ def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tip
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": module_parameter_validation.display_parameter(item),
+            "expected": module_parameter_validation.display_parameter_operator(item),
             "value": "",
             "zinco": "",
             "total": "",
@@ -1353,6 +1457,7 @@ def _build_poder_item_rows(session: Session, _context: dict[str, Any], setor_tip
             else poder_penetracao_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
@@ -1428,14 +1533,17 @@ def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": module_parameter_validation.display_parameter(item),
+            "expected": module_parameter_validation.display_parameter_operator(item),
             "value": "",
+            "zinco": "",
+            "total": "",
             "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
             if not _runtime_item_state(session, _context, item)["is_applicable"]
             else espessura_ed_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
@@ -1445,27 +1553,55 @@ def _build_espessura_item_rows(session: Session, _context: dict[str, Any], setor
 
 def _espessura_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _build_espessura_item_rows(session, context, setor_tipo)
+    approved = 0
+    filled = 0
+    min_ecoat: float | None = None
     for row in rows:
         if not row.get("is_applicable"):
-            row.update({"value": "", "row_observation": "", "value_number": None, "flag": False})
+            row.update(
+                {"value": "", "zinco": "", "total": "", "row_observation": "", "value_number": None, "flag": False}
+            )
             continue
         reference = row["reference"]
-        value = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
+        zinco = (form_data.get(f"zinc_{setor_tipo}_{reference}") or "").strip()
+        total = (form_data.get(f"total_{setor_tipo}_{reference}") or "").strip()
+        value_input = (form_data.get(f"value_{setor_tipo}_{reference}") or "").strip()
         observation = (form_data.get(f"obs_{setor_tipo}_{reference}") or "").strip()
-        evaluation = _evaluate_item_input(row, value)
+        ecoat_value = value_input
+        try:
+            if zinco and total:
+                zinc_num = float(zinco.replace(",", "."))
+                total_num = float(total.replace(",", "."))
+                ecoat_value = f"{(total_num - zinc_num):.2f}".rstrip("0").rstrip(".")
+        except ValueError:
+            ecoat_value = value_input
+
+        evaluation = _evaluate_item_input(row, ecoat_value)
         row.update(
             {
-                "value": value,
+                "value": ecoat_value,
+                "zinco": zinco,
+                "total": total,
                 "row_observation": observation,
                 "value_number": evaluation.value_number,
                 "status_label": evaluation.label,
                 "flag": bool(evaluation.fora_padrao),
             }
         )
+        if evaluation.value_number is not None:
+            filled += 1
+            if not bool(evaluation.fora_padrao):
+                approved += 1
+            if min_ecoat is None or evaluation.value_number < min_ecoat:
+                min_ecoat = evaluation.value_number
     if _is_conclude_action(form_data):
         _enforce_required_fields_on_conclude(rows, setor_tipo=setor_tipo)
     summary = _summarize_rows(rows)
     summary["flag_count"] = sum(1 for row in rows if row["flag"])
+    summary["aprovados"] = approved
+    summary["percentual_aprovacao"] = int(round((approved / filled) * 100)) if filled else 0
+    summary["resultado"] = min_ecoat
+    summary["resultado_label"] = "-" if min_ecoat is None else f"{min_ecoat:.2f}".rstrip("0").rstrip(".")
     return rows, summary
 
 
@@ -1476,7 +1612,7 @@ def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], seto
             "order": item.ordem,
             "label": item.controle,
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "expected": module_parameter_validation.display_parameter(item),
+            "expected": module_parameter_validation.display_parameter_operator(item),
             "value": "",
             "row_observation": "",
             "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
@@ -1484,6 +1620,7 @@ def _build_rugosidade_item_rows(session: Session, _context: dict[str, Any], seto
             else rugosidade_service.STATUS_LABELS["empty"],
             "flag": False,
             "item_id": item.id,
+            **_item_priority_payload(item),
             **_item_validation_meta(item),
             **_runtime_item_state(session, _context, item),
         }
@@ -1523,6 +1660,7 @@ def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_t
             "reference": _module_reference("aspecto", item),
             "order": item.ordem,
             "item_id": item.id,
+            **_item_priority_payload(item),
             "item_observation": (item.observacao or "").strip() if item.observacao else "",
             "cis": "",
             "cod_posicao": "",
@@ -1777,13 +1915,13 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         code="tensao-retificadores-ed",
         slug="tensao-retificadores-ed",
         title="Tensão dos Retificadores",
-        description="Controle das 29 zonas dos retificadores por data, turno e modelo em duas abas setoriais.",
+        description="Controle das 29 zonas dos retificadores por data, turno e grupos de modelos.",
         history_title="Histórico consolidado · Tensão dos Retificadores",
         report_title="Relatório · Tensão dos Retificadores",
         context_fields=(
             ContextField("data_referencia", "Data", "date", True),
             ContextField("turno", "Turno", "select", True, "turnos"),
-            ContextField("modelo", "Modelo", "select", True, "modelos"),
+            ContextField("grupo_retificador", "Grupo", "select", True, "grupos_retificador"),
         ),
         columns=(
             TableColumn("label", "Zona"),
@@ -1848,7 +1986,9 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         columns=(
             TableColumn("label", "Ponto"),
             TableColumn("expected", "Faixa"),
-            TableColumn("value", "Espessura (µm)", "input"),
+            TableColumn("value", "ECOAT"),
+            TableColumn("zinco", "Zinco", "input"),
+            TableColumn("total", "Total", "input"),
             TableColumn("row_observation", "Observação", "input"),
             TableColumn("status_label", "Status", "status"),
         ),
@@ -2133,6 +2273,12 @@ def list_all_modules() -> list[dict[str, Any]]:
         }
         for config in MODULE_CONFIGS.values()
     ]
+
+
+
+
+
+
 
 
 

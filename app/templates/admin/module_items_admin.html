@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 <section class="section-header-inline">
@@ -13,28 +13,48 @@
     </div>
 </section>
 
-<div class="panel-grid" data-module-admin-page data-selected-module="{{ selected_module }}">
+<div
+    class="panel-grid"
+    data-module-admin-page
+    data-selected-module="{{ selected_module }}"
+    data-selected-area="{{ selected_area }}"
+    data-area-groups='{{ module_area_groups|tojson }}'
+>
     <section class="panel-card table-panel">
         <div class="section-header-inline compact">
             <div>
                 <h3>Módulos</h3>
-                <p>Selecione uma aba para ajustar os itens do módulo.</p>
+                <p>Selecione uma aba para ajustar os itens do Módulos.</p>
             </div>
         </div>
-        <div>
-            {% for module in modules %}
-            <button
-                type="button"
-                class="{% if module.code == selected_module %}button-primary{% else %}button-secondary{% endif %} small"
-                data-module-tab
-                data-module-code="{{ module.code }}"
-            >
-                {{ module.title }}
-            </button>
-            {% endfor %}
+        <div class="module-toolbar-groups">
+            <div class="module-toolbar-group">
+                <p class="module-toolbar-title">Área de controle</p>
+                <div class="area-switch" data-area-switch>
+                    <button type="button" class="area-tab" data-area-tab data-area-code="pt">PT</button>
+                    <button type="button" class="area-tab" data-area-tab data-area-code="ed">ED</button>
+                    <button type="button" class="area-tab" data-area-tab data-area-code="sigilatura">Sigilatura</button>
+                </div>
+            </div>
+            <div class="module-toolbar-group module-toolbar-group--sub">
+                <p class="module-toolbar-title">Módulos da área selecionada</p>
+                <div data-module-tabs class="module-pill-switch">
+                    {% for module in modules %}
+                    <button
+                        type="button"
+                        class="module-pill"
+                        data-module-tab
+                        data-module-code="{{ module.code }}"
+                        data-module-area="{% for area, codes in module_area_groups.items() %}{% if module.code in codes %}{{ area }}{% endif %}{% endfor %}"
+                    >
+                        {{ module.title }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
         <div class="module-master-frequency">
-            <strong>Frequência mestre da aba</strong>
+            <strong>frequência mestre da aba</strong>
             <div class="module-master-frequency__controls">
                 <select data-master-frequency>
                     {% for option in frequency_options %}
@@ -47,7 +67,7 @@
                     <option value="{{ option.value }}">{{ option.label }}</option>
                     {% endfor %}
                 </select>
-                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do mÃªs">
+                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do mÃƒÂªs">
                 <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
             </div>
         </div>
@@ -59,234 +79,105 @@
 </div>
 
 <div data-admin-toast hidden style="position: fixed; right: 24px; bottom: 24px; z-index: 50; padding: 10px 14px; border-radius: 12px; background: #1f7a45; color: #fff; font-size: 14px; box-shadow: var(--shadow-card);">
-    Alterações salvas com sucesso
+    AlteraÃ§Ãµes salvas com sucesso
 </div>
 
 <style>
-    [data-module-admin-page] .table-panel {
-        padding: 12px;
+    [data-module-admin-page] .table-panel { padding: 14px; }
+    [data-module-admin-page] .module-toolbar-groups { display:grid; gap:12px; padding:10px; border:1px solid rgba(16,43,76,.12); border-radius:14px; background:linear-gradient(180deg,#f7fafe 0%,#fff 100%); }
+    [data-module-admin-page] .module-toolbar-group { display:grid; gap:8px; }
+    [data-module-admin-page] .module-toolbar-group--sub { border-top:1px solid rgba(16,43,76,.12); padding-top:10px; }
+    [data-module-admin-page] .module-toolbar-title { margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#4b6280; font-weight:700; }
+    [data-module-admin-page] .area-switch { display:flex; gap:10px; flex-wrap:wrap; }
+    [data-module-admin-page] .area-tab { min-height:40px; padding:0 16px; border-radius:12px; border:1px solid #b8c8dc; background:#edf3fa; color:#234261; font-weight:700; font-size:13px; }
+    [data-module-admin-page] .area-tab--active { border-color:#173f6f; background:#17436f; color:#fff; box-shadow:0 6px 16px rgba(20,62,107,.24); }
+    [data-module-admin-page] .module-pill-switch { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-module-admin-page] .module-pill { min-height:30px; padding:0 12px; border-radius:999px; border:1px solid #c9d5e4; background:#fff; color:#35526f; font-size:12px; font-weight:600; }
+    [data-module-admin-page] .module-pill--active { border-color:#205489; background:#e9f2fc; color:#173f6d; }
+    [data-module-admin-page] .module-master-frequency { margin-top:12px; padding:10px; border:1px solid rgba(20,44,78,.12); border-radius:12px; background:#f8fbff; display:grid; gap:8px; }
+    [data-module-admin-page] .module-master-frequency strong { font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); }
+    [data-module-admin-page] .module-master-frequency__controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    [data-module-admin-page] .module-master-frequency__controls select, [data-module-admin-page] .module-master-frequency__controls input { min-height:32px; min-width:140px; padding:5px 8px; border-radius:8px; }
+    [data-module-admin-page] .table-wrapper { overflow:hidden; padding-bottom:0; border:1px solid #d8e1ec; border-radius:12px; background:#fff; box-shadow:none; }
+    [data-module-admin-page] .module-items-grid { width:100%; min-width:0; border-collapse:collapse; border-spacing:0; table-layout:fixed; }
+    [data-module-admin-page] .table-row { display:grid; grid-template-columns:1.55fr .7fr .7fr .68fr .5fr .42fr 40px .62fr .82fr .45fr .68fr .56fr; gap:4px; align-items:center; }
+    [data-module-admin-page] .table-head-row { margin-bottom:0; background:#f4f8fc; border-bottom:1px solid #dde6f1; }
+    [data-module-admin-page] .table-head-row th { padding:6px 6px; font-size:9px; letter-spacing:.04em; text-transform:uppercase; color:#4a617d; font-weight:700; white-space:nowrap; border:0; box-shadow:none; }
+    [data-module-admin-page] tbody tr[data-admin-row] { background:#fff; border-bottom:1px solid #e5edf5; padding:0; }
+    [data-module-admin-page] tbody tr[data-admin-row]:last-child { border-bottom:0; }
+    [data-module-admin-page] tbody tr[data-admin-row] td { padding:5px 6px; min-width:0; border:0 !important; box-shadow:none !important; background-image:none !important; outline:none !important; }
+    [data-module-admin-page] tbody tr[data-admin-row]:nth-child(even) { background:#f9fbfe; }
+    [data-module-admin-page] [data-col-ativo], [data-module-admin-page] [data-checkbox-cell] { text-align:center; }
+    [data-module-admin-page] [data-col-item] [data-inline-input] { font-weight:600; }
+    [data-module-admin-page] [data-inline-input], [data-module-admin-page] [data-inline-select] { width:100%; max-width:100%; min-height:30px; padding:4px 8px; font-size:11px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
+    [data-module-admin-page] [data-day-weekly] select, [data-module-admin-page] [data-day-monthly] input { width:100%; min-height:30px; padding:4px 8px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
+    [data-module-admin-page] [data-day-static] { color:var(--text-muted); font-size:13px; }
+    [data-module-admin-page] [data-day-static][hidden], [data-module-admin-page] [data-day-weekly][hidden], [data-module-admin-page] [data-day-monthly][hidden], [data-module-admin-page] [hidden] { display:none !important; }
+    [data-module-admin-page] [data-operacao-label] { display:block; margin-bottom:3px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+    [data-module-admin-page] tr[data-editing="true"] { background:#edf4ff !important; }
+    [data-module-admin-page] .actions-cell { display:flex; gap:4px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; }
+    [data-module-admin-page] .actions-cell .button-secondary.small, [data-module-admin-page] .actions-cell .button-danger.small { min-width:42px; padding:3px 6px; font-size:10px; white-space:nowrap; border-radius:7px; box-shadow:none; }
+    [data-module-admin-page] .actions-cell .button-danger.small { background:#fef1f1; color:#a03535; border-color:#efcaca; }
+    [data-module-admin-page] .limits-inline { display:grid; grid-template-columns:1fr auto 1fr; gap:4px; align-items:center; border:0 !important; box-shadow:none !important; background-image:none !important; }
+    [data-module-admin-page] .limits-inline__sep { font-size:12px; color:var(--text-muted); }
+    [data-module-admin-page] [data-field="parametro_exibicao"] { text-overflow:ellipsis; white-space:nowrap; overflow:hidden; min-height:30px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none !important; }
+    [data-module-admin-page] [data-col-referencia] { border:0 !important; box-shadow:none !important; background-image:none !important; }
+    [data-module-admin-page] [data-col-referencia]::before,
+    [data-module-admin-page] [data-col-referencia]::after { content:none !important; display:none !important; }
+
+    [data-module-admin-page] [data-inline-input]:focus,
+    [data-module-admin-page] [data-inline-select]:focus,
+    [data-module-admin-page] [data-day-weekly] select:focus,
+    [data-module-admin-page] [data-day-monthly] input:focus {
+        border-color:#4f84b7 !important;
+        box-shadow:0 0 0 2px rgba(79, 132, 183, 0.16) !important;
+        outline:none !important;
     }
 
-    [data-module-admin-page] .module-master-frequency {
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid rgba(20, 44, 78, 0.12);
-        display: grid;
-        gap: 8px;
+    [data-module-admin-page] .module-items-grid td::before,
+    [data-module-admin-page] .module-items-grid td::after,
+    [data-module-admin-page] .module-items-grid input::before,
+    [data-module-admin-page] .module-items-grid input::after,
+    [data-module-admin-page] .module-items-grid select::before,
+    [data-module-admin-page] .module-items-grid select::after {
+        content:none !important;
+        box-shadow:none !important;
+        border:0 !important;
+        background:none !important;
     }
 
-    [data-module-admin-page] .module-master-frequency strong {
-        font-size: 12px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: var(--text-muted);
+    [data-module-admin-page] .module-items-grid td,
+    [data-module-admin-page] .module-items-grid tr,
+    [data-module-admin-page] .module-items-grid tbody,
+    [data-module-admin-page] .module-items-grid td *,
+    [data-module-admin-page] .module-items-grid td .form-control,
+    [data-module-admin-page] .module-items-grid td .table-input,
+    [data-module-admin-page] .module-items-grid td .config-field {
+        border-bottom:0 !important;
+        box-shadow:none !important;
+        background-image:none !important;
+        outline:none;
     }
-
-    [data-module-admin-page] .module-master-frequency__controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-    }
-
-    [data-module-admin-page] .module-master-frequency__controls select,
-    [data-module-admin-page] .module-master-frequency__controls input {
-        min-height: 34px;
-        min-width: 150px;
-        padding: 6px 8px;
-    }
-
-    [data-module-admin-page] .table-wrapper {
-        overflow-x: auto;
-        padding-bottom: 2px;
-        border: 1px solid #cfd7e3;
-        background: #fff;
-    }
-
-    [data-module-admin-page] .module-items-grid {
-        width: 100%;
-        min-width: 1240px;
-        border-collapse: collapse;
-        border-spacing: 0;
-        table-layout: fixed;
-    }
-
-    [data-module-admin-page] .table-row {
-        display: grid;
-        grid-template-columns:
-            minmax(180px, 2fr)
-            minmax(140px, 1.2fr)
-            minmax(110px, 0.9fr)
-            minmax(84px, 0.7fr)
-            minmax(70px, 0.6fr)
-            52px
-            minmax(112px, 0.9fr)
-            minmax(160px, 1.3fr)
-            minmax(78px, 0.6fr)
-            minmax(220px, 1.6fr)
-            minmax(122px, 0.9fr);
-        gap: 6px;
-        align-items: center;
-    }
-
-    [data-module-admin-page] .table-head-row {
-        margin-bottom: 0;
-        background: #eef3f9;
-        border-bottom: 1px solid #cfd7e3;
-    }
-
-    [data-module-admin-page] .table-head-row th {
-        padding: 6px 8px;
-        font-size: 11px;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        color: #4a617d;
-        font-weight: 700;
-        white-space: nowrap;
-        border-right: 1px solid #dbe3ee;
-    }
-
-    [data-module-admin-page] .table-head-row th:last-child {
-        border-right: 0;
-    }
-
-    [data-module-admin-page] tbody tr[data-admin-row] {
-        background: #fff;
-        border-bottom: 1px solid #e3e9f2;
-        padding: 0;
-    }
-
-    [data-module-admin-page] tbody tr[data-admin-row] td {
-        padding: 6px 8px;
-        min-width: 0;
-        border-right: 1px solid #eef2f7;
-    }
-
-    [data-module-admin-page] tbody tr[data-admin-row] td:last-child {
-        border-right: 0;
-    }
-
-    [data-module-admin-page] tbody tr[data-admin-row]:nth-child(even) {
-        background: #f9fbfe;
-    }
-
-    [data-module-admin-page] [data-col-ativo] {
-        text-align: center;
-    }
-
-    [data-module-admin-page] [data-col-item] [data-inline-input] {
-        font-weight: 600;
-    }
-
-    [data-module-admin-page] .item-dual-field {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 6px;
-        align-items: center;
-    }
-
-    [data-module-admin-page] .item-dual-field__block {
-        min-width: 0;
-    }
-
-    [data-module-admin-page] .item-merged-field {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 6px;
-    }
-
-    [data-module-admin-page] [data-inline-input],
-    [data-module-admin-page] [data-inline-select] {
-        width: 100%;
-        max-width: 100%;
-        min-height: 30px;
-        padding: 4px 6px;
-        font-size: 13px;
-        border-radius: 0;
-        border: 1px solid #d6deea;
-        box-shadow: none;
-        background: #fff;
-    }
-
-    [data-module-admin-page] [data-inline-select="frequencia"] {
-        max-width: none;
-    }
-
-    [data-module-admin-page] [data-day-weekly] select,
-    [data-module-admin-page] [data-day-monthly] input {
-        width: 100%;
-        max-width: none;
-        min-height: 30px;
-        padding: 4px 6px;
-        border-radius: 0;
-    }
-
-    [data-module-admin-page] [data-day-static] {
-        color: var(--text-muted);
-        font-size: 13px;
-    }
-
-    [data-module-admin-page] [data-day-static][hidden],
-    [data-module-admin-page] [data-day-weekly][hidden],
-    [data-module-admin-page] [data-day-monthly][hidden] {
-        display: none !important;
-    }
-
-    [data-module-admin-page] [data-operacao-label] {
-        display: block;
-        margin-bottom: 3px;
-        font-size: 10px;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    [data-module-admin-page] tr[data-editing="true"] {
-        background: #edf4ff !important;
-    }
-
-    [data-module-admin-page] .actions-cell {
-        display: flex;
-        gap: 4px;
-        align-items: center;
-        justify-content: flex-start;
-        flex-wrap: nowrap;
-    }
-
-    [data-module-admin-page] .actions-cell .button-secondary.small,
-    [data-module-admin-page] .actions-cell .button-danger.small {
-        min-width: 58px;
-        padding: 4px 8px;
-        font-size: 12px;
-        white-space: nowrap;
-        border-radius: 0;
-        box-shadow: none;
-    }
-
-    [data-module-admin-page] .limits-inline {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        gap: 4px;
-        align-items: center;
-    }
-
-    [data-module-admin-page] .limits-inline__sep {
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-    [data-module-admin-page] [hidden] {
-        display: none !important;
-    }
-
-    [data-module-admin-page] [data-checkbox-cell] {
-        text-align: center;
-    }
-
-    @media (max-width: 1100px) {
-        [data-module-admin-page] .module-items-grid {
-            min-width: 1160px;
-        }
+    [data-module-admin-page] [data-field="prioridade"] { font-weight:700; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="baixo"] { border-color:#c7d8ee; background:#eef5ff; color:#315879; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="medio"] { border-color:#ecd9ae; background:#fff8e8; color:#765519; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="alto"] { border-color:#ebc1c1; background:#fdf0f0; color:#8c2e2e; }
+    [data-module-admin-page] [data-field="ativo"] { appearance:none; width:34px; height:18px; border-radius:999px; background:#d7e0eb; border:1px solid #becddd; position:relative; cursor:pointer; vertical-align:middle; }
+    [data-module-admin-page] [data-field="ativo"]::after { content:""; position:absolute; top:1px; left:1px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:transform .15s ease; }
+    [data-module-admin-page] [data-field="ativo"]:checked { background:#4d86bc; border-color:#3f76aa; }
+    [data-module-admin-page] [data-field="ativo"]:checked::after { transform:translateX(16px); }
+    [data-module-admin-page] [data-field="ativo"]:disabled { opacity:.8; cursor:not-allowed; }
+    @media (max-width: 1024px) {
+        [data-module-admin-page] .table-wrapper { border:0; background:transparent; }
+        [data-module-admin-page] .table-head-row { display:none; }
+        [data-module-admin-page] .module-items-grid { display:block; }
+        [data-module-admin-page] .module-items-grid tbody { display:grid; gap:10px; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] { display:block; border:1px solid #dbe3ee; border-radius:10px; padding:8px; background:#fff; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td { display:grid; grid-template-columns:108px 1fr; gap:8px; border-right:0; border-bottom:1px dashed #e6edf6; padding:6px 0; align-items:center; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td:last-child { border-bottom:0; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td::before { content:attr(data-label); font-size:10px; text-transform:uppercase; color:#5b6f88; font-weight:700; letter-spacing:.03em; }
+        [data-module-admin-page] .actions-cell { justify-content:flex-start; }
+        [data-module-admin-page] .module-toolbar-groups { padding:8px; }
     }
 </style>
 
@@ -303,12 +194,16 @@
     const masterWeekday = document.querySelector('[data-master-weekday]');
     const masterMonthday = document.querySelector('[data-master-monthday]');
     const applyMasterFrequencyButton = document.querySelector('[data-apply-master-frequency]');
+    const moduleTabsContainer = page.querySelector('[data-module-tabs]');
     const sectorOptions = {{ sector_options|tojson }};
     const validationTypeOptions = {{ validation_type_options|tojson }};
     const frequencyOptions = {{ frequency_options|tojson }};
+    const priorityOptions = {{ priority_options|tojson }};
     const weekdayOptions = {{ weekday_options|tojson }};
 
     let selectedModule = page.dataset.selectedModule;
+    let selectedArea = page.dataset.selectedArea || 'ed';
+    const areaGroups = JSON.parse(page.dataset.areaGroups || '{}');
     let deletedIds = new Set();
     let hasUnsavedChanges = false;
     let newRowSequence = 0;
@@ -328,11 +223,64 @@
     function setModuleButtons(activeCode) {
         page.querySelectorAll('[data-module-tab]').forEach((button) => {
             const isActive = button.getAttribute('data-module-code') === activeCode;
-            button.classList.toggle('button-primary', isActive);
-            button.classList.toggle('button-secondary', !isActive);
+            button.classList.toggle('module-pill--active', isActive);
         });
         page.dataset.selectedModule = activeCode;
         selectedModule = activeCode;
+        syncUrlState();
+    }
+
+    function setAreaButtons(activeArea) {
+        page.querySelectorAll('[data-area-tab]').forEach((button) => {
+            const isActive = button.getAttribute('data-area-code') === activeArea;
+            button.classList.toggle('area-tab--active', isActive);
+        });
+        selectedArea = activeArea;
+        page.dataset.selectedArea = activeArea;
+        syncUrlState();
+    }
+
+    function syncUrlState() {
+        const params = new URLSearchParams(window.location.search);
+        params.set('area', selectedArea);
+        params.set('modulo', selectedModule);
+        const next = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', next);
+    }
+
+    function allowedModulesForArea(areaCode) {
+        const allowed = areaGroups[areaCode] || [];
+        return new Set(allowed);
+    }
+
+    function applyAreaFilter(areaCode) {
+        const allowed = allowedModulesForArea(areaCode);
+        page.querySelectorAll('[data-module-tab]').forEach((button) => {
+            const code = button.getAttribute('data-module-code');
+            button.hidden = !allowed.has(code);
+        });
+    }
+
+    function firstVisibleModule() {
+        const button = Array.from(page.querySelectorAll('[data-module-tab]')).find((node) => !node.hidden);
+        return button ? button.getAttribute('data-module-code') : null;
+    }
+
+    function applyResponsiveLabels() {
+        const headers = Array.from(container.querySelectorAll('.table-head-row th'));
+        const labels = headers.map((th) => (th.textContent || '').trim());
+        container.querySelectorAll('tr[data-admin-row]').forEach((row) => {
+            row.querySelectorAll('td').forEach((td, index) => {
+                td.setAttribute('data-label', labels[index] || 'Campo');
+            });
+        });
+    }
+
+    function applyPriorityTone(scope = document) {
+        scope.querySelectorAll('[data-field="prioridade"]').forEach((select) => {
+            const value = (select.value || 'medio').toLowerCase();
+            select.setAttribute('data-priority-tone', value);
+        });
     }
 
     function confirmDiscardIfNeeded() {
@@ -377,19 +325,29 @@
         const isRange = validationType === 'range';
         const isMin = validationType === 'min';
         const isMax = validationType === 'max';
+        const isSetpointMargin = validationType === 'setpoint_margem';
         const isTextual = ['texto', 'booleano', 'nenhum', 'referencia'].includes(validationType);
 
         if (minInput) {
-            minInput.hidden = !(isRange || isMin);
+            minInput.hidden = !(isRange || isMin || isSetpointMargin);
             minInput.disabled = minInput.hidden || row.dataset.editing !== 'true';
             if (minInput.hidden) minInput.value = '';
+            if (isSetpointMargin) minInput.placeholder = 'Setpoint';
+            else if (isMin) minInput.placeholder = 'Min';
+            else minInput.placeholder = 'Min';
         }
         if (maxInput) {
-            maxInput.hidden = !(isRange || isMax);
+            maxInput.hidden = !(isRange || isMax || isSetpointMargin);
             maxInput.disabled = maxInput.hidden || row.dataset.editing !== 'true';
             if (maxInput.hidden) maxInput.value = '';
+            if (isSetpointMargin) maxInput.placeholder = 'Margem %';
+            else if (isMax) maxInput.placeholder = 'Max';
+            else maxInput.placeholder = 'Max';
         }
-        if (sep) sep.hidden = !isRange;
+        if (sep) {
+            sep.hidden = !(isRange || isSetpointMargin);
+            sep.textContent = isSetpointMargin ? '±' : '/';
+        }
         if (refInput) {
             refInput.hidden = !isTextual;
             refInput.disabled = refInput.hidden || row.dataset.editing !== 'true';
@@ -419,7 +377,7 @@
         const rowKey = `new-${Date.now()}-${newRowSequence++}`;
         const itemFieldMarkup = selectedModule === 'ed'
             ? `
-                <input type="text" data-field="item_nome" data-editable data-inline-input value="" placeholder="operação / Controle">
+                <input type="text" data-field="item_nome" data-editable data-inline-input value="" placeholder="operaÃ§Ã£o / Controle">
                 <input type="hidden" data-field="operacao" value="">
                 <input type="hidden" data-field="controle" value="">
             `
@@ -442,8 +400,13 @@
                         ${renderOptions(frequencyOptions, 'diario')}
                     </select>
                 </td>
+                <td data-col-prioridade>
+                    <select data-field="prioridade" data-editable data-inline-select>
+                        ${renderOptions(priorityOptions, 'medio')}
+                    </select>
+                </td>
                 <td data-col-dia>
-                    <span data-day-static>â€”</span>
+                    <span data-day-static>Ã¢â‚¬â€</span>
                     <div data-day-weekly hidden>
                         <select data-field="dia_semana" data-editable>
                             <option value="">Selecione</option>
@@ -476,7 +439,7 @@
                     <input type="text" data-field="unidade" data-editable data-inline-input value="">
                 </td>
                 <td data-col-referencia>
-                    <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="" placeholder="Ex.: ≥2,5 L/min (≥150 L/h)">
+                    <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="" placeholder="Ex.: â‰¥2,5 L/min (â‰¥150 L/h)">
                 </td>
                 <td data-col-acoes class="actions-cell">
                     <button type="button" class="button-secondary small" data-row-edit>Fechar</button>
@@ -513,6 +476,7 @@
             controle,
             setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
             frequencia_tipo: frequency,
+            prioridade: row.querySelector('[data-field="prioridade"]')?.value || 'medio',
             dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
             dia_mes: frequency === 'mensal' && monthday !== '' ? Number(monthday) : null,
             ordem: Number(row.querySelector('[data-field="ordem"]')?.value || 0),
@@ -539,6 +503,8 @@
         container.querySelectorAll('[data-admin-row]').forEach((row) => {
             setRowEditing(row, false);
         });
+        applyResponsiveLabels();
+        applyPriorityTone(container);
     }
 
     async function saveCurrentModule() {
@@ -579,6 +545,17 @@
             return;
         }
 
+        const areaButton = event.target.closest('[data-area-tab]');
+        if (areaButton) {
+            const areaCode = areaButton.getAttribute('data-area-code') || 'ed';
+            if (!confirmDiscardIfNeeded()) return;
+            setAreaButtons(areaCode);
+            applyAreaFilter(areaCode);
+            const nextModule = allowedModulesForArea(areaCode).has(selectedModule) ? selectedModule : firstVisibleModule();
+            if (nextModule) loadModule(nextModule);
+            return;
+        }
+
         const editButton = event.target.closest('[data-row-edit]');
         if (editButton) {
             const row = editButton.closest('[data-admin-row]');
@@ -613,6 +590,9 @@
         if (event.target.matches('[data-editable], [data-field]')) {
             markUnsaved();
         }
+        if (event.target.matches('[data-field="prioridade"]')) {
+            applyPriorityTone(row);
+        }
     });
 
     addButton?.addEventListener('click', () => {
@@ -624,6 +604,7 @@
             row.removeAttribute('data-new-row');
             toggleDayInputs(row);
             toggleValidationInputs(row);
+            applyPriorityTone(row);
         }
         markUnsaved();
     });
@@ -673,6 +654,20 @@
         setRowEditing(row, false);
         toggleValidationInputs(row);
     });
+    setAreaButtons(selectedArea);
+    applyAreaFilter(selectedArea);
+    if (!allowedModulesForArea(selectedArea).has(selectedModule)) {
+        const nextModule = firstVisibleModule();
+        if (nextModule) {
+            loadModule(nextModule);
+        }
+    }
+    applyResponsiveLabels();
+    applyPriorityTone(container);
 })();
 </script>
 {% endblock %}
+
+
+
+

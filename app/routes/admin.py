@@ -29,6 +29,27 @@ from app.services.reference_service import (
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter(tags=["cadastros"])
 
+RETIFICADOR_GROUP_OPTIONS = [
+    {"value": "grupo_1", "label": "Grupo 1"},
+    {"value": "grupo_2", "label": "Grupo 2"},
+    {"value": "grupo_3", "label": "Grupo 3"},
+]
+
+MODULE_AREA_GROUPS: dict[str, list[str]] = {
+    "pt": ["pt", "pressao-filtros-pt"],
+    "ed": [
+        "ed",
+        "temperatura-forno-ed",
+        "pressao-filtros-ed",
+        "tensao-retificadores-ed",
+        "poder-penetracao",
+        "espessura-ed",
+        "aspecto",
+        "rugosidade",
+    ],
+    "sigilatura": ["sigilatura", "espessura-pvc", "temperatura-forno-sigilatura", "escorrimento"],
+}
+
 
 GENERAL_SCOPE_ED = "ed"
 GENERAL_SCOPE_SIG = "sigilatura"
@@ -111,8 +132,16 @@ def _build_module_admin_context(db: Session, module_code: str) -> dict:
         "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
         "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
+        "priority_options": operational_module_item_service.PRIORITY_OPTIONS,
         "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
     }
+
+
+def _resolve_module_area(module_code: str) -> str:
+    for area, codes in MODULE_AREA_GROUPS.items():
+        if module_code in codes:
+            return area
+    return "ed"
 
 
 def _module_tabs_for_scope(scope: str) -> list[dict[str, object]]:
@@ -295,14 +324,25 @@ async def configuracoes_frequencias_salvar(
 def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     modules = operational_module_item_admin_service.list_modules()
     selected_module = request.query_params.get("modulo", "").strip()
+    selected_area = (request.query_params.get("area", "") or "").strip().lower()
+    if selected_area not in MODULE_AREA_GROUPS:
+        selected_area = ""
+
     if not selected_module:
-        selected_module = modules[0]["code"] if modules else "ed"
+        if selected_area:
+            allowed = set(MODULE_AREA_GROUPS[selected_area])
+            selected_module = next((m["code"] for m in modules if m["code"] in allowed), "")
+        selected_module = selected_module or (modules[0]["code"] if modules else "ed")
+
+    resolved_area = selected_area or _resolve_module_area(selected_module)
 
     context = {
         "page_title": "Itens dos Modulos",
         "page_description": "Cadastre, edite e organize os itens e sua periodicidade operacional.",
         "modules": modules,
         "selected_module": selected_module,
+        "selected_area": resolved_area,
+        "module_area_groups": MODULE_AREA_GROUPS,
         **_build_module_admin_context(db, selected_module),
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
@@ -408,6 +448,7 @@ def admin_create_form(entity: str, request: Request, _admin=Depends(require_admi
         "record": None,
         "error_message": None,
         "available_setores": [],
+        "field_options": {"grupos_retificador": RETIFICADOR_GROUP_OPTIONS},
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/form.html", context=context)
@@ -449,6 +490,7 @@ async def admin_create(
             "record": payload,
             "error_message": "Nao foi possivel salvar. Verifique duplicidade ou campos obrigatorios.",
             "available_setores": [],
+            "field_options": {"grupos_retificador": RETIFICADOR_GROUP_OPTIONS},
             **layout_context(str(request.url.path), active_path="/configuracoes"),
         }
         return templates.TemplateResponse(request=request, name="admin/form.html", context=context, status_code=400)
@@ -484,6 +526,7 @@ def admin_edit_form(
         "record": record,
         "error_message": None,
         "available_setores": list_records(db, "setores") if entity == "responsaveis" else [],
+        "field_options": {"grupos_retificador": RETIFICADOR_GROUP_OPTIONS},
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/form.html", context=context)
@@ -521,6 +564,7 @@ async def admin_edit(
             "record": merged_record,
             "error_message": "Nao foi possivel atualizar. Verifique duplicidade ou campos obrigatorios.",
             "available_setores": list_records(db, "setores") if entity == "responsaveis" else [],
+            "field_options": {"grupos_retificador": RETIFICADOR_GROUP_OPTIONS},
             **layout_context(str(request.url.path), active_path="/configuracoes"),
         }
         return templates.TemplateResponse(request=request, name="admin/form.html", context=context, status_code=400)

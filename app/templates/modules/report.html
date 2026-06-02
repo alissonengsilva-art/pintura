@@ -1,8 +1,8 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 <div class="op-module op-module--report">
-    <!-- Navegação de relatórios -->
+    <!-- NavegaÃ§Ã£o de relatÃ³rios -->
     <div class="op-reports op-reports--header">
         <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -10,9 +10,9 @@
         </a>
         <div class="op-reports__links">
             <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="op-reports__link">Consolidado</a>
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="op-reports__link {% if not report_setor %}op-reports__link--active{% endif %}">Relatório Geral</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio" class="op-reports__link {% if not report_setor %}op-reports__link--active{% endif %}">RelatÃ³rio Geral</a>
             <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=PTED" class="op-reports__link {% if report_setor == 'PTED' %}op-reports__link--active{% endif %}">PTED</a>
-            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=LABORATORIO" class="op-reports__link {% if report_setor == 'LABORATORIO' %}op-reports__link--active{% endif %}">Laboratório</a>
+            <a href="/{{ module_config.slug }}/registros/{{ master.id }}/relatorio?setor=LABORATORIO" class="op-reports__link {% if report_setor == 'LABORATORIO' %}op-reports__link--active{% endif %}">LaboratÃ³rio</a>
         </div>
         <button type="button" class="op-btn op-btn--secondary op-btn--sm op-btn--print" onclick="window.print()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -20,18 +20,18 @@
         </button>
     </div>
 
-    <!-- Cabeçalho de contexto -->
+    <!-- CabeÃ§alho de contexto -->
     <div class="op-context-card op-context-card--readonly">
         <div class="op-context-info">
             <span class="op-context-label">{{ context_label }}</span>
-            <span class="op-context-type">{% if report_setor %}Relatório {{ report_setor }}{% else %}Relatório Geral{% endif %}</span>
+            <span class="op-context-type">{% if report_setor %}RelatÃ³rio {{ report_setor }}{% else %}RelatÃ³rio Geral{% endif %}</span>
         </div>
         <div class="op-context-status">
             <span class="op-status-badge op-status-badge--{{ status_geral_label|lower|replace(' ', '-')|replace('_', '-') }}">{{ status_geral_label }}</span>
         </div>
     </div>
 
-    <!-- Conteúdo do relatório -->
+    <!-- ConteÃºdo do relatÃ³rio -->
     {% for setor_view in setor_views %}
     <section class="op-sector op-sector--active op-sector--report">
         <div class="op-sector__header">
@@ -49,12 +49,12 @@
         
         <div class="op-sector__meta op-sector__meta--readonly">
             <div class="op-sector__meta-item">
-                <span class="op-sector__meta-label">Responsável</span>
-                <span class="op-sector__meta-value">{{ setor_view.responsavel_nome or '—' }}</span>
+                <span class="op-sector__meta-label">ResponsÃ¡vel</span>
+                <span class="op-sector__meta-value">{{ setor_view.responsavel_nome or 'â€”' }}</span>
             </div>
             <div class="op-sector__meta-item">
-                <span class="op-sector__meta-label">Observações</span>
-                <span class="op-sector__meta-value">{{ setor_view.observacoes_setor or '—' }}</span>
+                <span class="op-sector__meta-label">ObservaÃ§Ãµes</span>
+                <span class="op-sector__meta-value">{{ setor_view.observacoes_setor or 'â€”' }}</span>
             </div>
         </div>
         
@@ -65,20 +65,24 @@
                         {% for column in module_config.columns %}
                         <th class="op-table__col--{{ column.key }}">{{ column.label }}</th>
                         {% endfor %}
+                        <th class="op-table__col--prioridade">Prioridade</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in setor_view.rows %}
-                    <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
+                    <tr class="{% if row.flag %}op-table__row--flagged{% endif %} {% if row.prioridade == 'alto' and (row.flag or (not row.value and row.is_applicable)) %}op-table__row--priority-high{% endif %}">
                         {% for column in module_config.columns %}
                         <td class="op-table__col--{{ column.key }}">
                             {% if column.kind == 'status' %}
-                            <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o')|replace('ú', 'u') }}">{{ row[column.key] }}</span>
+                            <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('Ã£', 'a')|replace('Ã­', 'i')|replace('Ã³', 'o')|replace('Ãº', 'u') }}">{{ row[column.key] }}</span>
                             {% else %}
-                            <span class="op-table__text">{{ row[column.key] or '—' }}</span>
+                            <span class="op-table__text">{{ row[column.key] or 'â€”' }}</span>
                             {% endif %}
                         </td>
                         {% endfor %}
+                        <td class="op-table__col--prioridade">
+                            <span class="op-badge op-badge--prioridade-{{ row.prioridade }}">{{ row.prioridade_label }}</span>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -88,3 +92,4 @@
     {% endfor %}
 </div>
 {% endblock %}
+

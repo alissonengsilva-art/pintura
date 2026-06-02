@@ -49,9 +49,10 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
         fields=(
             FieldConfig("nome", "Nome", required=True, placeholder="Ex.: Capo H1"),
             FieldConfig("codigo", "Codigo", placeholder="Ex.: H1"),
+            FieldConfig("grupo_retificador", "Grupo do Retificador", input_type="select", options_key="grupos_retificador"),
             FieldConfig("ativo", "Ativo", input_type="checkbox"),
         ),
-        list_fields=("nome", "codigo", "ativo"),
+        list_fields=("nome", "codigo", "grupo_retificador_label", "ativo"),
         default_sort=("nome",),
     ),
     "setores": EntityConfig(
@@ -102,6 +103,7 @@ ADMIN_ENTITIES: dict[str, EntityConfig] = {
             FieldConfig("valor_max", "Valor maximo", input_type="number"),
             FieldConfig("ordem", "Ordem", input_type="number"),
             FieldConfig("frequencia", "Frequencia"),
+            FieldConfig("prioridade", "Prioridade"),
             FieldConfig("responsavel_padrao", "Responsavel padrao"),
             FieldConfig("turno_padrao", "Turno padrao"),
             FieldConfig("numero_coleta", "Numero da coleta", input_type="number"),
@@ -174,6 +176,14 @@ def payload_from_form(config: EntityConfig, form_data) -> dict:
         normalized["obrigatorio"] = False
     if config.key == "modulos-itens" and normalized.get("ordem") is None:
         normalized["ordem"] = 0
+    if config.key == "modelos":
+        group = str(normalized.get("grupo_retificador") or "").strip().lower()
+        normalized["grupo_retificador"] = group if group in {"grupo_1", "grupo_2", "grupo_3"} else None
+    if config.key == "modulos-itens":
+        prioridade = str(normalized.get("prioridade") or "").strip().lower()
+        if prioridade not in {"baixo", "medio", "alto"}:
+            prioridade = "medio"
+        normalized["prioridade"] = prioridade
     return normalized
 
 
@@ -210,4 +220,6 @@ def field_labels(fields: Iterable[str], config: EntityConfig) -> dict[str, str]:
     mapping = {field.name: field.label for field in config.fields}
     if config.key == "responsaveis":
         mapping["setor_nome"] = "Setor"
+    if config.key == "modelos":
+        mapping["grupo_retificador_label"] = "Grupo"
     return {field: mapping.get(field, field.replace("_", " ").title()) for field in fields}

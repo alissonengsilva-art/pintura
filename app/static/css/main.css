@@ -3003,7 +3003,20 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     background: var(--color-red-200) !important;
 }
 
+.op-table__row--priority-high td {
+    box-shadow: inset 3px 0 0 #c62828;
+}
+
+.op-table__row-group td {
+    background: #eaf2fb !important;
+    color: #1f456f;
+    font-weight: 700;
+    border-top: 1px solid #cfdeef;
+    border-bottom: 1px solid #cfdeef;
+}
+
 /* Larguras das colunas */
+.op-table__col--modelo_display { width: 180px; min-width: 180px; }
 .op-table__col--operacao { width: 100px; }
 .op-table__col--descricao { width: auto; min-width: 200px; }
 .op-table__col--parametro { width: 140px; }
@@ -3079,6 +3092,12 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
     font-weight: var(--font-weight-regular);
 }
 
+.op-input--alert {
+    border-color: #d45656 !important;
+    background: #fff3f3 !important;
+    box-shadow: 0 0 0 1px rgba(212, 86, 86, 0.2) inset;
+}
+
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    26.10 BADGES - Indicadores de status
    â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -3131,6 +3150,21 @@ a:not(.button-primary):not(.button-secondary):not(.button-danger):not(.nav-group
 .op-badge--verificar {
     background: var(--state-warning-bg);
     color: var(--state-warning-text);
+}
+
+.op-badge--prioridade-baixo {
+    background: var(--neutral-100);
+    color: var(--text-muted);
+}
+
+.op-badge--prioridade-medio {
+    background: #fff3cd;
+    color: #8a5a00;
+}
+
+.op-badge--prioridade-alto {
+    background: #fde2e2;
+    color: #a20f0f;
 }
 
 /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

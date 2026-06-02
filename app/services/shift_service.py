@@ -386,10 +386,10 @@ def build_shift_detail(
     }
     
     # Busca registros de módulos
-    modulos_dict = {
-        m.module_code: m
-        for m in shift.modulos
-    }
+    modulos_dict = {m.module_code: m for m in shift.modulos}
+    modulos_by_code: dict[str, list[OperationalModuleRecord]] = {}
+    for module_record in shift.modulos:
+        modulos_by_code.setdefault(module_record.module_code, []).append(module_record)
 
     shift_context = {"data_referencia": shift.data_referencia}
     if shift.turno:
@@ -403,6 +403,147 @@ def build_shift_detail(
         if code not in allowed_codes:
             continue
         record = modulos_dict.get(code)
+        if code == "tensao-retificadores-ed":
+            records_for_code = modulos_by_code.get(code, [])
+            expected_groups = ["grupo_1", "grupo_2", "grupo_3"]
+            grouped_records: dict[str, OperationalModuleRecord] = {}
+            for group_record in records_for_code:
+                group_code = str((group_record.context_data or {}).get("grupo_retificador") or "").strip().lower()
+                if group_code in expected_groups and group_code not in grouped_records:
+                    grouped_records[group_code] = group_record
+
+            group_cards: list[dict[str, Any]] = []
+            group_statuses: list[str] = []
+            group_filled_sum = 0
+            group_total_sum = 0
+            group_non_applicable_sum = 0
+            group_on_demand_sum = 0
+            group_alert_total = 0
+            all_group_records = all(group in grouped_records for group in expected_groups)
+            for group_code in expected_groups:
+                group_record = grouped_records.get(group_code)
+                group_model = str((group_record.context_data or {}).get("modelo") or "—") if group_record else "—"
+                group_label = f"Grupo {group_code.split('_')[-1]}"
+                pted_group_view = (
+                    build_sector_view(session, config, shift_context, group_record, SETOR_PTED)
+                    if group_record is not None and SETOR_PTED in config.sector_sequence
+                    else None
+                )
+                group_total = int(pted_group_view["summary"]["total"] if pted_group_view else 0)
+                group_filled = int(pted_group_view["summary"]["preenchidos"] if pted_group_view else 0)
+                group_non_app = int(pted_group_view["summary"].get("not_applicable_count", 0) if pted_group_view else 0)
+                group_on_demand = int(pted_group_view["summary"].get("on_demand_count", 0) if pted_group_view else 0)
+                group_flags = int((pted_group_view or {}).get("summary", {}).get("flag_count", 0) if pted_group_view else 0)
+                if group_record is None:
+                    group_status = MODULE_STATUS_NAO_INICIADO
+                else:
+                    group_status = group_record.status_geral
+                    if group_total > 0 and group_filled >= group_total:
+                        group_status = MODULE_STATUS_CONCLUIDO
+                group_cards.append(
+                    {
+                        "group_code": group_code,
+                        "group_label": group_label,
+                        "model": group_model,
+                        "status": group_status,
+                        "status_label": STATUS_LABELS.get(group_status, "Não iniciado"),
+                        "has_alert": group_flags > 0,
+                        "filled": group_filled,
+                        "total": group_total,
+                    }
+                )
+                group_statuses.append(group_status)
+                group_filled_sum += group_filled
+                group_total_sum += group_total
+                group_non_applicable_sum += group_non_app
+                group_on_demand_sum += group_on_demand
+                group_alert_total += group_flags
+
+            if all_group_records and all(status == MODULE_STATUS_CONCLUIDO for status in group_statuses):
+                status_geral = MODULE_STATUS_CONCLUIDO
+            elif any(status in (MODULE_STATUS_EM_ANDAMENTO, MODULE_STATUS_PARCIAL) for status in group_statuses) or any(
+                status == MODULE_STATUS_CONCLUIDO for status in group_statuses
+            ):
+                status_geral = MODULE_STATUS_EM_ANDAMENTO
+            else:
+                status_geral = MODULE_STATUS_NAO_INICIADO
+
+            record_id = min((r.id for r in records_for_code), default=None)
+            status_pted = (
+                SETOR_STATUS_CONCLUIDO
+                if all_group_records and all(status == MODULE_STATUS_CONCLUIDO for status in group_statuses)
+                else SETOR_STATUS_EM_ANDAMENTO
+                if any(status in (MODULE_STATUS_EM_ANDAMENTO, MODULE_STATUS_PARCIAL, MODULE_STATUS_CONCLUIDO) for status in group_statuses)
+                else SETOR_STATUS_NAO_INICIADO
+            )
+            status_lab = SETOR_STATUS_NAO_INICIADO
+            desvios = group_alert_total
+            pted_progress = {"preenchidos": group_filled_sum, "total": group_total_sum}
+            lab_progress = {"preenchidos": 0, "total": 0}
+            total_configurados = group_total_sum
+            total_exigiveis = group_total_sum
+            total_concluidos = group_filled_sum
+            non_applicable_count = group_non_applicable_sum
+            on_demand_count = group_on_demand_sum
+            total_desativados = non_applicable_count + on_demand_count
+            em_andamento_itens = max(total_exigiveis - total_concluidos, 0)
+            progress_percent = _progress_percent(total_concluidos, total_exigiveis)
+            has_applicable_items = total_exigiveis > 0
+            effective_status_geral = status_geral
+            previsao = prev_info["previsao"]
+            if previsao in (MODULE_PREVISAO_NAO_PREVISTO, MODULE_PREVISAO_SEM_EXECUCAO):
+                action = "nao_previsto"
+                action_label = "Não previsto"
+            elif has_applicable_items and effective_status_geral == MODULE_STATUS_CONCLUIDO:
+                action = "visualizar"
+                action_label = "Visualizar"
+            elif has_applicable_items:
+                action = "continuar"
+                action_label = "Continuar"
+            else:
+                action = "iniciar"
+                action_label = "Iniciar"
+
+            modules_list.append({
+                "code": code,
+                "slug": config.slug,
+                "title": config.title,
+                "description": config.description,
+                "frequency": config.frequency,
+                "frequency_label": FREQUENCY_LABELS.get(config.frequency, config.frequency),
+                "supports_turno": config.supports_turno,
+                "record_id": record_id,
+                "status_geral": effective_status_geral,
+                "status_badge_label": "Sem itens aplicáveis" if not has_applicable_items else _status_badge_label(effective_status_geral),
+                "status_geral_label": "Sem itens aplicáveis hoje" if not has_applicable_items else STATUS_LABELS.get(effective_status_geral, "Não iniciado"),
+                "status_badge_tone": MODULE_STATUS_CONCLUIDO if not has_applicable_items else effective_status_geral,
+                "status_pted": status_pted,
+                "status_pted_label": STATUS_LABELS.get(status_pted, "Não iniciado"),
+                "status_lab": status_lab,
+                "lab_enabled": False,
+                "pted_progress": pted_progress,
+                "lab_progress": lab_progress,
+                "progress_percent": progress_percent,
+                "progresso_percentual": progress_percent,
+                "total_configurados": total_configurados,
+                "total_exigiveis": total_exigiveis,
+                "total_concluidos": total_concluidos,
+                "total_desativados": total_desativados,
+                "em_andamento_itens": em_andamento_itens,
+                "has_alert": desvios > 0,
+                "has_applicable_items": has_applicable_items,
+                "non_applicable_count": non_applicable_count,
+                "on_demand_count": on_demand_count,
+                "status_lab_label": "-",
+                "previsao": previsao,
+                "previsao_label": prev_info["previsao_label"],
+                "previsao_observacao": prev_info["observacao"],
+                "action": action,
+                "action_label": action_label,
+                "desvios": desvios,
+                "group_statuses": group_cards,
+            })
+            continue
         prev_info = previsoes.get(code, {
             "previsao": MODULE_PREVISAO_PREVISTO,
             "previsao_label": MODULE_PREVISAO_LABELS[MODULE_PREVISAO_PREVISTO],

@@ -26,6 +26,45 @@
             </div>
         </section>
 
+        {% if module_state.module_config.code == 'tensao-retificadores-ed' and module_state.retificador_groups %}
+        <section class="turno-module-groups" style="margin: 4px 0 10px;">
+            <div class="op-tabs">
+                <div class="op-tabs__list" role="tablist" aria-label="Grupos de retificadores">
+                    {% for group in module_state.retificador_groups %}
+                    {% set group_state = 'nao-iniciado' %}
+                    {% if group.status == 'CONCLUIDO' %}
+                        {% set group_state = 'concluido' %}
+                    {% elif group.status in ['EM_ANDAMENTO', 'PARCIAL'] %}
+                        {% set group_state = 'em-andamento' %}
+                    {% endif %}
+                    <a
+                        href="{{ module_state.execution_url }}&grupo_retificador={{ group.code }}"
+                        class="op-tabs__tab {% if module_state.active_retificador_group == group.code %}op-tabs__tab--active{% endif %}"
+                        style="display:flex;align-items:flex-start;gap:8px;text-decoration:none;flex-direction:column;"
+                    >
+                        <span style="font-weight:700;">{{ group.label }}</span>
+                        <span style="font-size:12px;color:#35526f;">{{ group.models_label }}</span>
+                        <span class="op-status-badge op-status-badge--{{ group.status|lower|replace('_', '-') }}">{{ group.status_label }}</span>
+                        {% if group.has_flag %}
+                        <span class="turno-chip turno-chip--alert">Com desvios</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% if module_state.retificador_models %}
+            <p class="turno-module-editor__description" style="margin-top:8px;">
+                Modelos do grupo:
+                {% for model in module_state.retificador_models %}
+                    {{ model.nome }}{% if model.codigo %} ({{ model.codigo }}){% endif %}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+            </p>
+            {% else %}
+            <p class="turno-module-editor__description" style="margin-top:8px;">Nenhum modelo ativo vinculado a este grupo.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
         <section class="turno-module-context">
             {% if module_state.extra_context_fields %}
             <form id="module-context-form" class="turno-module-context__form">
@@ -147,7 +186,7 @@
                                             placeholder="Obs."
                                             {% if setor_readonly or row_scheduled %}disabled readonly{% endif %}
                                         >
-                                        {% elif module_state.module_config.code == 'poder-penetracao' and column.key == 'zinco' %}
+                                        {% elif module_state.module_config.code in ['poder-penetracao', 'espessura-ed'] and column.key == 'zinco' %}
                                         <input
                                             type="text"
                                             name="zinc_{{ setor_view.setor_tipo }}_{{ row.reference }}"
@@ -156,7 +195,7 @@
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
                                             {% if setor_readonly or row_scheduled %}disabled{% endif %}
                                         >
-                                        {% elif module_state.module_config.code == 'poder-penetracao' and column.key == 'total' %}
+                                        {% elif module_state.module_config.code in ['poder-penetracao', 'espessura-ed'] and column.key == 'total' %}
                                         <input
                                             type="text"
                                             name="total_{{ setor_view.setor_tipo }}_{{ row.reference }}"
@@ -170,7 +209,7 @@
                                             type="text"
                                             name="value_{{ setor_view.setor_tipo }}_{{ row.reference }}"
                                             value="{{ row[column.key] if column.key == 'value' else row[column.key] }}"
-                                            class="op-input op-input--compact op-input--value {% if row_scheduled %}field--disabled-scheduled{% endif %}"
+                                            class="op-input op-input--compact op-input--value {% if row.flag %}op-input--alert{% endif %} {% if row_scheduled %}field--disabled-scheduled{% endif %}"
                                             {% if column.key != 'value' %}readonly{% endif %}
                                             {% if column.placeholder %}placeholder="{{ column.placeholder }}"{% endif %}
                                             {% if setor_readonly or row_scheduled %}disabled{% endif %}
@@ -211,7 +250,7 @@
                     <button type="button" class="op-btn op-btn--ghost" data-add-aspecto-row data-setor="{{ setor_view.setor_tipo }}">Adicionar linha</button>
                 </div>
                 {% endif %}
-                {% if module_state.module_config.code == 'poder-penetracao' %}
+                {% if module_state.module_config.code in ['poder-penetracao', 'espessura-ed'] %}
                 <div class="op-sector__actions-info" style="margin-top:8px;">
                     <span class="op-sector__progress">Resumo: ECOAT = Total - Zinco</span>
                     <span class="op-sector__progress">Resultado (menor ECOAT): {{ setor_view.metricas.resultado_label if setor_view.metricas and setor_view.metricas.resultado_label is defined else '-' }}</span>

@@ -12,6 +12,7 @@ VALIDATION_MAX = "max"
 VALIDATION_TEXT = "texto"
 VALIDATION_BOOLEAN = "booleano"
 VALIDATION_NONE = "nenhum"
+VALIDATION_SETPOINT_MARGIN = "setpoint_margem"
 
 VALIDATION_TYPES = {
     VALIDATION_RANGE,
@@ -20,6 +21,7 @@ VALIDATION_TYPES = {
     VALIDATION_TEXT,
     VALIDATION_BOOLEAN,
     VALIDATION_NONE,
+    VALIDATION_SETPOINT_MARGIN,
 }
 
 STATUS_NAO_AVALIADO = "NAO_AVALIADO"
@@ -66,12 +68,37 @@ def display_parameter(item: Any) -> str:
         return f"> {_format_number(min_value)}{(' ' + unidade) if unidade else ''}".strip()
     if validation_type == VALIDATION_MAX and max_value is not None:
         return f"< {_format_number(max_value)}{(' ' + unidade) if unidade else ''}".strip()
+    if validation_type == VALIDATION_SETPOINT_MARGIN and min_value is not None and max_value is not None:
+        setpoint = min_value
+        margem = max_value
+        faixa_min = setpoint - (setpoint * margem / 100)
+        faixa_max = setpoint + (setpoint * margem / 100)
+        unit_text = f" {unidade}" if unidade else ""
+        return (
+            f"Setpoint {_format_number(setpoint)}{unit_text} ±{_format_number(margem)}% "
+            f"(faixa {_format_number(faixa_min)} a {_format_number(faixa_max)}{unit_text})"
+        ).strip()
 
     parametro_exibicao = str(getattr(item, "parametro_exibicao", "") or "").strip()
     if parametro_exibicao:
         return parametro_exibicao
     parametro = str(getattr(item, "parametro", "") or "").strip()
     return parametro or "-"
+
+
+def display_parameter_operator(item: Any) -> str:
+    """
+    Versão simplificada para tela de execução do operador.
+    Para setpoint+margem exibe apenas o setpoint configurado.
+    """
+    validation_type = normalize_validation_type(getattr(item, "tipo_validacao", None))
+    if validation_type != VALIDATION_SETPOINT_MARGIN:
+        return display_parameter(item)
+    unidade = str(getattr(item, "unidade", "") or "").strip()
+    setpoint = _to_float(getattr(item, "limite_minimo", None))
+    if setpoint is None:
+        return "-"
+    return f"{_format_number(setpoint)}{(' ' + unidade) if unidade else ''}".strip()
 
 
 def parse_numeric_value(raw_value: str | None) -> float | None:
@@ -120,6 +147,14 @@ def evaluate(
         if max_value is None:
             return ValidationResult(STATUS_NAO_AVALIADO, STATUS_LABELS[STATUS_NAO_AVALIADO], None, value_number)
         is_within = value_number <= max_value
+    elif validation_type == VALIDATION_SETPOINT_MARGIN:
+        if min_value is None or max_value is None:
+            return ValidationResult(STATUS_NAO_AVALIADO, STATUS_LABELS[STATUS_NAO_AVALIADO], None, value_number)
+        setpoint = min_value
+        margem = max_value
+        faixa_min = setpoint - (setpoint * margem / 100)
+        faixa_max = setpoint + (setpoint * margem / 100)
+        is_within = faixa_min <= value_number <= faixa_max
 
     if is_within:
         return ValidationResult(STATUS_DENTRO, STATUS_LABELS[STATUS_DENTRO], False, value_number)

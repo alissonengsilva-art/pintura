@@ -19,6 +19,19 @@ FREQUENCY_TYPES = (
     FREQUENCY_MENSAL,
     FREQUENCY_SOB_DEMANDA,
 )
+PRIORITY_BAIXO = "baixo"
+PRIORITY_MEDIO = "medio"
+PRIORITY_ALTO = "alto"
+PRIORITY_TYPES = (
+    PRIORITY_BAIXO,
+    PRIORITY_MEDIO,
+    PRIORITY_ALTO,
+)
+PRIORITY_OPTIONS = [
+    {"value": PRIORITY_BAIXO, "label": "Baixo"},
+    {"value": PRIORITY_MEDIO, "label": "Médio"},
+    {"value": PRIORITY_ALTO, "label": "Alto"},
+]
 FREQUENCY_OPTIONS = [
     {"value": FREQUENCY_DIARIO, "label": "diario"},
     {"value": FREQUENCY_SEMANAL, "label": "semanal"},

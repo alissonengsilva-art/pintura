@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block content %}
 {# Determinar estados do ciclo #}
@@ -7,9 +7,9 @@
 {% set sem_ciclo = status_geral_label == 'NAO_INICIADO' and not master %}
 
 <div class="op-module" data-status="{{ status_geral_label }}">
-    <!-- ═══════════════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          SELETOR DE CONTEXTO (DATA / TURNO / ETC)
-         ═══════════════════════════════════════════════════════════════════ -->
+         â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     {% if context_locked and master %}
     {# Contexto travado - modo somente leitura #}
     <div class="op-context-bar op-context-bar--locked">
@@ -98,17 +98,17 @@
     </div>
     {% endif %}
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         ESTADO: CICLO CONCLUÍDO
-         Redireciona para histórico ou visão geral
-         ═══════════════════════════════════════════════════════════════════ -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         ESTADO: CICLO CONCLUÃDO
+         Redireciona para histÃ³rico ou visÃ£o geral
+         â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     {% if ciclo_concluido %}
     <div class="op-empty-state op-empty-state--completed">
         <div class="op-empty-state__icon op-empty-state__icon--success">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </div>
-        <h2 class="op-empty-state__title">Ciclo concluído</h2>
-        <p class="op-empty-state__text">Este registro já foi finalizado. Use o Turno Atual para continuar a operação do dia.</p>
+        <h2 class="op-empty-state__title">Ciclo concluÃ­do</h2>
+        <p class="op-empty-state__text">Este registro jÃ¡ foi finalizado. Use o Turno Atual para continuar a operaÃ§Ã£o do dia.</p>
         <div class="op-empty-state__actions">
             <a href="/{{ module_config.slug }}/registros/{{ master.id }}" class="op-btn op-btn--secondary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -123,17 +123,17 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         ESTADO: SEM CICLO (não existe master para este contexto)
-         Mostra estado vazio - botão de iniciar está na barra de contexto
-         ═══════════════════════════════════════════════════════════════════ -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+         ESTADO: SEM CICLO (nÃ£o existe master para este contexto)
+         Mostra estado vazio - botÃ£o de iniciar estÃ¡ na barra de contexto
+         â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     {% elif sem_ciclo %}
     <div class="op-empty-state">
         <div class="op-empty-state__icon">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         </div>
-        <h2 class="op-empty-state__title">Central histórica do módulo</h2>
-        <p class="op-empty-state__text">Esta página não cria execução nova. Inicie ou continue o módulo pelo Turno Atual.</p>
+        <h2 class="op-empty-state__title">Central histÃ³rica do Módulos</h2>
+        <p class="op-empty-state__text">Esta pÃ¡gina nÃ£o cria execuÃ§Ã£o nova. Inicie ou continue o Módulos pelo Turno Atual.</p>
         {% if turno_atual_url %}
         <div class="op-empty-state__actions">
             <a href="{{ turno_atual_url }}" class="op-btn op-btn--primary">Ir para Turno Atual</a>
@@ -141,10 +141,10 @@
         {% endif %}
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
          ESTADO: CICLO ATIVO (NAO_INICIADO com master / EM_ANDAMENTO / PARCIAL)
-         Mostra formulário de preenchimento
-         ═══════════════════════════════════════════════════════════════════ -->
+         Mostra formulÃ¡rio de preenchimento
+         â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
     {% else %}
     
     <!-- Status card compacto -->
@@ -167,7 +167,7 @@
         {% endif %}
     </div>
 
-    <!-- Tabs PTED / Laboratório -->
+    <!-- Tabs PTED / LaboratÃ³rio -->
     <div class="op-tabs">
         <div class="op-tabs__list" role="tablist">
             {% for setor_view in setor_views %}
@@ -188,7 +188,7 @@
         </div>
     </div>
 
-    <!-- Painéis de setor -->
+    <!-- PainÃ©is de setor -->
     {% for setor_view in setor_views %}
     {% set setor_concluido = setor_view.status_setor == 'CONCLUIDO' %}
     <div class="op-sector {% if loop.first %}op-sector--active{% endif %} {% if setor_concluido %}op-sector--done{% endif %}" data-tab-panel="{{ setor_view.setor_tipo }}" role="tabpanel">
@@ -197,14 +197,14 @@
             <input type="hidden" name="{{ field.name }}" value="{{ context_values[field.name] }}">
             {% endfor %}
 
-            <!-- Cabeçalho do setor -->
+            <!-- CabeÃ§alho do setor -->
             <div class="op-sector__header">
                 <div class="op-sector__title">
                     <h3>{{ setor_view.setor_label }}</h3>
                     {% if setor_concluido %}
                     <span class="op-sector__done-badge">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                        Concluído
+                        ConcluÃ­do
                     </span>
                     {% endif %}
                 </div>
@@ -216,16 +216,16 @@
                 {% endif %}
             </div>
 
-            <!-- Metadados: Responsável + Observações -->
+            <!-- Metadados: ResponsÃ¡vel + ObservaÃ§Ãµes -->
             <div class="op-sector__meta">
                 <div class="op-sector__meta-field op-sector__meta-field--resp">
-                    <label for="responsavel_nome_{{ setor_view.setor_tipo }}">Responsável</label>
+                    <label for="responsavel_nome_{{ setor_view.setor_tipo }}">ResponsÃ¡vel</label>
                     <input type="text" 
                            id="responsavel_nome_{{ setor_view.setor_tipo }}" 
                            name="responsavel_nome_{{ setor_view.setor_tipo }}" 
                            value="{{ setor_view.responsavel_nome }}" 
                            list="responsaveis-list-{{ setor_view.setor_tipo }}" 
-                           placeholder="Nome do responsável" 
+                           placeholder="Nome do responsÃ¡vel" 
                            {% if not setor_concluido %}required{% endif %}
                            autocomplete="off"
                            {% if setor_concluido %}disabled readonly{% endif %}>
@@ -236,7 +236,7 @@
                     </datalist>
                 </div>
                 <div class="op-sector__meta-field op-sector__meta-field--obs">
-                    <label for="observacoes_setor_{{ setor_view.setor_tipo }}">Observações</label>
+                    <label for="observacoes_setor_{{ setor_view.setor_tipo }}">ObservaÃ§Ãµes</label>
                     <input type="text" 
                            id="observacoes_setor_{{ setor_view.setor_tipo }}" 
                            name="observacoes_setor_{{ setor_view.setor_tipo }}" 
@@ -254,11 +254,12 @@
                             {% for column in module_config.columns %}
                             <th class="op-table__col--{{ column.key }}">{{ column.label }}</th>
                             {% endfor %}
+                            <th class="op-table__col--prioridade">Prioridade</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in setor_view.rows %}
-                        <tr class="{% if row.flag %}op-table__row--flagged{% endif %}">
+                        <tr class="{% if row.flag %}op-table__row--flagged{% endif %} {% if row.prioridade == 'alto' and (row.flag or (not row.value and row.is_applicable)) %}op-table__row--priority-high{% endif %}">
                             {% for column in module_config.columns %}
                             <td class="op-table__col--{{ column.key }}">
                                 {% if column.kind == 'input' %}
@@ -286,19 +287,22 @@
                                            {% if setor_concluido %}disabled{% endif %}>
                                     {% endif %}
                                 {% elif column.kind == 'status' %}
-                                <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o')|replace('ú', 'u') }}">{{ row[column.key] }}</span>
+                                <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('Ã£', 'a')|replace('Ã­', 'i')|replace('Ã³', 'o')|replace('Ãº', 'u') }}">{{ row[column.key] }}</span>
                                 {% else %}
                                 <span class="op-table__text">{{ row[column.key] }}</span>
                                 {% endif %}
                             </td>
                             {% endfor %}
+                            <td class="op-table__col--prioridade">
+                                <span class="op-badge op-badge--prioridade-{{ row.prioridade }}">{{ row.prioridade_label }}</span>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
 
-            <!-- Barra de ações -->
+            <!-- Barra de aÃ§Ãµes -->
             <div class="op-sector__actions">
                 <div class="op-sector__actions-info">
                     <span class="op-sector__progress">{{ setor_view.summary.preenchidos }}/{{ setor_view.summary.total }} preenchidos</span>
@@ -331,7 +335,7 @@
 (function () {
     'use strict';
     
-    // Controle de abas PTED/Laboratório
+    // Controle de abas PTED/LaboratÃ³rio
     const tabs = document.querySelectorAll('[data-tab-target]');
     const panels = document.querySelectorAll('[data-tab-panel]');
     const contextForm = document.getElementById('context-form');
@@ -359,7 +363,7 @@
         });
     });
     
-    // Sincronizar contexto nos formulários
+    // Sincronizar contexto nos formulÃ¡rios
     document.querySelectorAll('[data-sector-form]').forEach(function(form) {
         form.setAttribute('method', 'post');
         
@@ -378,3 +382,4 @@
 })();
 </script>
 {% endblock %}
+

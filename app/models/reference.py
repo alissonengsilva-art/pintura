@@ -26,7 +26,13 @@ class Modelo(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nome: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     codigo: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
+    grupo_retificador: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    @property
+    def grupo_retificador_label(self) -> str | None:
+        mapping = {"grupo_1": "Grupo 1", "grupo_2": "Grupo 2", "grupo_3": "Grupo 3"}
+        return mapping.get(str(self.grupo_retificador or "").strip().lower()) if self.grupo_retificador else None
 
 
 class Setor(Base, TimestampMixin):

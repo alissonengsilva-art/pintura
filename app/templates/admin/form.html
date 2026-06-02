@@ -29,9 +29,15 @@
                 <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
                 <select id="{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
                     <option value="">Selecione</option>
-                    {% for option in available_setores %}
-                    <option value="{{ option.id }}" {% if field_value and field_value|int == option.id %}selected{% endif %}>{{ option.nome }}</option>
-                    {% endfor %}
+                    {% if field.options_key == 'setores' %}
+                        {% for option in available_setores %}
+                        <option value="{{ option.id }}" {% if field_value and field_value|int == option.id %}selected{% endif %}>{{ option.nome }}</option>
+                        {% endfor %}
+                    {% elif field_options and field_options[field.options_key] is defined %}
+                        {% for option in field_options[field.options_key] %}
+                        <option value="{{ option.value }}" {% if field_value|string == option.value|string %}selected{% endif %}>{{ option.label }}</option>
+                        {% endfor %}
+                    {% endif %}
                 </select>
             {% else %}
                 <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>

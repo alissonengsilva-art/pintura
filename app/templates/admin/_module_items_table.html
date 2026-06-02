@@ -13,6 +13,7 @@
                     <th data-col-item>Item</th>
                     <th data-col-setor>Setor</th>
                     <th data-col-frequencia>Frequência</th>
+                    <th data-col-prioridade>Prioridade</th>
                     <th data-col-dia>Dia</th>
                     <th data-col-ordem>Ordem</th>
                     <th data-col-ativo>Ativo</th>
@@ -58,6 +59,13 @@
                         <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia" disabled>
                             {% for option in frequency_options %}
                             <option value="{{ option.value }}" {% if row.frequencia_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td data-col-prioridade>
+                        <select data-field="prioridade" data-editable data-inline-select disabled>
+                            {% for option in priority_options %}
+                            <option value="{{ option.value }}" {% if row.prioridade == option.value %}selected{% endif %}>{{ option.label }}</option>
                             {% endfor %}
                         </select>
                     </td>
@@ -108,7 +116,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="11" class="empty-state">Nenhum item encontrado para este módulo.</td>
+                    <td colspan="12" class="empty-state">Nenhum item encontrado para este módulo.</td>
                 </tr>
                 {% endfor %}
             </tbody>

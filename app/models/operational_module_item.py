@@ -31,6 +31,7 @@ class OperationalModuleItem(Base, TimestampMixin):
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     frequencia: Mapped[str | None] = mapped_column(String(50), nullable=True)
     frequencia_tipo: Mapped[str] = mapped_column(String(20), default="diario", nullable=False)
+    prioridade: Mapped[str] = mapped_column(String(20), default="medio", nullable=False)
     dia_semana: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dia_mes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     responsavel_padrao: Mapped[str | None] = mapped_column(String(120), nullable=True)

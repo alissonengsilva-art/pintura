@@ -4,11 +4,13 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.models import (
+    Modelo,
     OperationalModuleItem,
     SHIFT_STATUS_CONCLUIDO,
     SHIFT_STATUS_EM_ANDAMENTO,
@@ -37,6 +39,7 @@ from app.services.operational_module_service import (
     build_sector_view,
     context_to_form_values,
     get_master_by_shift,
+    list_masters_by_shift_module,
     get_module_config,
     operational_schema_available,
     resolve_context_defaults,
@@ -66,11 +69,28 @@ from app.services.shift_service import (
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter()
 
+PT_MODULE_CODES = ["pt", "pressao-filtros-pt"]
+ED_MODULE_CODES = [
+    "ed",
+    "temperatura-forno-ed",
+  
+    "tensao-retificadores-ed",
+    "poder-penetracao",
+    "espessura-ed",
+    "aspecto",
+    "rugosidade",
+]
+
+
+def _module_codes_for_scope(operation_scope: str) -> list[str]:
+    return PT_MODULE_CODES if operation_scope == "pt" else ED_MODULE_CODES
+
 
 def _shift_execution_url(
     shift_id: int,
     module_code: str | None = None,
     setor: str | None = None,
+    grupo_retificador: str | None = None,
     *,
     operation_scope: str = "ed",
 ) -> str:
@@ -80,6 +100,8 @@ def _shift_execution_url(
     params: list[str] = []
     if module_code:
         params.append(f"modulo={module_code}")
+    if grupo_retificador:
+        params.append(f"grupo_retificador={grupo_retificador}")
     if setor:
         params.append(f"setor={setor}")
     if params:
@@ -104,6 +126,9 @@ def _parse_report_filters(request: Request) -> ReportFilters:
     modulo = (request.query_params.get("modulo") or "").strip() or None
     parametro = (request.query_params.get("parametro") or "").strip() or None
     setor = (request.query_params.get("setor") or "").strip() or None
+    prioridade = (request.query_params.get("prioridade") or "").strip().lower() or None
+    if prioridade not in {None, "baixo", "medio", "alto"}:
+        prioridade = None
     agrupamento = (request.query_params.get("agrupamento") or "dia").strip().lower()
     if agrupamento not in {"dia", "modulo", "parametro"}:
         agrupamento = "dia"
@@ -116,6 +141,7 @@ def _parse_report_filters(request: Request) -> ReportFilters:
         modulo=modulo,
         parametro=parametro,
         setor=setor,
+        prioridade=prioridade,
         agrupamento=agrupamento,
         turno=turno,
         responsavel=responsavel,
@@ -174,7 +200,56 @@ def _build_module_execution_state(
                         row[field_key] = str(payload.get(custom_key) or "")
 
     config = get_module_config(module_code)
+    selected_group = None
+    if source is not None and hasattr(source, "get"):
+        selected_group = str(source.get("grupo_retificador") or "").strip().lower() or None
     master = get_master_by_shift(db, shift.id, config.code)
+    group_summaries: list[dict] = []
+    if config.code == "tensao-retificadores-ed":
+        masters = list_masters_by_shift_module(db, shift.id, config.code)
+        group_map = {str((item.context_data or {}).get("grupo_retificador") or "").strip().lower(): item for item in masters}
+        ordered_groups = [
+            ("grupo_1", "Grupo 1"),
+            ("grupo_2", "Grupo 2"),
+            ("grupo_3", "Grupo 3"),
+        ]
+        if selected_group in group_map:
+            master = group_map[selected_group]
+        elif selected_group:
+            master = None
+        for group_code, group_label in ordered_groups:
+            group_master = group_map.get(group_code)
+            group_models = list(
+                db.scalars(
+                    select(Modelo)
+                    .where(Modelo.ativo.is_(True))
+                    .where(Modelo.grupo_retificador == group_code)
+                    .order_by(Modelo.nome, Modelo.codigo)
+                ).all()
+            )
+            group_models_label = ", ".join(
+                f"{str(model.nome or '').strip()}{f' ({str(model.codigo or '').strip()})' if str(model.codigo or '').strip() else ''}"
+                for model in group_models
+            ) or "Sem modelos"
+            has_flag = False
+            status = MODULE_STATUS_NAO_INICIADO
+            if group_master is not None:
+                status = group_master.status_geral
+                for sector in group_master.setores:
+                    if int((sector.metricas or {}).get("flag_count", 0)) > 0:
+                        has_flag = True
+                if status == MODULE_STATUS_CONCLUIDO and has_flag:
+                    status = MODULE_STATUS_PARCIAL
+            group_summaries.append(
+                {
+                    "code": group_code,
+                    "label": group_label,
+                    "status": status,
+                    "status_label": STATUS_LABELS.get(status, "Não iniciado"),
+                    "has_flag": has_flag,
+                    "models_label": group_models_label,
+                }
+            )
     context_options: dict = {}
 
     if master:
@@ -219,6 +294,8 @@ def _build_module_execution_state(
     ]
     if config.code == "ed":
         extra_context_fields = [field for field in extra_context_fields if field.name != "tipo_dia"]
+    if config.code == "tensao-retificadores-ed":
+        extra_context_fields = [field for field in extra_context_fields if field.name != "grupo_retificador"]
 
     status_geral_label = module_summary["status_badge_tone"] if module_summary else (master.status_geral if master else MODULE_STATUS_NAO_INICIADO)
     status_geral_texto = module_summary["status_geral_label"] if module_summary else (STATUS_LABELS[master.status_geral] if master else STATUS_LABELS[MODULE_STATUS_NAO_INICIADO])
@@ -245,6 +322,16 @@ def _build_module_execution_state(
         ),
         "turnos_url": "/turnos-pt" if operation_scope == "pt" else "/turno-atual",
         "inherited_context": inherited_context,
+        "retificador_groups": group_summaries,
+        "active_retificador_group": str(parsed_context.get("grupo_retificador") or ""),
+        "retificador_models": [
+            {
+                "id": int(getattr(model, "id", 0)),
+                "nome": str(getattr(model, "nome", "") or ""),
+                "codigo": str(getattr(model, "codigo", "") or ""),
+            }
+            for model in context_options.get("modelos", [])
+        ] if config.code == "tensao-retificadores-ed" else [],
     }
 
 
@@ -408,7 +495,7 @@ def pendencias(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/turno-atual", name="turno_atual")
 def turno_atual(request: Request, db: Session = Depends(get_db)):
-    return _render_turnos_index(request, db, operation_scope="ed")
+    return _render_turnos_index(request, db, operation_scope="ed", module_codes=ED_MODULE_CODES)
 
 
 @router.get("/turno-atual/iniciar", name="turno_iniciar")
@@ -458,7 +545,7 @@ def turno_iniciar_post(
 
 @router.get("/turnos-pt", name="turnos_pt")
 def turnos_pt(request: Request, db: Session = Depends(get_db)):
-    return _render_turnos_index(request, db, operation_scope="pt", module_codes=["pt", "pressao-filtros-pt"])
+    return _render_turnos_index(request, db, operation_scope="pt", module_codes=PT_MODULE_CODES)
 
 
 @router.get("/turnos-pt/iniciar", name="turno_pt_iniciar")
@@ -500,7 +587,7 @@ def turno_pt_iniciar_post(
             },
             open_start_modal=True,
             operation_scope="pt",
-            module_codes=["pt", "pressao-filtros-pt"],
+            module_codes=PT_MODULE_CODES,
         )
 
 
@@ -509,14 +596,28 @@ def turno_execucao(
     shift_id: int,
     request: Request,
     modulo: str | None = None,
+    grupo_retificador: str | None = None,
     setor: str | None = None,
     db: Session = Depends(get_db),
 ):
     shift = get_shift_by_id(db, shift_id)
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
+    route_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+    shift_scope = getattr(shift, "operation_scope", "ed")
+    if route_scope != shift_scope:
+        target_base = "/turnos-pt" if shift_scope == "pt" else "/turnos"
+        query_parts: list[str] = []
+        if modulo:
+            query_parts.append(f"modulo={modulo}")
+        if grupo_retificador:
+            query_parts.append(f"grupo_retificador={grupo_retificador}")
+        if setor:
+            query_parts.append(f"setor={setor}")
+        query = f"?{'&'.join(query_parts)}" if query_parts else ""
+        return RedirectResponse(url=f"{target_base}/{shift_id}{query}", status_code=303)
     if shift.status_geral == SHIFT_STATUS_CONCLUIDO:
-        operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
+        operation_scope = route_scope
         query_parts: list[str] = []
         if modulo:
             query_parts.append(f"modulo={modulo}")
@@ -525,13 +626,14 @@ def turno_execucao(
         query = f"?{'&'.join(query_parts)}" if query_parts else ""
         base = "/turnos-pt" if operation_scope == "pt" else "/turnos"
         return RedirectResponse(url=f"{base}/{shift_id}/visualizar{query}", status_code=303)
-    operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
-    module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+    operation_scope = route_scope
+    module_codes = _module_codes_for_scope(operation_scope)
     return _render_shift_execution(
         request,
         db,
         shift_id,
         modulo,
+        source=request.query_params,
         active_sector=setor,
         operation_scope=operation_scope,
         module_codes=module_codes,
@@ -544,14 +646,16 @@ def turno_visualizacao(shift_id: int, request: Request, db: Session = Depends(ge
     if not shift:
         raise HTTPException(status_code=404, detail="Turno nao encontrado")
     modulo = request.query_params.get("modulo")
+    grupo_retificador = request.query_params.get("grupo_retificador")
     setor = request.query_params.get("setor")
     operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
-    module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+    module_codes = _module_codes_for_scope(operation_scope)
     return _render_shift_execution(
         request,
         db,
         shift_id,
         modulo,
+        source={"grupo_retificador": grupo_retificador} if grupo_retificador else request.query_params,
         active_sector=setor,
         readonly_mode=True,
         operation_scope=operation_scope,
@@ -571,14 +675,14 @@ def turno_concluir(
 
     try:
         operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
-        required_modules = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else ["ed"]
+        required_modules = PT_MODULE_CODES if operation_scope == "pt" else ["ed"]
         conclude_shift(db, shift, required_module_codes=required_modules)
         return RedirectResponse(url="/turnos-pt?tab=concluidos" if operation_scope == "pt" else "/turno-atual?tab=concluidos", status_code=303)
     except ShiftValidationError as error:
         modulo = request.query_params.get("modulo")
         setor = request.query_params.get("setor")
         operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
-        module_codes = ["pt", "pressao-filtros-pt"] if operation_scope == "pt" else None
+        module_codes = _module_codes_for_scope(operation_scope)
         return _render_shift_execution(
             request,
             db,
@@ -597,10 +701,18 @@ def turno_pt_execucao(
     shift_id: int,
     request: Request,
     modulo: str | None = None,
+    grupo_retificador: str | None = None,
     setor: str | None = None,
     db: Session = Depends(get_db),
 ):
-    return turno_execucao(shift_id, request, modulo, setor, db)
+    return turno_execucao(
+        shift_id=shift_id,
+        request=request,
+        modulo=modulo,
+        grupo_retificador=grupo_retificador,
+        setor=setor,
+        db=db,
+    )
 
 
 @router.get("/turnos-pt/{shift_id}/visualizar", name="turno_pt_visualizacao")
@@ -643,7 +755,13 @@ async def turno_modulo_salvar_setor(
         update_shift_status(db, shift)
         operation_scope = getattr(shift, "operation_scope", "ed")
         return RedirectResponse(
-            url=_shift_execution_url(shift_id, config.code, setor_tipo, operation_scope=operation_scope),
+            url=_shift_execution_url(
+                shift_id,
+                config.code,
+                setor_tipo,
+                grupo_retificador=str(parsed_context.get("grupo_retificador") or "") if config.code == "tensao-retificadores-ed" else None,
+                operation_scope=operation_scope,
+            ),
             status_code=303,
         )
     except ValueError as error:
@@ -657,7 +775,7 @@ async def turno_modulo_salvar_setor(
             active_sector=setor_tipo,
             status_code=400,
             operation_scope=getattr(shift, "operation_scope", "ed"),
-            module_codes=["pt", "pressao-filtros-pt"] if getattr(shift, "operation_scope", "ed") == "pt" else None,
+            module_codes=_module_codes_for_scope(getattr(shift, "operation_scope", "ed")),
         )
 
 
@@ -766,6 +884,7 @@ def relatorios(request: Request, db: Session = Depends(get_db)):
             "modulo": filters.modulo or "",
             "parametro": filters.parametro or "",
             "setor": filters.setor or "",
+            "prioridade": filters.prioridade or "",
             "agrupamento": filters.agrupamento,
             "turno": filters.turno or "",
             "responsavel": filters.responsavel or "",

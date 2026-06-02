@@ -62,6 +62,7 @@
                         <th>Módulo</th>
                         <th>Controle</th>
                         <th>Item do checklist</th>
+                        <th>Prioridade</th>
                         <th>Valor</th>
                         <th>Responsável</th>
                     </tr>
@@ -74,12 +75,13 @@
                         <td><span class="op-table__text">{{ row.modulo_label }}</span></td>
                         <td><span class="op-table__text">{{ row.controle }}</span></td>
                         <td><span class="op-table__text">{{ row.checklist_item }}</span></td>
+                        <td><span class="op-badge op-badge--prioridade-{{ row.prioridade }}">{{ row.prioridade_label }}</span></td>
                         <td><span class="op-table__text">{{ row.valor }}</span></td>
                         <td><span class="op-table__text">{{ row.responsavel }}</span></td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="op-table__empty">Nenhum desvio encontrado no período.</td>
+                        <td colspan="8" class="op-table__empty">Nenhum desvio encontrado no período.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
