@@ -386,12 +386,22 @@ def build_reports_snapshot(session: Session, filters: ReportFilters) -> dict[str
     fora = sum(1 for row in rows if row["desvio"])
     dentro = total - fora
     percentual_desvio = round((fora * 100 / total), 1) if total else 0.0
+    priority_rank = {"baixo": 1, "medio": 2, "alto": 3}
+    priority_labels = {"baixo": "Baixa", "medio": "Média", "alto": "Alta"}
+    highest_priority = "—"
+    if rows:
+        highest_priority_code = max(
+            (str(row.get("prioridade") or "medio").lower() for row in rows),
+            key=lambda code: priority_rank.get(code, 0),
+        )
+        highest_priority = priority_labels.get(highest_priority_code, "—")
 
     metrics = [
         {"label": "Total de medições", "value": total},
         {"label": "Dentro do padrão", "value": dentro},
         {"label": "Fora do padrão", "value": fora},
         {"label": "Percentual de desvio", "value": f"{percentual_desvio:.1f}%"},
+        {"label": "Prioridade", "value": highest_priority},
     ]
 
     grouped = _build_group_summary(rows, filters.agrupamento)

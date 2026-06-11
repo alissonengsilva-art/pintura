@@ -852,7 +852,7 @@ def turno_modulo_iniciar(shift_id: int, module_code: str):
     return RedirectResponse(url=_shift_execution_url(shift_id, module_code), status_code=303)
 
 
-@router.get("/relatorios", name="relatorios")
+@router.get("/relatorios", name="relatórios")
 def relatorios(request: Request, db: Session = Depends(get_db)):
     has_query = bool(request.query_params)
     if not has_query:

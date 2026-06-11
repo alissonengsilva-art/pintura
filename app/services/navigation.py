@@ -11,32 +11,32 @@ PRIMARY_LINKS = [
 ]
 
 SECTIONS: list[dict] = [
-    {"slug": "visao-geral", "title": "Visao Geral", "links": [PRIMARY_LINKS[0]]},
-    {"slug": "operacao", "title": "Operacao", "links": PRIMARY_LINKS[1:5]},
-    {"slug": "relatorios", "title": "Relatorios", "links": [PRIMARY_LINKS[5]]},
+    {"slug": "visao-geral", "title": "Visão Geral", "links": [PRIMARY_LINKS[0]]},
+    {"slug": "operação", "title": "Operação", "links": PRIMARY_LINKS[1:5]},
+    {"slug": "relatórios", "title": "Relatórios", "links": [PRIMARY_LINKS[5]]},
 ]
 
 ADMIN_LINKS = [
-    {"slug": "configuracoes", "title": "Configuracoes", "url": "/configuracoes"},
+    {"slug": "configurações", "title": "Configurações", "url": "/configuracoes"},
 ]
 
 SETTINGS_HUB_ITEMS = [
     {
-        "slug": "responsaveis",
-        "title": "Responsaveis",
+        "slug": "responsáveis",
+        "title": "Responsáveis",
         "description": "Cadastre e mantenha os colaboradores vinculados aos setores operacionais.",
         "url": "/cadastros/responsaveis",
     },
     {
         "slug": "modelos",
         "title": "Modelos",
-        "description": "Gerencie os modelos usados nos lancamentos e nas consultas operacionais.",
+        "description": "Gerencie os modelos usados nos lançamentos e nas consultas operacionais.",
         "url": "/cadastros/modelos",
     },
     {
         "slug": "setores",
         "title": "Setores",
-        "description": "Ajuste os setores disponiveis para cadastros, filtros e contexto operacional.",
+        "description": "Ajuste os setores disponíveis para cadastros, filtros e contexto operacional.",
         "url": "/cadastros/setores",
     },
     {
