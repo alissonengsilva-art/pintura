@@ -110,6 +110,27 @@ def _create_shift(client: TestClient, *, data_referencia: str = "2026-04-17", tu
     assert response.status_code == 303
 
 
+def _create_pt_shift(client: TestClient, *, data_referencia: str = "2026-04-17", turno: str = "1") -> None:
+    payload = {
+        "data_referencia": data_referencia,
+        "turno": turno,
+        "responsavel_pted": "Condutor PT/ED",
+        "responsavel_lab": "Laboratorio",
+    }
+    response = client.post("/turnos-pt/iniciar", data=payload, follow_redirects=False)
+    assert response.status_code == 303
+
+
+def _create_sigilatura_shift(client: TestClient, *, data_referencia: str = "2026-04-17", turno: str = "1") -> None:
+    payload = {
+        "data_referencia": data_referencia,
+        "turno": turno,
+        "responsavel": "Operador Sigilatura",
+    }
+    response = client.post("/turnos-sigilatura/iniciar", data=payload, follow_redirects=False)
+    assert response.status_code == 303
+
+
 def _get_shift_id(session_factory: sessionmaker, *, data_referencia: str, turno: str) -> int:
     with session_factory() as session:
         shift = session.scalars(
@@ -195,6 +216,36 @@ def test_module_hubs_are_history_only(test_env: tuple[TestClient, sessionmaker],
     assert "Conclu" in response.text
     assert "Em andamento" in response.text
     assert "Iniciar ciclo" not in response.text
+
+
+def test_dashboard_defaults_to_today_when_no_date_is_provided(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert f'value="{date.today().isoformat()}"' in response.text
+    assert "Dashboard do Dia" in response.text
+    assert "Nenhum dado" in response.text
+
+
+def test_dashboard_aggregates_all_shifts_for_selected_day(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    reference_date = "2026-04-28"
+    _create_shift(client, data_referencia=reference_date, turno="1")
+    _create_pt_shift(client, data_referencia=reference_date, turno="2")
+    _create_sigilatura_shift(client, data_referencia=reference_date, turno="3")
+
+    response = client.get(f"/dashboard?data_referencia={reference_date}")
+
+    assert response.status_code == 200
+    assert "Resumo di" in response.text
+    assert "CONTROL PLAN - GOIANA" in response.text
+    assert "28/04/2026" in response.text
+    assert "Realizado/Iniciado" in response.text
+    assert "Prioridades" in response.text
+    assert "SIGILATURA" in response.text
+    assert "Selecionar turno" not in response.text
 
 
 def test_operational_module_item_frequency_update_service(test_env: tuple[TestClient, sessionmaker]) -> None:

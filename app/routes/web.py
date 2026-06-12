@@ -228,7 +228,7 @@ def _build_module_execution_state(
                 ).all()
             )
             group_models_label = ", ".join(
-                f"{str(model.nome or '').strip()}{f' ({str(model.codigo or '').strip()})' if str(model.codigo or '').strip() else ''}"
+                f"{str(model.nome or '').strip()}{(' (' + str(model.codigo or '').strip() + ')') if str(model.codigo or '').strip() else ''}"
                 for model in group_models
             ) or "Sem modelos"
             has_flag = False
@@ -456,11 +456,14 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     context = {
         "request": request,
         "page_title": "Dashboard Operacional",
-        "page_description": "Acompanhamento operacional por data e turno.",
+        "page_description": "Acompanhamento operacional diário consolidado.",
         "filters": snapshot.filters,
+        "dashboard_day": snapshot.dashboard_day,
         "has_global_alert": snapshot.has_global_alert,
         "global_alert_message": snapshot.global_alert_message,
         "metrics": snapshot.metrics,
+        "chart_parametros": snapshot.chart_parametros,
+        "chart_prioridades": snapshot.chart_prioridades,
         "module_cards": snapshot.module_cards,
         "shift_options": snapshot.shift_options,
         "selected_shift": snapshot.selected_shift,

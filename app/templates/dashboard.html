@@ -1,104 +1,171 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="panel-card dashboard-turno-selector {% if has_global_alert %}dashboard-turno-selector--alert{% endif %}" data-dashboard-shift-picker>
+{% set dashboard_header_date = dashboard_day.date_label if dashboard_day and dashboard_day.date_label else filters.data_referencia.strftime('%d/%m/%Y') %}
+<section class="dashboard-brand-header">
+    <div class="dashboard-brand-header__left">
+        <div class="dashboard-brand-header__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" focusable="false">
+                <path d="M7 3a1 1 0 0 1 1 1v1h8V4a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v11a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a2 2 0 0 1 2-2h1V4a1 1 0 0 1 1-1Zm12 8H5v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7ZM6 7a1 1 0 0 0-1 1v1h14V8a1 1 0 0 0-1-1H6Z"/>
+            </svg>
+        </div>
+        <div>
+            <span class="dashboard-brand-header__kicker">Central de Controle de processo</span>
+            <h1>CONTROL PLAN - GOIANA</h1>
+        </div>
+    </div>
+
+    <div class="dashboard-brand-header__date">
+        <span class="dashboard-brand-header__date-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img" focusable="false">
+                <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v11a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm12 8H5v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8ZM5 7v1h14V7a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1Z"/>
+            </svg>
+        </span>
+        <strong>{{ dashboard_header_date }}</strong>
+    </div>
+</section>
+
+<section class="panel-card dashboard-day-filter {% if has_global_alert %}dashboard-day-filter--alert{% endif %}">
     {% if error_message %}
     <div class="alert-error">{{ error_message }}</div>
     {% endif %}
-    <div class="dashboard-turno-selector__head">
+    <div class="dashboard-day-filter__head">
         <div>
-            <p class="page-kicker">Central operacional por turno</p>
-            <h3>Dashboard por data e turno</h3>
+            <p class="page-kicker">Central operacional do dia</p>
+            <h3>Dashboard do Dia</h3>
             {% if global_alert_message %}
             <p class="dashboard-turno-selector__help">{{ global_alert_message }}</p>
             {% endif %}
         </div>
-        <button
-            type="button"
-            class="op-btn op-btn--ghost op-btn--sm"
-            data-picker-toggle
-            data-label-default="{% if selected_shift %}Trocar turno{% else %}Selecionar turno{% endif %}"
-            data-label-open="{% if selected_shift %}Fechar seleção{% else %}Ocultar seleção{% endif %}"
-        >
-            {% if selected_shift %}Trocar turno{% else %}Selecionar turno{% endif %}
-        </button>
-    </div>
-
-    {% if selected_shift %}
-    <div class="dashboard-turno-selector__compact">
-        <span>{{ selected_shift.data_label }} · {{ selected_shift.turno_nome }} · {{ selected_shift.status_label }} · {{ selected_shift.modules_progress_label }}</span>
-    </div>
-    {% endif %}
-
-    <div class="dashboard-turno-selector__panel {% if not selected_shift %}dashboard-turno-selector__panel--open{% endif %}" data-picker-panel>
         <form class="dashboard-turno-selector__date-form" method="get" action="/dashboard">
-            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia.isoformat() }}" aria-label="Data de referência">
-            <button class="op-btn op-btn--primary op-btn--sm" type="submit">Buscar</button>
+            <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia.isoformat() }}" aria-label="Data de referencia">
+            <button class="op-btn op-btn--primary op-btn--sm" type="submit">Atualizar</button>
         </form>
-
-        <div class="dashboard-turno-selector__list">
-            {% if shift_options %}
-                {% for shift in shift_options %}
-                <a
-                    href="/dashboard?data_referencia={{ filters.data_referencia.isoformat() }}&shift_id={{ shift.id }}"
-                    class="dashboard-turno-option {% if selected_shift and selected_shift.id == shift.id %}dashboard-turno-option--active{% endif %}"
-                >
-                    <div class="dashboard-turno-option__main">
-                        <strong>{{ shift.turno_nome }}</strong>
-                        {% if shift.turno_horario %}
-                        <span>{{ shift.turno_horario }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="dashboard-turno-option__meta">
-                        <span class="status-chip status-chip--{{ shift.status_tone }}">{{ shift.status_label }}</span>
-                        <span>{{ shift.modules_progress_label }}</span>
-                    </div>
-                </a>
-                {% endfor %}
-            {% else %}
-                <div class="dashboard-empty-state dashboard-empty-state--inline">
-                    Nenhum turno encontrado para a data selecionada.
-                </div>
-            {% endif %}
-        </div>
     </div>
 </section>
 
-{% if selected_shift %}
-<section class="panel-card dashboard-shift-header">
-    <div class="dashboard-shift-header__main">
-        <p class="page-kicker">Turno ativo</p>
-        <h3>{{ selected_shift.data_label }} · {{ selected_shift.turno_nome }}</h3>
-        <div class="dashboard-shift-header__meta">
-            {% if selected_shift.turno_horario %}
-            <span>{{ selected_shift.turno_horario }}</span>
-            {% endif %}
-            <span class="status-chip status-chip--{{ selected_shift.status_tone }}">{{ selected_shift.status_label }}</span>
-            <span>{{ selected_shift.modules_progress_label }}</span>
-            <span>{{ selected_shift.total_desvios }} desvios</span>
+{% if dashboard_day and module_cards %}
+<section class="dashboard-overview-grid">
+    <article class="panel-card dashboard-premium-summary">
+        <div class="dashboard-premium-summary__head">
+            <span class="summary-label">Resumo diário</span>
         </div>
-    </div>
-    <div class="dashboard-shift-header__progress">
-        <div class="dashboard-shift-header__progress-copy">
-            <strong>{{ selected_shift.progress_label }}</strong>
-            <span>{{ selected_shift.percentual }}%</span>
-        </div>
-        <div class="dashboard-shift-progress">
-            <span class="dashboard-shift-progress__fill" style="width: {{ selected_shift.percentual }}%"></span>
-        </div>
-    </div>
-</section>
 
-<section class="dashboard-metrics-grid">
-    {% for metric in metrics %}
-    <article class="panel-card dashboard-metric-card tone-{{ metric.tone }}">
-        <span class="summary-label">{{ metric.label }}</span>
-        <strong>{{ metric.value }}</strong>
+        <div class="dashboard-premium-summary__hero">
+            <div class="dashboard-premium-summary__main">
+                <strong>{{ dashboard_day.progress_label }}</strong>
+                <span>Parametros realizados</span>
+            </div>
+            <span class="dashboard-premium-summary__badge">{{ dashboard_day.percentual }}%</span>
+        </div>
+
+        <div class="dashboard-shift-progress dashboard-premium-summary__progress">
+            <span class="dashboard-shift-progress__fill" style="width: {{ dashboard_day.percentual }}%"></span>
+        </div>
+
+        <div class="dashboard-premium-summary__stats">
+            <div>
+                <span>Turnos</span>
+                <strong>{{ dashboard_day.turnos_count }}</strong>
+            </div>
+            <div>
+                <span>Concluídos</span>
+                <strong>{{ dashboard_day.modulos_concluidos }}</strong>
+            </div>
+            <div>
+                <span>Em andamento</span>
+                <strong>{{ dashboard_day.modulos_em_andamento }}</strong>
+            </div>
+            <div class="{% if dashboard_day.total_desvios > 0 %}dashboard-premium-summary__stat-alert{% endif %}">
+                <span>Desvios</span>
+                <strong>{{ dashboard_day.total_desvios }}</strong>
+            </div>
+        </div>
     </article>
-    {% endfor %}
+
+    <article class="panel-card dashboard-chart-card">
+        <div class="dashboard-chart-card__header">
+            <h3 class="dashboard-chart-card__title">Numero de parametros realizados</h3>
+        </div>
+        <div class="dashboard-chart-card__head">
+            <div class="dashboard-chart-legend">
+                <span><i class="dashboard-chart-legend__dot" style="background: #2f9e44"></i>Realizado/Iniciado</span>
+                <span><i class="dashboard-chart-legend__dot" style="background: #d64545"></i>Nao realizado/Nao iniciado</span>
+            </div>
+        </div>
+        <div class="dashboard-stacked-chart dashboard-stacked-chart--vertical">
+            <div class="dashboard-stacked-chart__body">
+                <div class="dashboard-stacked-chart__axis">
+                    <span>100%</span>
+                    <span>75%</span>
+                    <span>50%</span>
+                    <span>25%</span>
+                    <span>0%</span>
+                </div>
+                <div class="dashboard-stacked-chart__columns">
+            {% for row in chart_parametros %}
+            <div class="dashboard-stacked-chart__column">
+                <div class="dashboard-stacked-chart__total">{{ row.total }}</div>
+                <div class="dashboard-stacked-chart__plot">
+                    <div class="dashboard-stacked-chart__bar dashboard-stacked-chart__bar--vertical">
+                    {% for segment in row.segments %}
+                    <span class="dashboard-stacked-chart__segment dashboard-stacked-chart__segment--vertical" style="height: {{ segment.percent }}%; background: {{ segment.color }};">
+                        {% if segment.show_value %}<em>{{ segment.percent_label }}</em>{% endif %}
+                    </span>
+                    {% endfor %}
+                    </div>
+                </div>
+                <div class="dashboard-stacked-chart__label">{{ row.label }}</div>
+            </div>
+            {% endfor %}
+                </div>
+            </div>
+        </div>
+    </article>
+
+    <article class="panel-card dashboard-chart-card">
+        <div class="dashboard-chart-card__header">
+            <h3 class="dashboard-chart-card__title">Prioridades</h3>
+        </div>
+        <div class="dashboard-chart-card__head">
+            <div class="dashboard-chart-legend">
+                <span><i class="dashboard-chart-legend__dot" style="background: #f3c64b"></i>Baixo</span>
+                <span><i class="dashboard-chart-legend__dot" style="background: #f28c28"></i>Medio</span>
+                <span><i class="dashboard-chart-legend__dot" style="background: #d64545"></i>Alto</span>
+            </div>
+        </div>
+        <div class="dashboard-stacked-chart dashboard-stacked-chart--vertical">
+            <div class="dashboard-stacked-chart__body">
+                <div class="dashboard-stacked-chart__axis">
+                    <span>100%</span>
+                    <span>75%</span>
+                    <span>50%</span>
+                    <span>25%</span>
+                    <span>0%</span>
+                </div>
+                <div class="dashboard-stacked-chart__columns">
+            {% for row in chart_prioridades %}
+            <div class="dashboard-stacked-chart__column">
+                <div class="dashboard-stacked-chart__total">{{ row.total }}</div>
+                <div class="dashboard-stacked-chart__plot">
+                    <div class="dashboard-stacked-chart__bar dashboard-stacked-chart__bar--vertical">
+                    {% for segment in row.segments %}
+                    <span class="dashboard-stacked-chart__segment dashboard-stacked-chart__segment--vertical" style="height: {{ segment.percent }}%; background: {{ segment.color }};">
+                        {% if segment.show_value %}<em>{{ segment.percent_label }}</em>{% endif %}
+                    </span>
+                    {% endfor %}
+                    </div>
+                </div>
+                <div class="dashboard-stacked-chart__label">{{ row.label }}</div>
+            </div>
+            {% endfor %}
+                </div>
+            </div>
+        </div>
+    </article>
 </section>
 
-<section class="dashboard-module-grid dashboard-module-grid--shift">
+<section class="dashboard-module-grid dashboard-module-grid--day">
     {% for module in module_cards %}
     <article class="panel-card dashboard-module-card dashboard-module-card--{{ module.status_tone }}" data-open-module-detail data-modal-payload="{{ module.modal | tojson | forceescape }}">
         <div class="dashboard-module-card__head">
@@ -109,9 +176,7 @@
             <span class="status-chip status-chip--{{ module.status_tone }}">{{ module.status_label }}</span>
         </div>
 
-        <div class="dashboard-module-metrics dashboard-module-metrics--compact">
-            <div><span class="metric-label">Resp. PT/ED</span><strong>{{ module.responsavel_pted }}</strong></div>
-            <div><span class="metric-label">Resp. Lab</span><strong>{{ module.responsavel_lab }}</strong></div>
+        <div class="dashboard-module-metrics dashboard-module-metrics--compact dashboard-module-metrics--summary">
             <div><span class="metric-label">Desvios</span><strong>{{ module.desvios }}</strong></div>
             <div><span class="metric-label">Progresso</span><strong>{{ module.progress_label }}</strong></div>
         </div>
@@ -124,7 +189,7 @@
         </div>
 
         <div class="hero-actions dashboard-module-actions">
-            <a class="button-secondary small" href="{{ module.history_url }}">Historico</a>
+            <a class="button-secondary small" href="{{ module.history_url }}">Histórico</a>
             <button class="op-btn op-btn--ghost op-btn--sm" type="button" data-open-module-detail-btn>Detalhes</button>
         </div>
     </article>
@@ -132,7 +197,8 @@
 </section>
 {% else %}
 <section class="panel-card dashboard-empty-state">
-    <p>{{ empty_state_message or "Selecione uma data e um turno para visualizar os controles." }}</p>
+    <h3>Nenhum dado disponivel para {{ filters.data_referencia.strftime('%d/%m/%Y') }}</h3>
+    <p>{{ empty_state_message or "Nao ha turnos cadastrados nesta data." }}</p>
 </section>
 {% endif %}
 
@@ -141,7 +207,7 @@
     <div class="op-modal__content dashboard-detail-modal">
         <button type="button" class="dashboard-detail-modal__close" data-close-dashboard-detail aria-label="Fechar">×</button>
         <div class="dashboard-detail-modal__header">
-            <h3 id="dashboardDetailTitle">Detalhes do módulo</h3>
+            <h3 id="dashboardDetailTitle">Detalhes do modulo</h3>
             <div class="dashboard-detail-modal__meta">
                 <span id="dashboardDetailShift"></span>
                 <span class="status-chip" id="dashboardDetailStatus"></span>
@@ -180,7 +246,7 @@
         </div>
 
         <div class="dashboard-detail-modal__actions">
-            <a class="button-primary small" id="dashboardDetailOpenModule" href="#">Abrir módulo</a>
+            <a class="button-primary small" id="dashboardDetailOpenModule" href="#">Abrir modulo</a>
             <a class="button-secondary small" id="dashboardDetailHistory" href="#">Ver histórico</a>
             <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-close-dashboard-detail>Fechar</button>
         </div>
@@ -189,26 +255,6 @@
 
 <script>
 (function () {
-    var picker = document.querySelector('[data-dashboard-shift-picker]');
-    if (picker) {
-        var toggle = picker.querySelector('[data-picker-toggle]');
-        var panel = picker.querySelector('[data-picker-panel]');
-        function syncToggleLabel() {
-            if (!toggle || !panel) return;
-            var isOpen = panel.classList.contains('dashboard-turno-selector__panel--open');
-            var defaultLabel = toggle.getAttribute('data-label-default') || 'Selecionar turno';
-            var openLabel = toggle.getAttribute('data-label-open') || 'Fechar seleção';
-            toggle.textContent = isOpen ? openLabel : defaultLabel;
-        }
-        if (toggle && panel) {
-            toggle.addEventListener('click', function () {
-                panel.classList.toggle('dashboard-turno-selector__panel--open');
-                syncToggleLabel();
-            });
-            syncToggleLabel();
-        }
-    }
-
     var modal = document.getElementById('dashboardModuleDetailModal');
     if (!modal) return;
     var closeButtons = modal.querySelectorAll('[data-close-dashboard-detail]');
@@ -226,7 +272,7 @@
     var history = document.getElementById('dashboardDetailHistory');
 
     function openModal(data) {
-        title.textContent = data.nome_modulo || 'Detalhes do módulo';
+        title.textContent = data.nome_modulo || 'Detalhes do modulo';
         shiftInfo.textContent = [data.data, data.turno, data.turno_horario].filter(Boolean).join(' · ');
         status.textContent = data.status || '—';
         status.className = 'status-chip';
@@ -247,7 +293,7 @@
                 + '<td><span class="op-table__text">' + (item.valor || '—') + '</span></td>'
                 + '<td><span class="op-table__text">' + (item.observacao || '—') + '</span></td>'
                 + '<td><span class="op-table__text">' + (item.responsavel || '—') + '</span></td>'
-                + '<td><span class="op-table__text">' + (item.desvio ? 'Sim' : 'Não') + '</span></td>';
+                + '<td><span class="op-table__text">' + (item.desvio ? 'Sim' : 'Nao') + '</span></td>';
             itemsBody.appendChild(tr);
         });
 
@@ -270,10 +316,9 @@
             var raw = node.getAttribute('data-modal-payload');
             if (!raw) return;
             try {
-                var data = JSON.parse(raw);
-                openModal(data);
+                openModal(JSON.parse(raw));
             } catch (error) {
-                console.error('Falha ao abrir detalhes do módulo', error);
+                console.error('Falha ao abrir detalhes do modulo', error);
             }
         });
     });
@@ -287,10 +332,9 @@
             var raw = card.getAttribute('data-modal-payload');
             if (!raw) return;
             try {
-                var data = JSON.parse(raw);
-                openModal(data);
+                openModal(JSON.parse(raw));
             } catch (error) {
-                console.error('Falha ao abrir detalhes do módulo', error);
+                console.error('Falha ao abrir detalhes do modulo', error);
             }
         });
     });
