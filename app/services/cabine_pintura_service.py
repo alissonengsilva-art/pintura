@@ -74,6 +74,16 @@ def _item_status_label(status: str | None) -> str:
     return "Preenchido" if str(status or "").strip().upper() == "PREENCHIDO" else "Pendente"
 
 
+def _progress_status(total: int, filled: int) -> tuple[str, str]:
+    if total <= 0:
+        return ("nao-iniciado", "Nao iniciado")
+    if filled >= total:
+        return ("concluido", "Concluido")
+    if filled > 0:
+        return ("em-andamento", "Em andamento")
+    return ("nao-iniciado", "Nao iniciado")
+
+
 def _catalog_items(session: Session, turno: str | None = None) -> list[OperationalModuleItem]:
     statement = (
         select(OperationalModuleItem)
@@ -238,12 +248,21 @@ def build_relatorio_context(session: Session, relatorio: CabinePinturaRelatorio)
     aba_views: list[dict[str, Any]] = []
     for aba in CABINE_PINTURA_ABAS:
         groups = grouped_rows.get(aba, {})
+        aba_items = [group_item for items in groups.values() for group_item in items]
+        aba_total = len(aba_items)
+        aba_filled = sum(1 for group_item in aba_items if str(group_item.get("valor") or "").strip())
+        aba_percent = int(round((aba_filled / aba_total) * 100)) if aba_total > 0 else 0
+        status_key, status_label = _progress_status(aba_total, aba_filled)
         aba_views.append(
             {
                 "code": _aba_code(aba),
                 "label": aba,
                 "groups": [{"operacao": operacao, "items": items} for operacao, items in groups.items()],
-                "items_count": sum(len(items) for items in groups.values()),
+                "items_count": aba_total,
+                "filled": aba_filled,
+                "percent": aba_percent,
+                "status_key": status_key,
+                "status_label": status_label,
             }
         )
 

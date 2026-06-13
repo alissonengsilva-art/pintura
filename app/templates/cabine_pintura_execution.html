@@ -9,14 +9,17 @@
                 <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
             </svg>
         </div>
-        <div class="turno-workspace__heading" style="min-width:0;">
-            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUCAO DO RELATORIO</span>
-            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Cabine de Pintura - {{ relatorio.data_label }} - Turno {{ relatorio.turno }}</h1>
-            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Checklist operacional da Cabine de Pintura.</p>
+        <div class="turno-workspace__heading">
+            <span class="turno-workspace__kicker">EXECUÇÃO DO TURNO</span>
+            <h1 class="turno-workspace__title">{{ relatorio.data_label }}{% if relatorio.turno %} · Turno {{ relatorio.turno }}{% endif %}</h1>
+            <p class="turno-workspace__subtitle">Os módulos da Cabine de Pintura executam dentro do mesmo turno operacional.</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge {% if relatorio.status == 'concluido' %}op-status-badge--concluido{% else %}op-status-badge--em-andamento{% endif %}">{{ relatorio.status_label }}</span>
-            <a href="/cabine-pintura" class="op-btn op-btn--ghost op-btn--sm">Voltar para central</a>
+            {% if relatorio.status != 'concluido' %}
+            <button type="submit" form="cp-form" class="op-btn op-btn--primary op-btn--sm" name="submit_action" value="concluir">Concluir turno</button>
+            {% endif %}
+            <a href="/cabine-pintura" class="op-btn op-btn--ghost op-btn--sm">Voltar para turnos</a>
         </div>
     </header>
 
@@ -29,45 +32,120 @@
 
     <section class="turno-overview panel-card">
         <div class="turno-overview__grid">
-            <article class="turno-overview__metric"><span class="turno-overview__label">Data do controle</span><div class="turno-overview__value-row"><strong>{{ relatorio.data_label }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Semana</span><div class="turno-overview__value-row"><strong>{{ relatorio.semana }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Mes</span><div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Responsavel</span><div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Turno</span><div class="turno-overview__value-row"><strong>{{ relatorio.turno }}</strong></div></article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Data</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.data_label }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Turno</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.turno or '-' }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Responsável</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="8" r="3.1" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M5.5 19c.8-3.4 3.2-5 6.5-5s5.7 1.6 6.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <strong>{{ relatorio.responsavel or '-' }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Concluídos</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="m8.5 12 2.3 2.3 4.7-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong id="cp-filled-overview">{{ relatorio.summary.preenchidos }}/{{ relatorio.summary.total }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric">
+                <span class="turno-overview__label">Em andamento</span>
+                <div class="turno-overview__value-row">
+                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <strong id="cp-pending-overview">{{ relatorio.summary.pendentes }}</strong>
+                </div>
+            </article>
+            <article class="turno-overview__metric turno-overview__metric--progress">
+                <span class="turno-overview__label">Progresso geral</span>
+                <div class="turno-overview__progress-row">
+                    <div class="turno-overview__progress-copy">
+                        <strong id="cp-percent-overview">{{ relatorio.summary.percentual }}%</strong>
+                        <span class="turno-overview__progress-total" id="cp-progress-copy">{{ relatorio.summary.preenchidos }}/{{ relatorio.summary.total }} itens</span>
+                    </div>
+                    <div class="turno-overview__progress">
+                        <div class="op-shift-summary__progress-bar">
+                            <div class="op-shift-summary__progress-fill" id="cp-progress-fill-overview" style="width: {{ relatorio.summary.percentual }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </article>
         </div>
     </section>
+
+    <nav class="turno-browser-tabs" aria-label="Abas da Cabine de Pintura">
+        {% for aba in relatorio.abas %}
+        <button type="button" class="turno-browser-tab turno-browser-tab--state-{{ aba['status_key'] }} {% if loop.first %}turno-browser-tab--active{% endif %}" data-cp-tab="{{ aba['code'] }}">
+            <span class="turno-browser-tab__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M6 7h12M6 12h12M6 17h7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="turno-browser-tab__content">
+                <span class="turno-browser-tab__title-band">
+                    <span class="turno-browser-tab__title-wrap">
+                        <span class="turno-browser-tab__title">{{ aba['label'] }}</span>
+                    </span>
+                </span>
+                <span class="turno-browser-tab__status-band">
+                    <span class="op-status-badge turno-browser-tab__status turno-browser-tab__status--{{ aba['status_key'] }}">{{ aba['status_label'] }}</span>
+                </span>
+                <span class="turno-browser-tab__progress">
+                    <span class="turno-browser-tab__progress-fill" style="width: {{ aba['percent'] }}%"></span>
+                </span>
+                <span class="turno-browser-tab__progress-band turno-browser-tab__meta">
+                    <span>{{ aba['filled'] }}/{{ aba['items_count'] }} itens</span>
+                </span>
+            </span>
+        </button>
+        {% endfor %}
+    </nav>
 
     <section class="turno-module-editor__shell panel-card">
         <section class="turno-module-editor__header">
             <div class="turno-module-editor__title-wrap" style="width:100%;">
                 <div class="turno-module-editor__title-row">
-                    <h2 class="turno-module-editor__title">Checklist</h2>
+                    <h2 class="turno-module-editor__title">Checklist da Cabine de Pintura</h2>
                     <span class="op-status-badge op-status-badge--em-andamento" id="cp-progress-badge">{{ relatorio.summary.progress_label }} - {{ relatorio.summary.percentual }}%</span>
-                </div>
-                <div class="dashboard-module-metrics dashboard-module-metrics--compact dashboard-module-metrics--summary" style="margin-top:1rem;">
-                    <div><span class="metric-label">Total</span><strong id="cp-total">{{ relatorio.summary.total }}</strong></div>
-                    <div><span class="metric-label">Preenchidos</span><strong id="cp-filled">{{ relatorio.summary.preenchidos }}</strong></div>
-                    <div><span class="metric-label">Pendentes</span><strong id="cp-pending">{{ relatorio.summary.pendentes }}</strong></div>
-                    <div><span class="metric-label">Status</span><strong id="cp-percent">{{ relatorio.summary.percentual }}%</strong></div>
-                </div>
-                <div class="dashboard-module-progress" style="margin-top:1rem;">
-                    <div class="dashboard-shift-progress">
-                        <span class="dashboard-shift-progress__fill" id="cp-progress-fill" style="width: {{ relatorio.summary.percentual }}%"></span>
-                    </div>
                 </div>
             </div>
         </section>
-
-        <div class="turnos-toolbar panel-card" style="margin-bottom:1rem;">
-            <div class="turnos-toolbar__tabs">
-                {% for aba in relatorio.abas %}
-                <button type="button" class="turnos-toolbar__tab {% if loop.first %}turnos-toolbar__tab--active{% endif %}" data-cp-tab="{{ aba['code'] }}">
-                    {{ aba['label'] }}
-                    <span class="turnos-toolbar__count">{{ aba['items_count'] }}</span>
-                </button>
-                {% endfor %}
-            </div>
-        </div>
 
         <form method="post" action="/cabine-pintura/{{ relatorio.id }}/salvar" class="op-sector__form turno-sector-form" id="cp-form">
             {% for aba in relatorio.abas %}
@@ -116,7 +194,7 @@
                 <div class="op-sector__actions-buttons">
                     {% if relatorio.status != 'concluido' %}
                     <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
-                    <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatorio</button>
+                    <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir turno</button>
                     {% else %}
                     <span>Relatorio finalizado</span>
                     {% endif %}
@@ -134,21 +212,19 @@
     var tabs = document.querySelectorAll('[data-cp-tab]');
     var panels = document.querySelectorAll('[data-cp-panel]');
     var inputs = form.querySelectorAll('[data-item-value]');
-    var totalNode = document.getElementById('cp-total');
-    var filledNode = document.getElementById('cp-filled');
-    var pendingNode = document.getElementById('cp-pending');
-    var percentNode = document.getElementById('cp-percent');
-    var badgeNode = document.getElementById('cp-progress-badge');
-    var fillNode = document.getElementById('cp-progress-fill');
+
+    function activateTab(code) {
+        tabs.forEach(function (tab) {
+            tab.classList.toggle('turno-browser-tab--active', tab.getAttribute('data-cp-tab') === code);
+        });
+        panels.forEach(function (panel) {
+            panel.classList.toggle('turnos-panel--active', panel.getAttribute('data-cp-panel') === code);
+        });
+    }
 
     tabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
-            var target = tab.getAttribute('data-cp-tab');
-            tabs.forEach(function (item) { item.classList.remove('turnos-toolbar__tab--active'); });
-            panels.forEach(function (panel) { panel.classList.remove('turnos-panel--active'); });
-            tab.classList.add('turnos-toolbar__tab--active');
-            var panel = document.querySelector('[data-cp-panel="' + target + '"]');
-            if (panel) panel.classList.add('turnos-panel--active');
+            activateTab(tab.getAttribute('data-cp-tab'));
         });
     });
 
@@ -164,17 +240,32 @@
         });
         var pending = Math.max(total - filled, 0);
         var percent = total > 0 ? Math.round((filled / total) * 100) : 0;
-        if (totalNode) totalNode.textContent = String(total);
-        if (filledNode) filledNode.textContent = String(filled);
+        var textFilled = String(filled);
+        var textTotal = String(total);
+        var progressCopy = filled + '/' + total + ' itens';
+
+        var filledNode = document.getElementById('cp-filled-overview');
+        var pendingNode = document.getElementById('cp-pending-overview');
+        var percentNode = document.getElementById('cp-percent-overview');
+        var copyNode = document.getElementById('cp-progress-copy');
+        var fillBar = document.getElementById('cp-progress-fill-overview');
+        var badgeNode = document.getElementById('cp-progress-badge');
+
+        if (filledNode) filledNode.textContent = textFilled + '/' + textTotal;
         if (pendingNode) pendingNode.textContent = String(pending);
         if (percentNode) percentNode.textContent = String(percent) + '%';
+        if (copyNode) copyNode.textContent = progressCopy;
+        if (fillBar) fillBar.style.width = String(percent) + '%';
         if (badgeNode) badgeNode.textContent = filled + '/' + total + ' itens preenchidos - ' + percent + '%';
-        if (fillNode) fillNode.style.width = String(percent) + '%';
     }
 
     inputs.forEach(function (input) {
         input.addEventListener('input', refreshSummary);
     });
+
+    if (tabs.length) {
+        activateTab(tabs[0].getAttribute('data-cp-tab'));
+    }
     refreshSummary();
 })();
 </script>

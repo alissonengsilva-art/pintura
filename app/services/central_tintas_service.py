@@ -75,6 +75,16 @@ def _item_status_label(status: str | None) -> str:
     return "Preenchido" if str(status or "").strip().upper() == "PREENCHIDO" else "Pendente"
 
 
+def _progress_status(total: int, filled: int) -> tuple[str, str]:
+    if total <= 0:
+        return ("nao-iniciado", "Nao iniciado")
+    if filled >= total:
+        return ("concluido", "Concluido")
+    if filled > 0:
+        return ("em-andamento", "Em andamento")
+    return ("nao-iniciado", "Nao iniciado")
+
+
 def _catalog_items(session: Session) -> list[OperationalModuleItem]:
     return list(
         session.scalars(
@@ -213,6 +223,7 @@ def build_relatorio_context(session: Session, relatorio: CentralTintasRelatorio)
     preenchidos = 0
     pendentes = 0
     grouped_catalog_items: list[dict[str, Any]] = []
+    tab_views: list[dict[str, Any]] = []
     grouped_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
     ordered_groups: list[str] = []
 
@@ -251,6 +262,22 @@ def build_relatorio_context(session: Session, relatorio: CentralTintasRelatorio)
             {"operacao": operacao, "items": grouped_rows[operacao]}
             for operacao in ordered_groups
         ]
+        for index, group in enumerate(grouped_catalog_items, start=1):
+            group_total = len(group["items"])
+            group_filled = sum(1 for group_item in group["items"] if str(group_item.get("valor") or "").strip())
+            group_percent = int(round((group_filled / group_total) * 100)) if group_total > 0 else 0
+            status_key, status_label = _progress_status(group_total, group_filled)
+            tab_views.append(
+                {
+                    "code": f"grupo-{index}",
+                    "title": group["operacao"],
+                    "filled": group_filled,
+                    "total": group_total,
+                    "percent": group_percent,
+                    "status_key": status_key,
+                    "status_label": status_label,
+                }
+            )
 
     total_items = len(relatorio.itens)
     percentual = int(round((preenchidos / total_items) * 100)) if total_items > 0 else 0
@@ -267,6 +294,7 @@ def build_relatorio_context(session: Session, relatorio: CentralTintasRelatorio)
         "mode": "catalog" if catalog_mode else "legacy",
         "itens": rendered_items,
         "grupos": grouped_catalog_items,
+        "tabs": tab_views,
         "summary": {
             "total": total_items,
             "preenchidos": preenchidos,
