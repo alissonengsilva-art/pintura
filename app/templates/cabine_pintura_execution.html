@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turno-workspace">
+    <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="turno-workspace__heading" style="min-width:0;">
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUCAO DO RELATORIO</span>
+            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Cabine de Pintura - {{ relatorio.data_label }} - Turno {{ relatorio.turno }}</h1>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Checklist operacional da Cabine de Pintura.</p>
+        </div>
+        <div class="turno-workspace__header-meta">
+            <span class="op-status-badge {% if relatorio.status == 'concluido' %}op-status-badge--concluido{% else %}op-status-badge--em-andamento{% endif %}">{{ relatorio.status_label }}</span>
+            <a href="/cabine-pintura" class="op-btn op-btn--ghost op-btn--sm">Voltar para central</a>
+        </div>
+    </header>
+
+    {% if schema_error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
+    {% endif %}
+    {% if error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
+    {% endif %}
+
+    <section class="turno-overview panel-card">
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric"><span class="turno-overview__label">Data do controle</span><div class="turno-overview__value-row"><strong>{{ relatorio.data_label }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Semana</span><div class="turno-overview__value-row"><strong>{{ relatorio.semana }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Mes</span><div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Responsavel</span><div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Turno</span><div class="turno-overview__value-row"><strong>{{ relatorio.turno }}</strong></div></article>
+        </div>
+    </section>
+
+    <section class="turno-module-editor__shell panel-card">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap" style="width:100%;">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">Checklist</h2>
+                    <span class="op-status-badge op-status-badge--em-andamento" id="cp-progress-badge">{{ relatorio.summary.progress_label }} - {{ relatorio.summary.percentual }}%</span>
+                </div>
+                <div class="dashboard-module-metrics dashboard-module-metrics--compact dashboard-module-metrics--summary" style="margin-top:1rem;">
+                    <div><span class="metric-label">Total</span><strong id="cp-total">{{ relatorio.summary.total }}</strong></div>
+                    <div><span class="metric-label">Preenchidos</span><strong id="cp-filled">{{ relatorio.summary.preenchidos }}</strong></div>
+                    <div><span class="metric-label">Pendentes</span><strong id="cp-pending">{{ relatorio.summary.pendentes }}</strong></div>
+                    <div><span class="metric-label">Status</span><strong id="cp-percent">{{ relatorio.summary.percentual }}%</strong></div>
+                </div>
+                <div class="dashboard-module-progress" style="margin-top:1rem;">
+                    <div class="dashboard-shift-progress">
+                        <span class="dashboard-shift-progress__fill" id="cp-progress-fill" style="width: {{ relatorio.summary.percentual }}%"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="turnos-toolbar panel-card" style="margin-bottom:1rem;">
+            <div class="turnos-toolbar__tabs">
+                {% for aba in relatorio.abas %}
+                <button type="button" class="turnos-toolbar__tab {% if loop.first %}turnos-toolbar__tab--active{% endif %}" data-cp-tab="{{ aba['code'] }}">
+                    {{ aba['label'] }}
+                    <span class="turnos-toolbar__count">{{ aba['items_count'] }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <form method="post" action="/cabine-pintura/{{ relatorio.id }}/salvar" class="op-sector__form turno-sector-form" id="cp-form">
+            {% for aba in relatorio.abas %}
+            <div class="turnos-panel {% if loop.first %}turnos-panel--active{% endif %}" data-cp-panel="{{ aba['code'] }}">
+                <div class="op-table-wrapper turno-sector-table-wrap">
+                    <table class="op-table turno-sector-table">
+                        <thead>
+                            <tr>
+                                <th>OPERACAO / EQUIPAMENTO</th>
+                                <th>DESCRICAO DO CONTROLE</th>
+                                <th>NORMA</th>
+                                <th>PARAMETRO</th>
+                                <th>VALOR MEDIDO</th>
+                                <th>OBSERVACAO</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for grupo in aba['groups'] %}
+                                {% for item in grupo["items"] %}
+                                <tr data-item-row="{{ item.id }}">
+                                    {% if loop.first %}
+                                    <td rowspan="{{ grupo['items']|length }}"><span class="op-table__text"><strong>{{ grupo['operacao'] }}</strong></span></td>
+                                    {% endif %}
+                                    <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
+                                    <td><span class="op-table__text">{{ item.norma or '-' }}</span></td>
+                                    <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
+                                    <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_valor" value="{{ item.valor or '' }}" data-item-value></td>
+                                    <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_observacao" value="{{ item.observacao or '' }}"></td>
+                                    <td><span class="op-table__text" data-item-status>{{ item.status_label }}</span></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                            <tr>
+                                <td colspan="7"><span class="op-table__text">Nenhum item registrado nesta aba.</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="op-sector__actions turno-sector-actions">
+                <div></div>
+                <div class="op-sector__actions-buttons">
+                    {% if relatorio.status != 'concluido' %}
+                    <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
+                    <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatorio</button>
+                    {% else %}
+                    <span>Relatorio finalizado</span>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </section>
+</section>
+
+<script>
+(function () {
+    var form = document.getElementById('cp-form');
+    if (!form) return;
+
+    var tabs = document.querySelectorAll('[data-cp-tab]');
+    var panels = document.querySelectorAll('[data-cp-panel]');
+    var inputs = form.querySelectorAll('[data-item-value]');
+    var totalNode = document.getElementById('cp-total');
+    var filledNode = document.getElementById('cp-filled');
+    var pendingNode = document.getElementById('cp-pending');
+    var percentNode = document.getElementById('cp-percent');
+    var badgeNode = document.getElementById('cp-progress-badge');
+    var fillNode = document.getElementById('cp-progress-fill');
+
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var target = tab.getAttribute('data-cp-tab');
+            tabs.forEach(function (item) { item.classList.remove('turnos-toolbar__tab--active'); });
+            panels.forEach(function (panel) { panel.classList.remove('turnos-panel--active'); });
+            tab.classList.add('turnos-toolbar__tab--active');
+            var panel = document.querySelector('[data-cp-panel="' + target + '"]');
+            if (panel) panel.classList.add('turnos-panel--active');
+        });
+    });
+
+    function refreshSummary() {
+        var total = inputs.length;
+        var filled = 0;
+        inputs.forEach(function (input) {
+            var row = input.closest('tr');
+            var status = row ? row.querySelector('[data-item-status]') : null;
+            var hasValue = Boolean(String(input.value || '').trim());
+            if (hasValue) filled += 1;
+            if (status) status.textContent = hasValue ? 'Preenchido' : 'Pendente';
+        });
+        var pending = Math.max(total - filled, 0);
+        var percent = total > 0 ? Math.round((filled / total) * 100) : 0;
+        if (totalNode) totalNode.textContent = String(total);
+        if (filledNode) filledNode.textContent = String(filled);
+        if (pendingNode) pendingNode.textContent = String(pending);
+        if (percentNode) percentNode.textContent = String(percent) + '%';
+        if (badgeNode) badgeNode.textContent = filled + '/' + total + ' itens preenchidos - ' + percent + '%';
+        if (fillNode) fillNode.style.width = String(percent) + '%';
+    }
+
+    inputs.forEach(function (input) {
+        input.addEventListener('input', refreshSummary);
+    });
+    refreshSummary();
+})();
+</script>
+{% endblock %}

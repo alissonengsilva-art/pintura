@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turnos-page">
+    <header class="turnos-page__header">
+        <div>
+            <span class="turnos-page__kicker">Centro operacional</span>
+            <h1 class="turnos-page__title">Cabine de Pintura</h1>
+            <p class="turnos-page__subtitle">Entrada operacional principal para iniciar um turno da Cabine de Pintura e acompanhar o que esta em andamento ou concluido.</p>
+        </div>
+        <button type="button" class="button-primary button-primary--lg" data-open-start-modal>Iniciar turno</button>
+    </header>
+
+    {% if schema_error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
+    {% endif %}
+
+    <section class="turnos-toolbar panel-card">
+        <div class="turnos-toolbar__tabs">
+            <button type="button" class="turnos-toolbar__tab {% if active_tab == 'andamento' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="andamento">
+                Em andamento
+                <span class="turnos-toolbar__count">{{ relatorios_em_andamento|length }}</span>
+            </button>
+            <button type="button" class="turnos-toolbar__tab {% if active_tab == 'concluidos' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="concluidos">
+                Concluidos
+                <span class="turnos-toolbar__count">{{ relatorios_concluidos|length }}</span>
+            </button>
+        </div>
+    </section>
+
+    <div class="turnos-panel {% if active_tab == 'andamento' %}turnos-panel--active{% endif %}" data-turnos-panel="andamento">
+        {% if relatorios_em_andamento %}
+        <div class="turnos-list turnos-list--table">
+            <div class="turno-table-header panel-card">
+                <span>Data</span>
+                <span>Turno</span>
+                <span>Responsavel</span>
+                <span>Status</span>
+                <span>Itens</span>
+                <span>Acoes</span>
+            </div>
+            {% for relatorio in relatorios_em_andamento %}
+            <article class="turno-card turno-card--table panel-card">
+                <div class="turno-table-row">
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
+                    <span class="turno-card__status-text">{{ relatorio.status_label }}</span>
+                    <strong class="turno-card__value">{{ relatorio.itens_count }}</strong>
+                    <a href="/cabine-pintura/{{ relatorio.id }}" class="button-primary small">Abrir turno</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="op-empty-state panel-card">
+            <p>Nenhum turno em andamento.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="turnos-panel {% if active_tab == 'concluidos' %}turnos-panel--active{% endif %}" data-turnos-panel="concluidos">
+        {% if relatorios_concluidos %}
+        <div class="turnos-list turnos-list--table turnos-list--table-concluded">
+            <div class="turno-table-header turno-table-header--concluded panel-card">
+                <span>Data</span>
+                <span>Turno</span>
+                <span>Responsavel</span>
+                <span>Atualizacao</span>
+                <span>Acoes</span>
+            </div>
+            {% for relatorio in relatorios_concluidos %}
+            <article class="turno-card turno-card--table turno-card--done panel-card">
+                <div class="turno-table-row turno-table-row--concluded">
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.updated_label }}</strong>
+                    <a href="/cabine-pintura/{{ relatorio.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="op-empty-state panel-card">
+            <p>Nenhum turno concluido.</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<div class="op-modal {% if open_start_modal %}op-modal--open{% endif %}" id="startCabinePinturaModal">
+    <div class="op-modal__backdrop" data-close-start-modal></div>
+    <div class="op-modal__content panel-card">
+        <div class="turnos-modal__header">
+            <div>
+                <span class="turnos-page__kicker">Novo turno</span>
+                <h2 class="turnos-modal__title">Iniciar turno</h2>
+            </div>
+            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">Ã—</button>
+        </div>
+
+        {% if error_message %}
+        <div class="op-alert op-alert--error">{{ error_message }}</div>
+        {% endif %}
+
+        <form method="post" action="/cabine-pintura/iniciar" class="op-form op-form--vertical">
+            <div class="op-form__grid op-form__grid--2col">
+                <div class="op-form__group">
+                    <label class="op-form__label" for="data_referencia">Data</label>
+                    <input type="date" id="data_referencia" name="data_referencia" class="op-form__input" value="{{ form_data.get('data_referencia', data_hoje) }}" required>
+                </div>
+                <div class="op-form__group">
+                    <label class="op-form__label" for="turno">Turno</label>
+                    <select id="turno" name="turno" class="op-form__select">
+                        <option value="">Selecione</option>
+                        {% for t in turnos %}
+                        <option value="{{ t.codigo }}" {% if form_data.get('turno') == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="op-form__group op-form__group--full">
+                    <label class="op-form__label" for="responsavel">Responsavel</label>
+                    <select id="responsavel" name="responsavel" class="op-form__select">
+                        <option value="">Selecione</option>
+                        {% for r in responsaveis %}
+                        <option value="{{ r.nome }}" {% if form_data.get('responsavel') == r.nome %}selected{% endif %}>{{ r.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="op-form__actions">
+                <button type="button" class="button-secondary" data-close-start-modal>Cancelar</button>
+                <button type="submit" class="button-primary button-primary--lg">Confirmar e iniciar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('startCabinePinturaModal');
+    var openButtons = document.querySelectorAll('[data-open-start-modal]');
+    var closeButtons = document.querySelectorAll('[data-close-start-modal]');
+    var tabs = document.querySelectorAll('[data-turnos-tab]');
+    var panels = document.querySelectorAll('[data-turnos-panel]');
+
+    function openModal() { modal.classList.add('op-modal--open'); }
+    function closeModal() { modal.classList.remove('op-modal--open'); }
+
+    openButtons.forEach(function(button) { button.addEventListener('click', openModal); });
+    closeButtons.forEach(function(button) { button.addEventListener('click', closeModal); });
+
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            var target = this.getAttribute('data-turnos-tab');
+            tabs.forEach(function(item) { item.classList.remove('turnos-toolbar__tab--active'); });
+            panels.forEach(function(panel) { panel.classList.remove('turnos-panel--active'); });
+            this.classList.add('turnos-toolbar__tab--active');
+            var panel = document.querySelector('[data-turnos-panel="' + target + '"]');
+            if (panel) panel.classList.add('turnos-panel--active');
+            var url = new URL(window.location);
+            url.searchParams.set('tab', target);
+            history.replaceState({}, '', url);
+        });
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closeModal();
+    });
+})();
+</script>
+{% endblock %}

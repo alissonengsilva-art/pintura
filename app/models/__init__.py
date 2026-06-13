@@ -41,6 +41,12 @@ from app.models.central_tintas import (
     CENTRAL_TINTAS_STATUS_CONCLUIDO,
     CENTRAL_TINTAS_STATUS_EM_ANDAMENTO,
 )
+from app.models.cabine_pintura import (
+    CabinePinturaItem,
+    CabinePinturaRelatorio,
+    CABINE_PINTURA_STATUS_CONCLUIDO,
+    CABINE_PINTURA_STATUS_EM_ANDAMENTO,
+)
 from app.models.sigilatura import (
     SIG_MODULE_CODES,
     SIG_SHIFT_STATUS_CONCLUIDO,
@@ -122,6 +128,10 @@ __all__ = [
     "CentralTintasRegistro",
     "CENTRAL_TINTAS_STATUS_EM_ANDAMENTO",
     "CENTRAL_TINTAS_STATUS_CONCLUIDO",
+    "CabinePinturaRelatorio",
+    "CabinePinturaItem",
+    "CABINE_PINTURA_STATUS_EM_ANDAMENTO",
+    "CABINE_PINTURA_STATUS_CONCLUIDO",
     "User",
 ]
 

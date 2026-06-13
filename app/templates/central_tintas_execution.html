@@ -10,13 +10,13 @@
             </svg>
         </div>
         <div class="turno-workspace__heading" style="min-width:0;">
-            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUÇÃO DO RELATÓRIO</span>
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">EXECUCAO DO TURNO</span>
             <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Central de Tintas - {{ relatorio.data_label }}{% if relatorio.turno %} - Turno {{ relatorio.turno }}{% endif %}</h1>
             <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Checklist operacional da Central de Tintas.</p>
         </div>
         <div class="turno-workspace__header-meta">
             <span class="op-status-badge {% if relatorio.status == 'concluido' %}op-status-badge--concluido{% else %}op-status-badge--em-andamento{% endif %}">{{ relatorio.status_label }}</span>
-            <a href="/central-tintas" class="op-btn op-btn--ghost op-btn--sm">Voltar para relatórios</a>
+            <a href="/central-tintas" class="op-btn op-btn--ghost op-btn--sm">Voltar para central</a>
         </div>
     </header>
 
@@ -26,151 +26,123 @@
     {% if error_message %}
     <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
     {% endif %}
+    {% if relatorio.mode != 'catalog' %}
+    <div class="op-alert op-alert--warning panel-card">Este turno esta usando o fallback legado. O fluxo oficial da Central de Tintas usa itens fixos do catalogo.</div>
+    {% endif %}
 
     <section class="turno-overview panel-card">
         <div class="turno-overview__grid">
             <article class="turno-overview__metric">
                 <span class="turno-overview__label">Data do controle</span>
-                <div class="turno-overview__value-row">
-                    <span class="turno-overview__icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none">
-                            <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                        </svg>
-                    </span>
-                    <strong>{{ relatorio.data_label }}</strong>
-                </div>
+                <div class="turno-overview__value-row"><strong>{{ relatorio.data_label }}</strong></div>
             </article>
             <article class="turno-overview__metric">
                 <span class="turno-overview__label">Semana</span>
-                <div class="turno-overview__value-row">
-                    <span class="turno-overview__icon turno-overview__icon--primary" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M12 8v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <strong>{{ relatorio.semana }}</strong>
-                </div>
+                <div class="turno-overview__value-row"><strong>{{ relatorio.semana }}</strong></div>
             </article>
             <article class="turno-overview__metric">
-                <span class="turno-overview__label">Mês</span>
-                <div class="turno-overview__value-row">
-                    <span class="turno-overview__icon turno-overview__icon--success" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="m8.5 12 2.3 2.3 4.7-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <strong>{{ relatorio.mes }}</strong>
-                </div>
+                <span class="turno-overview__label">Mes</span>
+                <div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div>
             </article>
             <article class="turno-overview__metric">
-                <span class="turno-overview__label">Responsável</span>
-                <div class="turno-overview__value-row">
-                    <span class="turno-overview__icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="8" r="3.1" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M5.5 19c.8-3.4 3.2-5 6.5-5s5.7 1.6 6.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                        </svg>
-                    </span>
-                    <strong>{{ relatorio.responsavel }}</strong>
-                </div>
+                <span class="turno-overview__label">Responsavel</span>
+                <div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div>
             </article>
         </div>
     </section>
 
     <section class="turno-module-editor__shell panel-card">
         <section class="turno-module-editor__header">
-            <div class="turno-module-editor__title-wrap">
+            <div class="turno-module-editor__title-wrap" style="width:100%;">
                 <div class="turno-module-editor__title-row">
                     <h2 class="turno-module-editor__title">Checklist</h2>
+                    <span class="op-status-badge op-status-badge--em-andamento" id="ct-progress-badge">{{ relatorio.summary.progress_label }} - {{ relatorio.summary.percentual }}%</span>
+                </div>
+                <div class="dashboard-module-metrics dashboard-module-metrics--compact dashboard-module-metrics--summary" style="margin-top:1rem;">
+                    <div><span class="metric-label">Total</span><strong id="ct-total">{{ relatorio.summary.total }}</strong></div>
+                    <div><span class="metric-label">Preenchidos</span><strong id="ct-filled">{{ relatorio.summary.preenchidos }}</strong></div>
+                    <div><span class="metric-label">Pendentes</span><strong id="ct-pending">{{ relatorio.summary.pendentes }}</strong></div>
+                    <div><span class="metric-label">Status</span><strong id="ct-percent">{{ relatorio.summary.percentual }}%</strong></div>
+                </div>
+                <div class="dashboard-module-progress" style="margin-top:1rem;">
+                    <div class="dashboard-shift-progress">
+                        <span class="dashboard-shift-progress__fill" id="ct-progress-fill" style="width: {{ relatorio.summary.percentual }}%"></span>
+                    </div>
                 </div>
             </div>
         </section>
 
         <div class="op-sector turno-sector-panel op-sector--active">
             <form method="post" action="/central-tintas/{{ relatorio.id }}/salvar" class="op-sector__form turno-sector-form" id="ct-form">
+                {% if relatorio.mode == 'catalog' %}
                 <div class="op-table-wrapper turno-sector-table-wrap">
                     <table class="op-table turno-sector-table" id="ct-table">
                         <thead>
                             <tr>
-                                {% if relatorio.mode == 'catalog' %}
-                                <th>OPERAÇÃO / CONTROLE</th>
-                                <th>PARÂMETRO</th>
-                                <th>VALOR</th>
-                                <th>OBSERVAÇÃO</th>
+                                <th>OPERACAO / EQUIPAMENTO</th>
+                                <th>CONTROLE</th>
+                                <th>PARAMETRO</th>
+                                <th>VALOR MEDIDO</th>
+                                <th>OBSERVACAO</th>
                                 <th>STATUS</th>
-                                {% else %}
-                                <th>DESCRIÇÃO</th>
-                                <th>VALOR</th>
-                                <th>OBSERVAÇÃO</th>
-                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
-                            {% if relatorio.mode == 'catalog' %}
-                            {% for item in relatorio.itens %}
+                            {% for grupo in relatorio.grupos %}
+                            {% for item in grupo["items"] %}
                             <tr data-item-row="{{ item.id }}">
+                                {% if loop.first %}
+                                <td rowspan="{{ grupo['items']|length }}"><span class="op-table__text"><strong>{{ grupo['operacao'] }}</strong></span></td>
+                                {% endif %}
                                 <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
                                 <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_valor" value="{{ item.valor }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_observacao" value="{{ item.observacao }}"></td>
-                                <td><span class="op-table__text">{{ item.status or 'NAO_AVALIADO' }}</span></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_valor" value="{{ item.valor or '' }}" data-item-value></td>
+                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_observacao" value="{{ item.observacao or '' }}"></td>
+                                <td><span class="op-table__text" data-item-status>{{ item.status_label }}</span></td>
                             </tr>
                             {% endfor %}
                             {% else %}
-                            {% for item in relatorio.itens %}
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Tinta</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_tinta" value="{{ item.tinta }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_tinta_obs" value=""></td>
-                            </tr>
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Lote</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_lote" value="{{ item.lote }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_lote_obs" value=""></td>
-                            </tr>
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">pH</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_ph" value="{{ item.ph }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_ph_obs" value=""></td>
-                            </tr>
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Viscosidade</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_viscosidade" value="{{ item.viscosidade }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_viscosidade_obs" value=""></td>
-                            </tr>
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Sujidade</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_sujidade" value="{{ item.sujidade }}"></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_sujidade_obs" value=""></td>
-                            </tr>
-                            <tr data-item-row="{{ item.id }}">
-                                <td><span class="op-table__text">Ações corretivas</span></td>
-                                <td><input type="text" class="op-input op-input--compact" name="item_{{ item.id }}_acoes_corretivas" value="{{ item.acoes_corretivas }}"></td>
-                                <td>
-                                    <input type="hidden" name="item_{{ item.id }}_remove" value="0" data-remove-flag>
-                                    <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-remove-row="{{ item.id }}">Remover linha</button>
-                                </td>
+                            <tr>
+                                <td colspan="6"><span class="op-table__text">Nenhum item registrado.</span></td>
                             </tr>
                             {% endfor %}
-                            {% endif %}
                         </tbody>
                     </table>
                 </div>
+                {% else %}
+                <div class="op-table-wrapper turno-sector-table-wrap">
+                    <table class="op-table turno-sector-table op-table--readonly">
+                        <thead>
+                            <tr>
+                                <th>DESCRICAO</th>
+                                <th>VALOR</th>
+                                <th>OBSERVACAO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in relatorio.itens %}
+                            <tr>
+                                <td><span class="op-table__text">{{ item.controle or 'Item legado' }}</span></td>
+                                <td><span class="op-table__text">{{ item.valor or item.tinta or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.observacao or item.acoes_corretivas or '-' }}</span></td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3"><span class="op-table__text">Nenhum item registrado.</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
                 <div class="op-sector__actions turno-sector-actions">
-                    <div class="op-sector__actions-buttons">
-                        {% if relatorio.mode != 'catalog' %}
-                        <button type="button" id="ct-add-row" class="op-btn op-btn--ghost">Adicionar linha</button>
-                        {% endif %}
-                    </div>
+                    <div></div>
                     <div class="op-sector__actions-buttons">
                         {% if relatorio.status != 'concluido' %}
                         <button class="op-btn op-btn--ghost" type="submit" name="submit_action" value="salvar">Salvar rascunho</button>
-                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir relatório</button>
+                        <button class="op-btn op-btn--primary" type="submit" name="submit_action" value="concluir">Concluir turno</button>
                         {% else %}
-                        <span>Relatório finalizado</span>
+                        <span>Relatorio finalizado</span>
                         {% endif %}
                     </div>
                 </div>
@@ -179,60 +151,44 @@
     </section>
 </section>
 
+{% if relatorio.mode == 'catalog' %}
 <script>
 (function () {
-    {% if relatorio.mode == 'catalog' %}
-    return;
-    {% endif %}
-    var table = document.getElementById('ct-table');
-    var addButton = document.getElementById('ct-add-row');
-    if (!table || !addButton) return;
+    var form = document.getElementById('ct-form');
+    if (!form) return;
+    var inputs = form.querySelectorAll('[data-item-value]');
+    var totalNode = document.getElementById('ct-total');
+    var filledNode = document.getElementById('ct-filled');
+    var pendingNode = document.getElementById('ct-pending');
+    var percentNode = document.getElementById('ct-percent');
+    var badgeNode = document.getElementById('ct-progress-badge');
+    var fillNode = document.getElementById('ct-progress-fill');
 
-    var nextTempId = -1;
-
-    function blockRows(tempId) {
-        return [
-            ['Tinta', 'tinta'],
-            ['Lote', 'lote'],
-            ['pH', 'ph'],
-            ['Viscosidade', 'viscosidade'],
-            ['Sujidade', 'sujidade'],
-            ['Acoes corretivas', 'acoes_corretivas']
-        ].map(function (entry, idx) {
-            var isLast = idx === 5;
-            return '' +
-                '<tr data-item-row="' + tempId + '">' +
-                    '<td><span class="op-table__text">' + entry[0] + '</span></td>' +
-                    '<td><input type="text" class="op-input op-input--compact" name="item_' + tempId + '_' + entry[1] + '"></td>' +
-                    '<td>' + (isLast
-                        ? '<input type="hidden" name="item_' + tempId + '_remove" value="0" data-remove-flag><button type="button" class="op-btn op-btn--ghost op-btn--sm" data-remove-row="' + tempId + '">Remover linha</button>'
-                        : '<input type="text" class="op-input op-input--compact" name="item_' + tempId + '_' + entry[1] + '_obs">') +
-                    '</td>' +
-                '</tr>';
-        }).join('');
+    function refreshSummary() {
+        var total = inputs.length;
+        var filled = 0;
+        inputs.forEach(function (input) {
+            var row = input.closest('tr');
+            var status = row ? row.querySelector('[data-item-status]') : null;
+            var hasValue = Boolean(String(input.value || '').trim());
+            if (hasValue) filled += 1;
+            if (status) status.textContent = hasValue ? 'Preenchido' : 'Pendente';
+        });
+        var pending = Math.max(total - filled, 0);
+        var percent = total > 0 ? Math.round((filled / total) * 100) : 0;
+        if (totalNode) totalNode.textContent = String(total);
+        if (filledNode) filledNode.textContent = String(filled);
+        if (pendingNode) pendingNode.textContent = String(pending);
+        if (percentNode) percentNode.textContent = String(percent) + '%';
+        if (badgeNode) badgeNode.textContent = filled + '/' + total + ' itens preenchidos - ' + percent + '%';
+        if (fillNode) fillNode.style.width = String(percent) + '%';
     }
 
-    addButton.addEventListener('click', function () {
-        table.querySelector('tbody').insertAdjacentHTML('beforeend', blockRows(nextTempId));
-        nextTempId -= 1;
+    inputs.forEach(function (input) {
+        input.addEventListener('input', refreshSummary);
     });
-
-    table.addEventListener('click', function (event) {
-        var btn = event.target.closest('[data-remove-row]');
-        if (!btn) return;
-        var key = btn.getAttribute('data-remove-row');
-        if (!key) return;
-        var rows = table.querySelectorAll('tr[data-item-row="' + key + '"]');
-        var flag = table.querySelector('input[name="item_' + key + '_remove"]');
-
-        if (String(key).indexOf('-') !== 0 && flag) {
-            flag.value = '1';
-            rows.forEach(function (row) { row.style.display = 'none'; });
-            return;
-        }
-
-        rows.forEach(function (row) { row.remove(); });
-    });
+    refreshSummary();
 })();
 </script>
+{% endif %}
 {% endblock %}

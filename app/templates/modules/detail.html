@@ -2,16 +2,16 @@
 
 {% block content %}
 <div class="op-module op-module--detail">
-    <!-- NavegaÃ§Ã£o superior -->
+    <!-- Navegacao superior -->
     <div class="op-detail-nav">
         <a href="{% if turno_atual_url %}{{ turno_atual_url }}{% else %}/{{ module_config.slug }}{% endif %}" class="op-btn op-btn--ghost op-btn--sm">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
-            {% if turno_atual_url %}ExecuÃ§Ã£o do turno{% else %}Voltar{% endif %}
+            {% if turno_atual_url %}Execução do turno{% else %}Voltar{% endif %}
         </a>
-        <h1 class="op-detail-nav__title">VisÃ£o Geral Â· {{ module_config.title }}</h1>
+        <h1 class="op-detail-nav__title">Visão Geral · {{ module_config.title }}</h1>
         <div class="op-detail-nav__actions">
             {% if turno_atual_url %}
-            <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">Central histÃ³rica</a>
+            <a href="/{{ module_config.slug }}" class="op-btn op-btn--ghost op-btn--sm">Central histórica</a>
             {% endif %}
             <a href="/relatorios/visualizar/modulos/{{ module_config.code }}/{{ master.id }}" class="op-btn op-btn--secondary op-btn--sm">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -20,7 +20,7 @@
         </div>
     </div>
 
-    <!-- CabeÃ§alho de contexto -->
+    <!-- Cabecalho de contexto -->
     <div class="op-context-card op-context-card--readonly op-context-card--{{ master.status_geral|lower|replace('_', '-') }}">
         <div class="op-context-info">
             <span class="op-context-title">{{ context_label }}</span>
@@ -41,7 +41,7 @@
         </div>
     </div>
 
-    <!-- Abas: Resumo / RelatÃ³rio -->
+    <!-- Abas: Resumo / Relatorio -->
     <div class="op-detail-tabs">
         <div class="op-tabs__list" role="tablist">
             <button class="op-tabs__tab op-tabs__tab--active" type="button" role="tab" data-tab-target="resumo" aria-selected="true">
@@ -50,7 +50,7 @@
             </button>
             <button class="op-tabs__tab" type="button" role="tab" data-tab-target="relatorio" aria-selected="false">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                <span>RelatÃ³rio</span>
+                <span>Relatorio</span>
             </button>
         </div>
     </div>
@@ -90,8 +90,8 @@
             {% for row in setor_view.rows %}
                 {% if row.flag %}
                     {% set item_nome = row.descricao if row.descricao is defined else (row.label if row.label is defined else row.reference) %}
-                    {% set item_valor = row.value if row.value is defined and row.value else "â€”" %}
-                    {% set item_limite = row.parametro if row.parametro is defined else (row.expected if row.expected is defined else "â€”") %}
+                    {% set item_valor = row.value if row.value is defined and row.value else "-" %}
+                    {% set item_limite = row.parametro if row.parametro is defined else (row.expected if row.expected is defined else "-") %}
                     {% set ns.rows = ns.rows + [{
                         "setor": setor_view.setor_label,
                         "item": item_nome,
@@ -117,7 +117,7 @@
                             <th>Setor</th>
                             <th>Item</th>
                             <th>Valor</th>
-                            <th>Limite/ReferÃªncia</th>
+                            <th>Limite/Referência</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -145,24 +145,24 @@
                     <thead>
                         <tr>
                             <th>Setor</th>
-                            <th>ResponsÃ¡vel</th>
+                            <th>Responsável</th>
                             <th>Desvios</th>
-                            <th>ObservaÃ§Ã£o</th>
+                            <th>Observação</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for setor_view in setor_views %}
                         <tr>
                             <td><span class="op-table__text op-table__text--primary">{{ setor_view.setor_label }}</span></td>
-                            <td><span class="op-table__text">{{ setor_view.responsavel_nome or 'â€”' }}</span></td>
+                            <td><span class="op-table__text">{{ setor_view.responsavel_nome or '-' }}</span></td>
                             <td>
                                 <span class="op-badge {% if setor_view.summary.flag_count > 0 %}op-badge--alarme{% else %}op-badge--ok{% endif %}">
                                     {{ setor_view.summary.flag_count }}
                                 </span>
                             </td>
                             <td>
-                                <span class="op-table__text op-summary-sector__obs-text" title="{{ setor_view.observacoes_setor or 'â€”' }}">
-                                    {{ setor_view.observacoes_setor or 'â€”' }}
+                                <span class="op-table__text op-summary-sector__obs-text" title="{{ setor_view.observacoes_setor or '-' }}">
+                                    {{ setor_view.observacoes_setor or '-' }}
                                 </span>
                             </td>
                         </tr>
@@ -173,7 +173,7 @@
         </div>
     </div>
 
-    <!-- Painel: RelatÃ³rio -->
+    <!-- Painel: Relatório -->
     <div class="op-detail-panel" data-tab-panel="relatorio" role="tabpanel">
         <div class="op-detail-grid">
             {% for setor_view in setor_views %}
@@ -192,12 +192,12 @@
                 
                 <div class="op-sector__meta op-sector__meta--readonly">
                     <div class="op-sector__meta-item">
-                        <span class="op-sector__meta-label">ResponsÃ¡vel</span>
-                        <span class="op-sector__meta-value">{{ setor_view.responsavel_nome or 'â€”' }}</span>
+                        <span class="op-sector__meta-label">Responsável</span>
+                        <span class="op-sector__meta-value">{{ setor_view.responsavel_nome or '-' }}</span>
                     </div>
                     <div class="op-sector__meta-item">
-                        <span class="op-sector__meta-label">ObservaÃ§Ãµes</span>
-                        <span class="op-sector__meta-value">{{ setor_view.observacoes_setor or 'â€”' }}</span>
+                        <span class="op-sector__meta-label">Observação</span>
+                        <span class="op-sector__meta-value">{{ setor_view.observacoes_setor or '-' }}</span>
                     </div>
                 </div>
                 
@@ -217,9 +217,9 @@
                                 {% for column in module_config.columns %}
                                 <td class="op-table__col--{{ column.key }}">
                                     {% if column.kind == 'status' %}
-                                    <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('Ã£', 'a')|replace('Ã­', 'i')|replace('Ã³', 'o')|replace('Ãº', 'u') }}">{{ row[column.key] }}</span>
+                                    <span class="op-badge op-badge--{{ row[column.key]|lower|replace(' ', '-')|replace('ã', 'a')|replace('í', 'i')|replace('ó', 'o')|replace('ú', 'u') }}">{{ row[column.key] }}</span>
                                     {% else %}
-                                    <span class="op-table__text">{{ row[column.key] or 'â€”' }}</span>
+                                    <span class="op-table__text">{{ row[column.key] or '-' }}</span>
                                     {% endif %}
                                 </td>
                                 {% endfor %}
@@ -254,7 +254,7 @@
                 t.setAttribute('aria-selected', 'false');
             });
             
-            // Esconder todos os painÃ©is
+            // Esconder todos os paineis
             panels.forEach(function(p) {
                 p.classList.remove('op-detail-panel--active');
             });

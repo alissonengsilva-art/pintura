@@ -19,6 +19,8 @@ from app.main import app
 from app.services.auth_service import require_admin
 from app.models import (
     Base,
+    CabinePinturaRelatorio,
+    CentralTintasRelatorio,
     ItemED,
     Modelo,
     OperationalModuleItem,
@@ -33,6 +35,7 @@ from app.models import (
 )
 from app.services.auth_service import hash_password
 from app.services.ed_seed_data import DEFAULT_RESPONSAVEIS, DEFAULT_SETORES, DEFAULT_TURNOS, build_seed_items
+from app.services import dashboard_service
 from app.services import item_frequency_runtime_service
 from app.services import operational_module_item_service
 from app.services.operational_module_seed import build_operational_module_seed_items_runtime
@@ -197,6 +200,8 @@ def _temperatura_payload(setor: str, *, data_referencia: str = "2026-04-17", out
 @pytest.mark.parametrize(
     "slug",
     [
+        "/pt",
+        "/pressao-filtros-pt",
         "/ed",
         "/temperatura-forno-ed",
         "/pressao-filtros-ed",
@@ -216,6 +221,41 @@ def test_module_hubs_are_history_only(test_env: tuple[TestClient, sessionmaker],
     assert "Conclu" in response.text
     assert "Em andamento" in response.text
     assert "Iniciar ciclo" not in response.text
+
+
+def test_dashboard_priority_map_defaults_blank_priority_to_medio(test_env: tuple[TestClient, sessionmaker]) -> None:
+    _, session_factory = test_env
+
+    with session_factory() as session:
+        item = session.scalars(select(OperationalModuleItem).limit(1)).first()
+        assert item is not None
+        item.prioridade = ""
+        session.commit()
+        priority_map = dashboard_service._load_item_priority_map(session)
+
+    assert priority_map[item.id] == "medio"
+
+
+def test_dashboard_priority_map_handles_missing_priority_column(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, session_factory = test_env
+
+    class _Inspector:
+        @staticmethod
+        def get_columns(_table_name: str) -> list[dict[str, str]]:
+            return [{"name": "id"}]
+
+    monkeypatch.setattr(dashboard_service, "sa_inspect", lambda _bind: _Inspector())
+
+    with session_factory() as session:
+        priority_map = dashboard_service._load_item_priority_map(session)
+        item_ids = session.scalars(select(OperationalModuleItem.id)).all()
+
+    assert priority_map
+    assert set(priority_map.keys()) == {int(item_id) for item_id in item_ids}
+    assert set(priority_map.values()) == {"medio"}
 
 
 def test_dashboard_defaults_to_today_when_no_date_is_provided(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -380,6 +420,35 @@ def test_unified_module_items_admin_page_loads_for_admin(test_env: tuple[TestCli
     assert "data-module-admin-page" in response.text
     assert "Temperatura Forno" in response.text
     assert "data-save-module" in response.text
+
+
+def test_unified_module_items_admin_page_supports_central_tintas_area(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens?area=central-tintas&modulo=central-tintas")
+
+    assert response.status_code == 200
+    assert 'data-selected-area="central-tintas"' in response.text
+    assert 'data-selected-module="central-tintas"' in response.text
+    assert "Central de Tintas" in response.text
+    assert 'data-field="item_nome"' in response.text
+
+
+def test_unified_module_items_admin_page_supports_cabine_pintura_area_and_abas(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens?area=cabine-pintura&modulo=cabine-pintura&aba=TOP%20COAT")
+
+    assert response.status_code == 200
+    assert 'data-selected-area="cabine-pintura"' in response.text
+    assert 'data-selected-module="cabine-pintura"' in response.text
+    assert "Cabine de Pintura" in response.text
+    assert "TOP COAT" in response.text
+    assert "TEMPERATURA FORNO" in response.text
+    assert "DATA PAQ" in response.text
+    assert 'data-field="aba"' in response.text
 
 
 def test_unified_module_items_partial_changes_module_tab(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -871,6 +940,39 @@ def test_turno_execution_hides_conclude_shift_controls_when_shift_is_concluded(t
     assert "closeShiftModal" not in response.text
 
 
+def test_turno_visualizacao_recovers_legacy_retificador_context_without_group(
+    test_env: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-04-23", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-04-23", turno="2")
+
+    with session_factory() as session:
+        shift = session.get(OperationalShift, shift_id)
+        assert shift is not None
+        config = get_module_config("tensao-retificadores-ed")
+        master = get_or_create_master(
+            session,
+            config,
+            {
+                "data_referencia": date.fromisoformat("2026-04-23"),
+                "turno": "2",
+                "grupo_retificador": "grupo_1",
+            },
+            shift_id=shift_id,
+        )
+        master.context_data = {
+            "data_referencia": "2026-04-23",
+            "turno": "2",
+        }
+        session.commit()
+
+    response = client.get(f"/turnos/{shift_id}/visualizar?modulo=tensao-retificadores-ed")
+
+    assert response.status_code == 200
+    assert "Tensão dos Retificadores" in response.text
+
+
 def test_module_start_route_redirects_to_turnos_without_creating_record(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
 
@@ -904,8 +1006,286 @@ def test_turno_atual_is_the_new_turns_index(test_env: tuple[TestClient, sessionm
     assert response.status_code == 200
     assert "Turnos" in response.text
     assert "Iniciar turno" in response.text
+
+
+def test_central_tintas_uses_turno_hub_layout(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/central-tintas")
+
+    assert response.status_code == 200
+    assert "Iniciar turno" in response.text
     assert "Em andamento" in response.text
     assert "Concluidos" in response.text
+
+
+def test_cabine_pintura_uses_turno_hub_layout(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/cabine-pintura")
+
+    assert response.status_code == 200
+    assert "Iniciar turno" in response.text
+    assert "Em andamento" in response.text
+    assert "Concluidos" in response.text
+
+
+def test_cabine_pintura_start_creates_relatorio_and_redirects(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+
+    response = client.post(
+        "/cabine-pintura/iniciar",
+        data={
+            "data_referencia": "2026-05-02",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    with session_factory() as session:
+        relatorio = session.scalars(select(CabinePinturaRelatorio)).first()
+        assert relatorio is not None
+        assert len(relatorio.itens) > 0
+        assert response.headers["location"] == f"/cabine-pintura/{relatorio.id}"
+
+
+def test_cabine_pintura_execution_blocks_conclusion_with_pending_items(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    start_response = client.post(
+        "/cabine-pintura/iniciar",
+        data={
+            "data_referencia": "2026-05-03",
+            "turno": "2",
+            "responsavel": "Laboratorio",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CabinePinturaRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+
+    save_response = client.post(
+        f"/cabine-pintura/{relatorio_id}/salvar",
+        data={
+            "item_1_valor": "22",
+            "submit_action": "concluir",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+    assert save_response.headers["location"].startswith(f"/cabine-pintura/{relatorio_id}?error=")
+
+    response = client.get(save_response.headers["location"], follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "Existem itens pendentes" in response.text
+
+
+def test_cabine_pintura_execution_can_conclude_and_redirect_to_view(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    start_response = client.post(
+        "/cabine-pintura/iniciar",
+        data={
+            "data_referencia": "2026-05-04",
+            "turno": "3",
+            "responsavel": "Laboratorio",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CabinePinturaRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        item_ids = [item.id for item in relatorio.itens]
+
+    payload = {"submit_action": "concluir"}
+    for index, item_id in enumerate(item_ids, start=1):
+        payload[f"item_{item_id}_valor"] = f"valor-{index}"
+        payload[f"item_{item_id}_observacao"] = ""
+
+    save_response = client.post(
+        f"/cabine-pintura/{relatorio_id}/salvar",
+        data=payload,
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+    assert save_response.headers["location"] == f"/cabine-pintura/{relatorio_id}"
+
+    response = client.get(f"/cabine-pintura/{relatorio_id}", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/cabine-pintura/{relatorio_id}/visualizar"
+
+
+def test_central_tintas_start_creates_relatorio_and_redirects(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+
+    response = client.post(
+        "/central-tintas/iniciar",
+        data={
+            "data_referencia": "2026-04-28",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        assert len(relatorio.itens) >= 70
+        assert response.headers["location"] == f"/central-tintas/{relatorio.id}"
+
+
+def test_central_tintas_execution_blocks_conclusion_with_pending_items(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    start_response = client.post(
+        "/central-tintas/iniciar",
+        data={
+            "data_referencia": "2026-04-29",
+            "turno": "2",
+            "responsavel": "Laboratorio",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+
+    save_response = client.post(
+        f"/central-tintas/{relatorio_id}/salvar",
+        data={
+            "item_1_valor": "22",
+            "submit_action": "concluir",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+    assert save_response.headers["location"].startswith(f"/central-tintas/{relatorio_id}?error=")
+
+    response = client.get(save_response.headers["location"], follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "Existem itens pendentes" in response.text
+
+
+def test_central_tintas_execution_can_conclude_and_redirect_to_view(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    start_response = client.post(
+        "/central-tintas/iniciar",
+        data={
+            "data_referencia": "2026-04-30",
+            "turno": "3",
+            "responsavel": "Laboratorio",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        item_ids = [item.id for item in relatorio.itens]
+
+    payload = {"submit_action": "concluir"}
+    for index, item_id in enumerate(item_ids, start=1):
+        payload[f"item_{item_id}_valor"] = f"valor-{index}"
+        payload[f"item_{item_id}_observacao"] = ""
+
+    save_response = client.post(
+        f"/central-tintas/{relatorio_id}/salvar",
+        data=payload,
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+    assert save_response.headers["location"] == f"/central-tintas/{relatorio_id}"
+
+    response = client.get(f"/central-tintas/{relatorio_id}", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/central-tintas/{relatorio_id}/visualizar"
+
+
+def test_dashboard_includes_central_tintas_module_card(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    client.post(
+        "/central-tintas/iniciar",
+        data={
+            "data_referencia": "2026-05-01",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        item_ids = [item.id for item in relatorio.itens[:3]]
+
+    payload = {"submit_action": "salvar"}
+    for item_id in item_ids:
+        payload[f"item_{item_id}_valor"] = "ok"
+
+    client.post(
+        f"/central-tintas/{relatorio_id}/salvar",
+        data=payload,
+        follow_redirects=False,
+    )
+
+    response = client.get("/dashboard?data_referencia=2026-05-01")
+
+    assert response.status_code == 200
+    assert "Central de Tintas" in response.text
+    assert "/central-tintas?tab=concluidos" in response.text
+
+
+def test_dashboard_includes_cabine_pintura_module_card(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    client.post(
+        "/cabine-pintura/iniciar",
+        data={
+            "data_referencia": "2026-05-05",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CabinePinturaRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        item_ids = [item.id for item in relatorio.itens[:3]]
+
+    payload = {"submit_action": "salvar"}
+    for item_id in item_ids:
+        payload[f"item_{item_id}_valor"] = "ok"
+
+    client.post(
+        f"/cabine-pintura/{relatorio_id}/salvar",
+        data=payload,
+        follow_redirects=False,
+    )
+
+    response = client.get("/dashboard?data_referencia=2026-05-05")
+
+    assert response.status_code == 200
+    assert "Cabine de Pintura" in response.text
+    assert "/cabine-pintura?tab=concluidos" in response.text
 
 
 def test_turno_iniciar_creates_master_and_redirects_to_execution(test_env: tuple[TestClient, sessionmaker]) -> None:

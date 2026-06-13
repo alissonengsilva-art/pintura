@@ -7,13 +7,14 @@ PRIMARY_LINKS = [
     {"slug": "turnos", "title": "ED", "url": "/turno-atual"},
     {"slug": "turnos-sigilatura", "title": "Sigilatura", "url": "/turnos-sigilatura"},
     {"slug": "central-tintas", "title": "Central de Tintas", "url": "/central-tintas"},
+    {"slug": "cabine-pintura", "title": "Cabine de Pintura", "url": "/cabine-pintura"},
     {"slug": "relatorios", "title": "Relatorios", "url": "/relatorios"},
 ]
 
 SECTIONS: list[dict] = [
     {"slug": "visao-geral", "title": "Visão Geral", "links": [PRIMARY_LINKS[0]]},
-    {"slug": "operação", "title": "Operação", "links": PRIMARY_LINKS[1:5]},
-    {"slug": "relatórios", "title": "Relatórios", "links": [PRIMARY_LINKS[5]]},
+    {"slug": "operação", "title": "Operação", "links": PRIMARY_LINKS[1:6]},
+    {"slug": "relatórios", "title": "Relatórios", "links": [PRIMARY_LINKS[6]]},
 ]
 
 ADMIN_LINKS = [

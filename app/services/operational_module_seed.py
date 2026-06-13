@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.cabine_pintura_seed import build_cabine_pintura_seed_items
 from app.services.ed_seed_data import build_seed_items
 
 
@@ -23,6 +24,7 @@ def _item(
     obrigatorio: bool = True,
     ativo: bool = True,
     frequencia: str | None = None,
+    prioridade: str | None = None,
     observacao: str | None = None,
 ) -> dict[str, Any]:
     validation_type = tipo_validacao
@@ -52,6 +54,7 @@ def _item(
         "obrigatorio": obrigatorio,
         "ativo": ativo,
         "frequencia": frequencia,
+        "prioridade": str(prioridade or "medio").strip().lower() or "medio",
         "observacao": observacao,
     }
 
@@ -199,12 +202,108 @@ def _build_non_ed_items() -> list[dict[str, Any]]:
             )
         )
 
+    central_tintas_specs = [
+        ("VERNIZ 1 PPG", "TEMPERATURA", "<23°C"),
+        ("VERNIZ 1 PPG", "VISCOSIDADE", "35 - 37"),
+        ("VERNIZ 1 PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("VERNIZ 2 AXALTA", "TEMPERATURA", "<25°C"),
+        ("VERNIZ 2 AXALTA", "VISCOSIDADE", "29 - 31"),
+        ("VERNIZ 2 AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("B1 UNIVERSAL PPG", "TEMPERATURA", "20 - 28°C"),
+        ("B1 UNIVERSAL PPG", "VISCOSIDADE", "80 - 100"),
+        ("B1 UNIVERSAL PPG", "pH", "8,4 - 8,8"),
+        ("B1 UNIVERSAL PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("B0 MEDIUM AXALTA", "TEMPERATURA", "22 - 28°C"),
+        ("B0 MEDIUM AXALTA", "VISCOSIDADE", "110 - 140"),
+        ("B0 MEDIUM AXALTA", "pH", "8,4 - 8,8"),
+        ("B0 MEDIUM AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("BRANCO AMBIENTE AXALTA", "TEMPERATURA", "20 - 28°C"),
+        ("BRANCO AMBIENTE AXALTA", "VISCOSIDADE", "110 - 190"),
+        ("BRANCO AMBIENTE AXALTA", "pH", "8,0 - 9,0"),
+        ("BRANCO AMBIENTE AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("PRETO SHADOW AXALTA", "TEMPERATURA", "20 - 28°C"),
+        ("PRETO SHADOW AXALTA", "VISCOSIDADE", "110 - 140"),
+        ("PRETO SHADOW AXALTA", "pH", "8,2 - 8,6"),
+        ("PRETO SHADOW AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("PRETO SHADOW PPG", "TEMPERATURA", "20 - 28°C"),
+        ("PRETO SHADOW PPG", "VISCOSIDADE", "85 - 95"),
+        ("PRETO SHADOW PPG", "pH", "8,4 - 9,2"),
+        ("PRETO SHADOW PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("VERMELHO COLORADO PPG", "TEMPERATURA", "20 - 28°C"),
+        ("VERMELHO COLORADO PPG", "VISCOSIDADE", "85 - 95"),
+        ("VERMELHO COLORADO PPG", "pH", "8,4 - 8,8"),
+        ("VERMELHO COLORADO PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("PRETO CARBON PPG", "TEMPERATURA", "20 - 28°C"),
+        ("PRETO CARBON PPG", "VISCOSIDADE", "60 - 80"),
+        ("PRETO CARBON PPG", "pH", "8,4 - 8,8"),
+        ("PRETO CARBON PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("BRANCO POLAR AXALTA", "TEMPERATURA", "20 - 28°C"),
+        ("BRANCO POLAR AXALTA", "VISCOSIDADE", "80 - 90"),
+        ("BRANCO POLAR AXALTA", "pH", "8,4 - 8,8"),
+        ("BRANCO POLAR AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("BILLET SILVER PPG", "TEMPERATURA", "20 - 28°C"),
+        ("BILLET SILVER PPG", "VISCOSIDADE", "80 - 100"),
+        ("BILLET SILVER PPG", "pH", "8,4 - 8,9"),
+        ("BILLET SILVER PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("JAZZ BLUE PPG", "TEMPERATURA", "20 - 28°C"),
+        ("JAZZ BLUE PPG", "VISCOSIDADE", "80 - 100"),
+        ("JAZZ BLUE PPG", "pH", "8,4 - 8,8"),
+        ("JAZZ BLUE PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("GRANITE CRYSTAL PPG", "TEMPERATURA", "20 - 28°C"),
+        ("GRANITE CRYSTAL PPG", "VISCOSIDADE", "80 - 100"),
+        ("GRANITE CRYSTAL PPG", "pH", "8,4 - 8,8"),
+        ("GRANITE CRYSTAL PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("STING GRAY AXALTA", "TEMPERATURA", "20 - 28°C"),
+        ("STING GRAY AXALTA", "VISCOSIDADE", "80 - 100"),
+        ("STING GRAY AXALTA", "pH", "8,4 - 8,8"),
+        ("STING GRAY AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("SLASH GOLD PPG", "TEMPERATURA", "20 - 28°C"),
+        ("SLASH GOLD PPG", "VISCOSIDADE", "80 - 100"),
+        ("SLASH GOLD PPG", "pH", "8,4 - 8,8"),
+        ("SLASH GOLD PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("MAXIMUM STEEL PPG", "TEMPERATURA", "20 - 28°C"),
+        ("MAXIMUM STEEL PPG", "VISCOSIDADE", "80 - 100"),
+        ("MAXIMUM STEEL PPG", "pH", "8,4 - 8,8"),
+        ("MAXIMUM STEEL PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("PUNK ORANGE AXALTA", "TEMPERATURA", "20 - 28°C"),
+        ("PUNK ORANGE AXALTA", "VISCOSIDADE", "80 - 100"),
+        ("PUNK ORANGE AXALTA", "pH", "8,4 - 8,9"),
+        ("PUNK ORANGE AXALTA", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("VERDE RECON PPG", "TEMPERATURA", "20 - 28°C"),
+        ("VERDE RECON PPG", "VISCOSIDADE", "75 - 85"),
+        ("VERDE RECON PPG", "pH", "8,4 - 8,8"),
+        ("VERDE RECON PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+        ("MONOCOAT PPG", "TEMPERATURA", "<23°C"),
+        ("MONOCOAT PPG", "VISCOSIDADE", "27 - 32"),
+        ("MONOCOAT PPG", "DP FILTRO DE ENVIO", "0 - 3 bar"),
+    ]
+    for ordem, (operacao, controle, parametro) in enumerate(central_tintas_specs, start=1):
+        payload = _item(
+            "central-tintas",
+            ordem,
+            controle,
+            operacao=operacao,
+            parametro=parametro,
+            frequencia="DIARIO",
+            prioridade="medio",
+        )
+        payload.update(
+            {
+                "escopo": "central_tintas",
+                "modulo": "central-tintas",
+                "aba": "Ambos",
+                "responsavel_padrao": "Central de Tintas",
+                "turno_padrao": "TODOS",
+            }
+        )
+        items.append(payload)
+
     return items
 
 
 def build_operational_module_seed_items() -> list[dict[str, Any]]:
-    return _build_ed_items(include_extended_fields=False) + _build_non_ed_items()
+    return _build_ed_items(include_extended_fields=False) + _build_non_ed_items() + build_cabine_pintura_seed_items()
 
 
 def build_operational_module_seed_items_runtime() -> list[dict[str, Any]]:
-    return _build_ed_items(include_extended_fields=True) + _build_non_ed_items()
+    return _build_ed_items(include_extended_fields=True) + _build_non_ed_items() + build_cabine_pintura_seed_items()

@@ -1,360 +1,173 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="section-header-inline">
-    <div>
-        <h1>Central de Tintas</h1>
-        <p>Registro continuo estilo planilha para operacao diaria.</p>
-    </div>
-    <div class="hero-actions">
-        <button type="button" class="button-primary" id="ct-open-modal">+ Adicionar registro</button>
-    </div>
-</section>
-
-{% if schema_error_message %}
-<div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
-{% endif %}
-
-<section class="panel-card" data-ct-page>
-    <form method="get" class="ct-filters">
-        <label>Data inicial
-            <input type="date" name="data_inicial" value="{{ filters.data_inicial }}">
-        </label>
-        <label>Data final
-            <input type="date" name="data_final" value="{{ filters.data_final }}">
-        </label>
-        <label>Responsavel
-            <input type="text" name="responsavel" value="{{ filters.responsavel }}" list="ct-responsaveis">
-        </label>
-        <label>Turno
-            <select name="turno">
-                <option value="">Todos</option>
-                {% for t in turnos %}
-                <option value="{{ t.codigo }}" {% if filters.turno == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <div class="ct-filters__actions">
-            <button type="submit" class="button-primary small">Filtrar</button>
-            <a href="/central-tintas" class="button-secondary small">Limpar</a>
+<section class="turnos-page">
+    <header class="turnos-page__header">
+        <div>
+            <span class="turnos-page__kicker">Centro operacional</span>
+            <h1 class="turnos-page__title">Central de Tintas</h1>
+            <p class="turnos-page__subtitle">Entrada operacional principal para iniciar um turno da Central de Tintas e acompanhar o que esta em andamento ou concluido.</p>
         </div>
-    </form>
-    <datalist id="ct-responsaveis">
-        {% for r in responsaveis %}
-        <option value="{{ r.nome }}"></option>
-        {% endfor %}
-    </datalist>
+        <button type="button" class="button-primary button-primary--lg" data-open-start-modal>Iniciar turno</button>
+    </header>
 
-    <div class="ct-table-wrap">
-        <table class="ct-table" id="ct-table">
-            <thead>
-                <tr>
-                    <th>DATA/HORA</th>
-                    <th>RESPONSAVEL</th>
-                    <th>TURNO</th>
-                    <th>TINTA</th>
-                    <th>LOTE</th>
-                    <th>pH</th>
-                    <th>VISCOSIDADE</th>
-                    <th>SUJIDADE</th>
-                    <th>ACOES CORRETIVAS</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for row in rows %}
-                <tr>
-                    <td>{{ row.data_hora or "-" }}</td>
-                    <td>{{ row.responsavel or "-" }}</td>
-                    <td>{{ row.turno or "-" }}</td>
-                    <td>{{ row.tinta or "-" }}</td>
-                    <td>{{ row.lote or "-" }}</td>
-                    <td>{{ row.ph or "-" }}</td>
-                    <td>{{ row.viscosidade or "-" }}</td>
-                    <td>{{ row.sujidade or "-" }}</td>
-                    <td>{{ row.acoes_corretivas or "-" }}</td>
-                </tr>
-                {% else %}
-                <tr data-empty-row>
-                    <td colspan="9">Nenhum registro encontrado.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% if schema_error_message %}
+    <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
+    {% endif %}
 
-    <div class="ct-pagination">
-        <a class="button-secondary small {% if not pagination.has_prev %}is-disabled{% endif %}" href="{% if pagination.has_prev %}{{ pagination.prev_url }}{% else %}#{% endif %}">Anterior</a>
-        <span>Pagina {{ pagination.page }} de {{ pagination.total_pages }} ({{ pagination.total }} registros)</span>
-        <a class="button-secondary small {% if not pagination.has_next %}is-disabled{% endif %}" href="{% if pagination.has_next %}{{ pagination.next_url }}{% else %}#{% endif %}">Proxima</a>
-    </div>
-</section>
+    <section class="turnos-toolbar panel-card">
+        <div class="turnos-toolbar__tabs">
+            <button type="button" class="turnos-toolbar__tab {% if active_tab == 'andamento' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="andamento">
+                Em andamento
+                <span class="turnos-toolbar__count">{{ relatorios_em_andamento|length }}</span>
+            </button>
+            <button type="button" class="turnos-toolbar__tab {% if active_tab == 'concluidos' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="concluidos">
+                Concluidos
+                <span class="turnos-toolbar__count">{{ relatorios_concluidos|length }}</span>
+            </button>
+        </div>
+    </section>
 
-<div class="op-modal" id="ct-modal" hidden>
-    <div class="op-modal__backdrop" data-close-modal></div>
-    <div class="op-modal__content ct-modal__content">
-        <div class="op-modal__header ct-modal__header">
-            <div>
-                <h2 class="op-modal__title">Novo registro</h2>
-                <p class="ct-modal__subtitle">Preencha os campos operacionais.</p>
+    <div class="turnos-panel {% if active_tab == 'andamento' %}turnos-panel--active{% endif %}" data-turnos-panel="andamento">
+        {% if relatorios_em_andamento %}
+        <div class="turnos-list turnos-list--table">
+            <div class="turno-table-header panel-card">
+                <span>Data</span>
+                <span>Turno</span>
+                <span>Responsavel</span>
+                <span>Status</span>
+                <span>Itens</span>
+                <span>Acoes</span>
             </div>
-            <button type="button" class="op-modal__close" data-close-modal aria-label="Fechar">x</button>
-        </div>
-        <div class="op-modal__body ct-modal__body">
-            <form id="ct-modal-form" class="ct-modal__form">
-                <section class="ct-modal__section ct-modal__section--header" aria-labelledby="ct-header-title">
-                    <div class="ct-modal__section-head">
-                        <h3 id="ct-header-title">Cabecalho</h3>
-                    </div>
-                    <div class="ct-modal__header-grid">
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_data_hora">DATA/HORA</label>
-                            <input class="op-form__input ct-field__input" type="datetime-local" id="ct_data_hora" name="data_hora" required>
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_responsavel">RESPONSAVEL</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_responsavel" name="responsavel" list="ct-responsaveis">
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_turno">TURNO</label>
-                            <select class="op-form__select ct-field__input" id="ct_turno" name="turno">
-                                <option value=""></option>
-                                {% for t in turnos %}
-                                <option value="{{ t.codigo }}">{{ t.nome }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="ct-modal__section ct-modal__section--checklist" aria-labelledby="ct-checklist-title">
-                    <div class="ct-modal__section-head">
-                        <h3 id="ct-checklist-title">Checklist</h3>
-                    </div>
-                    <div class="ct-modal__checklist-grid">
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_tinta">TINTA</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_tinta" name="tinta">
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_lote">LOTE</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_lote" name="lote">
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_ph">PH</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_ph" name="ph">
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_viscosidade">VISCOSIDADE</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_viscosidade" name="viscosidade">
-                        </div>
-                        <div class="ct-field">
-                            <label class="ct-field__label" for="ct_sujidade">SUJIDADE</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_sujidade" name="sujidade">
-                        </div>
-                        <div class="ct-field ct-field--full">
-                            <label class="ct-field__label" for="ct_acoes_corretivas">ACOES CORRETIVAS</label>
-                            <input class="op-form__input ct-field__input" type="text" id="ct_acoes_corretivas" name="acoes_corretivas">
-                        </div>
-                    </div>
-                </section>
-
-                <div class="op-modal__actions ct-modal__actions">
-                    <button type="button" class="button-secondary" data-close-modal>Cancelar</button>
-                    <button type="submit" class="button-primary" id="ct-save-record">Salvar</button>
+            {% for relatorio in relatorios_em_andamento %}
+            <article class="turno-card turno-card--table panel-card">
+                <div class="turno-table-row">
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
+                    <span class="turno-card__status-text">{{ relatorio.status_label }}</span>
+                    <strong class="turno-card__value">{{ relatorio.itens_count }}</strong>
+                    <a href="/central-tintas/{{ relatorio.id }}" class="button-primary small">Abrir turno</a>
                 </div>
-            </form>
+            </article>
+            {% endfor %}
         </div>
+        {% else %}
+        <div class="op-empty-state panel-card">
+            <p>Nenhum turno em andamento.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="turnos-panel {% if active_tab == 'concluidos' %}turnos-panel--active{% endif %}" data-turnos-panel="concluidos">
+        {% if relatorios_concluidos %}
+        <div class="turnos-list turnos-list--table turnos-list--table-concluded">
+            <div class="turno-table-header turno-table-header--concluded panel-card">
+                <span>Data</span>
+                <span>Turno</span>
+                <span>Responsavel</span>
+                <span>Atualizacao</span>
+                <span>Acoes</span>
+            </div>
+            {% for relatorio in relatorios_concluidos %}
+            <article class="turno-card turno-card--table turno-card--done panel-card">
+                <div class="turno-table-row turno-table-row--concluded">
+                    <strong class="turno-card__value">{{ relatorio.data_label }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.turno or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
+                    <strong class="turno-card__value">{{ relatorio.updated_label }}</strong>
+                    <a href="/central-tintas/{{ relatorio.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="op-empty-state panel-card">
+            <p>Nenhum turno concluido.</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<div class="op-modal {% if open_start_modal %}op-modal--open{% endif %}" id="startCentralTintasModal">
+    <div class="op-modal__backdrop" data-close-start-modal></div>
+    <div class="op-modal__content panel-card">
+        <div class="turnos-modal__header">
+            <div>
+                <span class="turnos-page__kicker">Novo turno</span>
+                <h2 class="turnos-modal__title">Iniciar turno</h2>
+            </div>
+            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">×</button>
+        </div>
+
+        {% if error_message %}
+        <div class="op-alert op-alert--error">{{ error_message }}</div>
+        {% endif %}
+
+        <form method="post" action="/central-tintas/iniciar" class="op-form op-form--vertical">
+            <div class="op-form__grid op-form__grid--2col">
+                <div class="op-form__group">
+                    <label class="op-form__label" for="data_referencia">Data</label>
+                    <input type="date" id="data_referencia" name="data_referencia" class="op-form__input" value="{{ form_data.get('data_referencia', data_hoje) }}" required>
+                </div>
+                <div class="op-form__group">
+                    <label class="op-form__label" for="turno">Turno</label>
+                    <select id="turno" name="turno" class="op-form__select">
+                        <option value="">Selecione</option>
+                        {% for t in turnos %}
+                        <option value="{{ t.codigo }}" {% if form_data.get('turno') == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="op-form__group op-form__group--full">
+                    <label class="op-form__label" for="responsavel">Responsavel</label>
+                    <select id="responsavel" name="responsavel" class="op-form__select">
+                        <option value="">Selecione</option>
+                        {% for r in responsaveis %}
+                        <option value="{{ r.nome }}" {% if form_data.get('responsavel') == r.nome %}selected{% endif %}>{{ r.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="op-form__actions">
+                <button type="button" class="button-secondary" data-close-start-modal>Cancelar</button>
+                <button type="submit" class="button-primary button-primary--lg">Confirmar e iniciar</button>
+            </div>
+        </form>
     </div>
 </div>
 
-<style>
-.ct-filters { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
-.ct-filters label { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); }
-.ct-filters input, .ct-filters select { min-height: 34px; padding: 6px 8px; }
-.ct-filters__actions { display: flex; gap: 8px; align-items: end; }
-.ct-table-wrap { overflow: auto; max-height: 70vh; border: 1px solid #d6deea; }
-.ct-table { width: 100%; min-width: 1250px; border-collapse: collapse; }
-.ct-table thead th { position: sticky; top: 0; background: #eef3f9; z-index: 2; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 8px; border-bottom: 1px solid #cfd7e3; }
-.ct-table tbody tr:nth-child(even) { background: #f9fbfe; }
-.ct-table td { padding: 6px; border-bottom: 1px solid #e7edf5; }
-.ct-pagination { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-.is-disabled { pointer-events: none; opacity: .45; }
-
-.ct-modal__content {
-    width: min(780px, calc(100vw - 32px));
-    max-width: 780px;
-    border-radius: 12px;
-    border: 1px solid rgba(17, 56, 95, 0.14);
-    box-shadow: 0 18px 40px rgba(8, 34, 64, 0.24);
-    overflow: hidden;
-}
-
-.ct-modal__header {
-    padding: 20px 24px;
-    border-bottom: 0;
-}
-
-.ct-modal__subtitle {
-    margin: 4px 0 0;
-    color: var(--text-muted);
-    font-size: 13px;
-}
-
-.ct-modal__body {
-    padding: 18px 24px 22px;
-    background: #f7fafd;
-}
-
-.ct-modal__form {
-    display: grid;
-    gap: 14px;
-}
-
-.ct-modal__section {
-    border: 1px solid #d8e2ee;
-    border-radius: 10px;
-    background: #ffffff;
-    padding: 14px;
-}
-
-.ct-modal__section--header {
-    background: #fbfdff;
-}
-
-.ct-modal__section--checklist {
-    border-color: #cddbe9;
-}
-
-.ct-modal__section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #edf2f7;
-}
-
-.ct-modal__section-head h3 {
-    margin: 0;
-    color: #173f6d;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.ct-modal__header-grid,
-.ct-modal__checklist-grid {
-    display: grid;
-    gap: 10px 16px;
-}
-
-.ct-modal__header-grid {
-    grid-template-columns: 1.15fr 1.15fr .7fr;
-}
-
-.ct-modal__checklist-grid {
-    grid-template-columns: 1fr 1fr;
-}
-
-.ct-field {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
-}
-
-.ct-field--full {
-    grid-column: 1 / -1;
-}
-
-.ct-field__label {
-    margin: 0;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #45617e;
-    font-weight: 700;
-}
-
-.ct-field__input {
-    width: 100%;
-    min-height: 40px;
-    padding: 6px 9px;
-    border-radius: 8px;
-}
-
-.ct-modal__actions {
-    margin-top: 0;
-    padding-top: 14px;
-    border-top: 1px solid rgba(17, 56, 95, 0.1);
-    background: transparent;
-}
-
-@media (max-width: 980px) {
-  .ct-filters { grid-template-columns: 1fr 1fr; }
-  .ct-modal__content { width: min(96vw, 780px); }
-  .ct-modal__header-grid,
-  .ct-modal__checklist-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 560px) {
-  .ct-modal__header { padding: 18px; }
-  .ct-modal__body { padding: 14px; }
-  .ct-modal__section { padding: 12px; }
-}
-</style>
-
 <script>
-(() => {
-    const openBtn = document.getElementById('ct-open-modal');
-    const modal = document.getElementById('ct-modal');
-    const form = document.getElementById('ct-modal-form');
-    const saveBtn = document.getElementById('ct-save-record');
-    if (!openBtn || !modal || !form || !saveBtn) return;
+(function () {
+    var modal = document.getElementById('startCentralTintasModal');
+    var openButtons = document.querySelectorAll('[data-open-start-modal]');
+    var closeButtons = document.querySelectorAll('[data-close-start-modal]');
+    var tabs = document.querySelectorAll('[data-turnos-tab]');
+    var panels = document.querySelectorAll('[data-turnos-panel]');
 
-    const closeModal = () => {
-        modal.classList.remove('op-modal--open');
-        modal.hidden = true;
-    };
+    function openModal() { modal.classList.add('op-modal--open'); }
+    function closeModal() { modal.classList.remove('op-modal--open'); }
 
-    const openModal = () => {
-        form.reset();
-        const now = new Date();
-        const offsetMs = now.getTimezoneOffset() * 60000;
-        const local = new Date(now.getTime() - offsetMs).toISOString().slice(0, 16);
-        const dataHora = form.querySelector('[name="data_hora"]');
-        if (dataHora) dataHora.value = local;
-        modal.hidden = false;
-        modal.classList.add('op-modal--open');
-        const first = form.querySelector('[name="data_hora"]') || form.querySelector('[name="tinta"]');
-        if (first) first.focus();
-    };
+    openButtons.forEach(function(button) { button.addEventListener('click', openModal); });
+    closeButtons.forEach(function(button) { button.addEventListener('click', closeModal); });
 
-    openBtn.addEventListener('click', openModal);
-    modal.querySelectorAll('[data-close-modal]').forEach((el) => {
-        el.addEventListener('click', closeModal);
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            var target = this.getAttribute('data-turnos-tab');
+            tabs.forEach(function(item) { item.classList.remove('turnos-toolbar__tab--active'); });
+            panels.forEach(function(panel) { panel.classList.remove('turnos-panel--active'); });
+            this.classList.add('turnos-toolbar__tab--active');
+            var panel = document.querySelector('[data-turnos-panel="' + target + '"]');
+            if (panel) panel.classList.add('turnos-panel--active');
+            var url = new URL(window.location);
+            url.searchParams.set('tab', target);
+            history.replaceState({}, '', url);
+        });
     });
 
-    form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        saveBtn.disabled = true;
-        try {
-            const payload = Object.fromEntries(new FormData(form).entries());
-            const response = await fetch('/central-tintas', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                alert(data.message || 'Erro ao salvar registro.');
-                return;
-            }
-            window.location.reload();
-        } finally {
-            saveBtn.disabled = false;
-        }
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') closeModal();
     });
 })();
 </script>

@@ -48,6 +48,8 @@ MODULE_AREA_GROUPS: dict[str, list[str]] = {
         "rugosidade",
     ],
     "sigilatura": ["sigilatura", "espessura-pvc", "temperatura-forno-sigilatura", "escorrimento"],
+    "central-tintas": ["central-tintas"],
+    "cabine-pintura": ["cabine-pintura"],
 }
 
 
@@ -129,6 +131,37 @@ def _build_module_admin_context(db: Session, module_code: str) -> dict:
         "module_code": module_context.module_code,
         "module_title": module_context.module_title,
         "rows": module_context.rows,
+        "available_abas": module_context.available_abas,
+        "selected_aba": module_context.selected_aba,
+        "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
+        "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
+        "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
+        "priority_options": operational_module_item_service.PRIORITY_OPTIONS,
+        "weekday_options": operational_module_item_service.WEEKDAY_OPTIONS,
+    }
+
+
+def _build_module_admin_context_with_query(
+    request: Request,
+    db: Session,
+    module_code: str,
+    *,
+    selected_aba: str | None = None,
+) -> dict:
+    aba = selected_aba
+    if aba is None:
+        aba = request.query_params.get("aba", "").strip() or None
+    try:
+        module_context = operational_module_item_admin_service.build_module_context(db, module_code, aba=aba)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return {
+        "module_code": module_context.module_code,
+        "module_title": module_context.module_title,
+        "rows": module_context.rows,
+        "available_abas": module_context.available_abas,
+        "selected_aba": module_context.selected_aba,
         "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
         "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
@@ -343,7 +376,7 @@ def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db),
         "selected_module": selected_module,
         "selected_area": resolved_area,
         "module_area_groups": MODULE_AREA_GROUPS,
-        **_build_module_admin_context(db, selected_module),
+        **_build_module_admin_context_with_query(request, db, selected_module),
         **layout_context(str(request.url.path), active_path="/configuracoes"),
     }
     return templates.TemplateResponse(request=request, name="admin/module_items_admin.html", context=context)
@@ -356,9 +389,10 @@ def configuracoes_modulos_itens_modulo(
     db: Session = Depends(get_db),
     _admin=Depends(require_admin),
 ):
+    selected_aba = request.query_params.get("aba", "").strip() or None
     context = {
         "request": request,
-        **_build_module_admin_context(db, modulo_id),
+        **_build_module_admin_context_with_query(request, db, modulo_id, selected_aba=selected_aba),
     }
     return templates.TemplateResponse(request=request, name="admin/_module_items_table.html", context=context)
 

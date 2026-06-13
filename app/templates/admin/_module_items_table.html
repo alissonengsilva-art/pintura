@@ -28,7 +28,7 @@
                 {% for row in rows %}
                 <tr class="table-row" data-admin-row data-row-key="{{ row.id }}" data-editing="false">
                     <td data-col-item>
-                        {% if module_code == 'ed' %}
+                        {% if module_code in ['central-tintas', 'cabine-pintura'] %}
                         <input
                             type="text"
                             data-field="item_nome"
@@ -40,6 +40,10 @@
                         >
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
                         <input type="hidden" data-field="controle" value="{{ row.controle }}">
+                        <input type="hidden" data-field="aba" value="{{ row.aba or selected_aba or '' }}">
+                        {% elif module_code == 'ed' %}
+                        <input type="text" data-field="operacao" data-editable data-inline-input value="{{ row.operacao or '' }}" disabled placeholder="Operação">
+                        <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled placeholder="Controle">
                         {% else %}
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
                         {% if row.operacao and module_code not in ['escorrimento', 'rugosidade', 'sigilatura', 'espessura-pvc', 'temperatura-forno-sigilatura'] %}

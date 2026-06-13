@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turno-workspace">
+    <header class="turno-workspace__header">
+        <div class="turno-workspace__header-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+                <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="1.9"/>
+                <path d="M8 3v4M16 3v4M4 9.5h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <div class="turno-workspace__heading" style="min-width:0;">
+            <span class="turno-workspace__kicker" style="white-space:nowrap;">RELATORIO FINAL</span>
+            <h1 class="turno-workspace__title" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Cabine de Pintura - {{ relatorio.data_label }} - Turno {{ relatorio.turno }}</h1>
+            <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualizacao somente leitura.</p>
+        </div>
+        <div class="turno-workspace__header-meta">
+            <span class="op-status-badge op-status-badge--concluido">{{ relatorio.status_label }}</span>
+            <a href="/cabine-pintura?tab=concluidos" class="op-btn op-btn--ghost op-btn--sm">Voltar</a>
+        </div>
+    </header>
+
+    <section class="turno-overview panel-card">
+        <div class="turno-overview__grid">
+            <article class="turno-overview__metric"><span class="turno-overview__label">Data do controle</span><div class="turno-overview__value-row"><strong>{{ relatorio.data_label }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Semana</span><div class="turno-overview__value-row"><strong>{{ relatorio.semana }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Mes</span><div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Responsavel</span><div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Turno</span><div class="turno-overview__value-row"><strong>{{ relatorio.turno }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Progresso</span><div class="turno-overview__value-row"><strong>{{ relatorio.summary.progress_label }} - {{ relatorio.summary.percentual }}%</strong></div></article>
+        </div>
+    </section>
+
+    {% for aba in relatorio.abas %}
+    <section class="turno-module-editor__shell panel-card" style="margin-top:1rem;">
+        <section class="turno-module-editor__header">
+            <div class="turno-module-editor__title-wrap" style="width:100%;">
+                <div class="turno-module-editor__title-row">
+                    <h2 class="turno-module-editor__title">{{ aba['label'] }}</h2>
+                </div>
+            </div>
+        </section>
+        <div class="op-table-wrapper turno-sector-table-wrap">
+            <table class="op-table turno-sector-table op-table--readonly">
+                <thead>
+                    <tr>
+                        <th>Operacao / Equipamento</th>
+                        <th>Descricao do controle</th>
+                        <th>Norma</th>
+                        <th>Parametro</th>
+                        <th>Valor medido</th>
+                        <th>Observacao</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for grupo in aba['groups'] %}
+                        {% for item in grupo["items"] %}
+                        <tr>
+                            {% if loop.first %}
+                            <td rowspan="{{ grupo['items']|length }}"><span class="op-table__text"><strong>{{ grupo['operacao'] }}</strong></span></td>
+                            {% endif %}
+                            <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.norma or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.valor or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.observacao or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.status_label }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7"><span class="op-table__text">Nenhum item registrado nesta aba.</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endfor %}
+</section>
+{% endblock %}

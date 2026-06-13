@@ -2067,7 +2067,7 @@ tbody tr:last-child td {
 
 .dashboard-stacked-chart__columns {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--space-5);
     align-items: end;
     min-width: 0;
@@ -8275,6 +8275,74 @@ body.cropper-open {
 .reports-table--analytics th,
 .reports-table--analytics td {
     vertical-align: middle;
+}
+
+.reports-table--analytics {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+}
+
+.reports-table--analytics th {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.reports-table--analytics td {
+    padding: 0.7rem 0.6rem;
+}
+
+.reports-table--analytics .op-table__text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.reports-table--analytics .op-status-badge,
+.reports-table--analytics .op-badge {
+    white-space: normal;
+    text-align: center;
+    justify-content: center;
+}
+
+.reports-col--data {
+    width: 8%;
+}
+
+.reports-col--turno {
+    width: 7%;
+}
+
+.reports-col--modulo {
+    width: 11%;
+}
+
+.reports-col--operacao {
+    width: 10%;
+}
+
+.reports-col--controle {
+    width: 14%;
+}
+
+.reports-col--checklist {
+    width: 23%;
+}
+
+.reports-col--prioridade {
+    width: 8%;
+}
+
+.reports-col--valor {
+    width: 9%;
+}
+
+.reports-col--status {
+    width: 10%;
+}
+
+.reports-page .op-table-wrapper {
+    overflow-x: hidden;
 }
 
 .reports-table__row-clickable {

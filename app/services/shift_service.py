@@ -311,7 +311,7 @@ def conclude_shift(session: Session, shift: OperationalShift, required_module_co
     if not shift_schema_available(session):
         return
 
-    required_codes = required_module_codes or ["ed"]
+    required_codes = required_module_codes or []
     for code in required_codes:
         record = session.scalars(
             select(OperationalModuleRecord)

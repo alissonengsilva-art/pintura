@@ -73,7 +73,7 @@ PT_MODULE_CODES = ["pt", "pressao-filtros-pt"]
 ED_MODULE_CODES = [
     "ed",
     "temperatura-forno-ed",
-  
+    "pressao-filtros-ed",
     "tensao-retificadores-ed",
     "poder-penetracao",
     "espessura-ed",
@@ -253,8 +253,10 @@ def _build_module_execution_state(
     context_options: dict = {}
 
     if master:
-        parsed_context = build_context_from_source(config, master.context_data)
-        context_options = resolve_context_defaults(config, db, master.context_data)[1]
+        master_source = dict(master.context_data or {})
+        master_defaults, context_options = resolve_context_defaults(config, db, master_source)
+        master_defaults.update({key: value for key, value in master_source.items() if value not in (None, "")})
+        parsed_context = build_context_from_source(config, master_defaults)
         context_locked = True
     else:
         base_source = {"data_referencia": shift.data_referencia.isoformat()}
@@ -678,8 +680,7 @@ def turno_concluir(
 
     try:
         operation_scope = "pt" if request.url.path.startswith("/turnos-pt") else "ed"
-        required_modules = PT_MODULE_CODES if operation_scope == "pt" else ["ed"]
-        conclude_shift(db, shift, required_module_codes=required_modules)
+        conclude_shift(db, shift)
         return RedirectResponse(url="/turnos-pt?tab=concluidos" if operation_scope == "pt" else "/turno-atual?tab=concluidos", status_code=303)
     except ShiftValidationError as error:
         modulo = request.query_params.get("modulo")
@@ -737,7 +738,10 @@ async def turno_modulo_salvar_setor(
     db: Session = Depends(get_db),
 ):
     config = get_module_config(module_code)
-    if setor_tipo not in config.sector_sequence:
+    resolved_setor_tipo = setor_tipo
+    if resolved_setor_tipo not in config.sector_sequence and len(config.sector_sequence) == 1 and setor_tipo in {"PTED", "LABORATORIO"}:
+        resolved_setor_tipo = config.sector_sequence[0]
+    if resolved_setor_tipo not in config.sector_sequence:
         raise HTTPException(status_code=404, detail="Setor invalido")
 
     shift = get_shift_by_id(db, shift_id)
@@ -749,19 +753,30 @@ async def turno_modulo_salvar_setor(
     form_data["data_referencia"] = shift.data_referencia.isoformat()
     if shift.turno and config.supports_turno:
         form_data["turno"] = shift.turno
+    if resolved_setor_tipo != setor_tipo:
+        for key, value in list(form_data.items()):
+            if not isinstance(key, str):
+                continue
+            mapped_key = key
+            if f"_{setor_tipo}_" in key:
+                mapped_key = mapped_key.replace(f"_{setor_tipo}_", f"_{resolved_setor_tipo}_")
+            if mapped_key.endswith(f"_{setor_tipo}"):
+                mapped_key = mapped_key[: -len(setor_tipo)] + resolved_setor_tipo
+            if mapped_key != key and mapped_key not in form_data:
+                form_data[mapped_key] = value
 
     action = "concluir" if (form.get("submit_action") or "").strip().lower() == "concluir" else "salvar"
 
     try:
         parsed_context = build_context_from_source(config, form_data)
-        save_sector(db, config, parsed_context, setor_tipo, form, action, shift_id=shift_id)
+        save_sector(db, config, parsed_context, resolved_setor_tipo, form_data, action, shift_id=shift_id)
         update_shift_status(db, shift)
         operation_scope = getattr(shift, "operation_scope", "ed")
         return RedirectResponse(
             url=_shift_execution_url(
                 shift_id,
                 config.code,
-                setor_tipo,
+                resolved_setor_tipo,
                 grupo_retificador=str(parsed_context.get("grupo_retificador") or "") if config.code == "tensao-retificadores-ed" else None,
                 operation_scope=operation_scope,
             ),
@@ -775,7 +790,7 @@ async def turno_modulo_salvar_setor(
             config.code,
             source=form_data,
             error_message=str(error),
-            active_sector=setor_tipo,
+            active_sector=resolved_setor_tipo,
             status_code=400,
             operation_scope=getattr(shift, "operation_scope", "ed"),
             module_codes=_module_codes_for_scope(getattr(shift, "operation_scope", "ed")),

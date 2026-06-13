@@ -66,6 +66,8 @@ def _scope_for_module(module_code: str) -> str:
         return "sigilatura"
     if code == "central-tintas":
         return "central_tintas"
+    if code == "cabine-pintura":
+        return "cabine_pintura"
     return "ed"
 
 
@@ -183,6 +185,8 @@ def list_frequency_modules() -> list[dict[str, str]]:
         {"id": "espessura-pvc", "code": "espessura-pvc", "title": "Espessura PVC"},
         {"id": "temperatura-forno-sigilatura", "code": "temperatura-forno-sigilatura", "title": "Temperatura Forno Sigilatura"},
         {"id": "escorrimento", "code": "escorrimento", "title": "Escorrimento"},
+        {"id": "central-tintas", "code": "central-tintas", "title": "Central de Tintas"},
+        {"id": "cabine-pintura", "code": "cabine-pintura", "title": "Cabine de Pintura"},
     ]
     existing_codes = {item["code"] for item in modules}
     for item in sig_modules:

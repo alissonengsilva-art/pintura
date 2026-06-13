@@ -34,20 +34,22 @@ class ModuleAdminContext:
     module_code: str
     module_title: str
     rows: list[dict[str, object | None]]
+    available_abas: list[str]
+    selected_aba: str | None
 
 
 def list_modules() -> list[dict[str, str]]:
     return operational_module_item_service.list_frequency_modules()
 
 
-def build_module_context(session: Session, module_code: str) -> ModuleAdminContext:
+def build_module_context(session: Session, module_code: str, *, aba: str | None = None) -> ModuleAdminContext:
     module_catalog = {item["code"]: item["title"] for item in operational_module_item_service.list_frequency_modules()}
     if module_code not in module_catalog:
         raise ValueError("Modulo invalido.")
 
     _ensure_sigilatura_module_seed(session, module_code)
 
-    items = list(
+    all_items = list(
         session.scalars(
             select(OperationalModuleItem)
             .where(OperationalModuleItem.module_code == module_code)
@@ -63,12 +65,26 @@ def build_module_context(session: Session, module_code: str) -> ModuleAdminConte
             )
         ).all()
     )
-    groups = _group_items(items)
+    available_abas = []
+    if module_code == "cabine-pintura":
+        available_abas = [
+            aba_value
+            for aba_value in dict.fromkeys(str(item.aba or "").strip() for item in all_items if str(item.aba or "").strip())
+            if aba_value
+        ]
+        if available_abas:
+            aba = str(aba or "").strip() or available_abas[0]
+            all_items = [item for item in all_items if str(item.aba or "").strip() == aba]
+        else:
+            aba = None
+    groups = _group_items(all_items)
     rows = [_serialize_group(group) for group in groups]
     return ModuleAdminContext(
         module_code=module_code,
         module_title=module_catalog[module_code],
         rows=rows,
+        available_abas=available_abas,
+        selected_aba=aba,
     )
 
 
@@ -260,7 +276,7 @@ def _group_items(items: list[OperationalModuleItem]) -> list[list[OperationalMod
 
 def _group_key(item: OperationalModuleItem) -> tuple[str, str, str, str]:
     return (
-        str(item.module_code or "").strip().lower(),
+        f"{str(item.module_code or '').strip().lower()}|{str(item.aba or '').strip().lower()}",
         str(item.setor_tipo or "").strip().upper(),
         str(item.operacao or "").strip().lower(),
         str(item.controle or "").strip().lower(),
@@ -324,7 +340,7 @@ def _normalize_row_payload(
     return {
         "escopo": str(payload.get("escopo") or (existing_item.escopo if existing_item else "") or _scope_for_module(module_code)).strip() or _scope_for_module(module_code),
         "modulo": str(payload.get("modulo") or (existing_item.modulo if existing_item else "") or module_code).strip() or module_code,
-        "aba": str(payload.get("aba") or (existing_item.aba if existing_item else "") or _aba_from_setor(setor_tipo)).strip() or _aba_from_setor(setor_tipo),
+        "aba": str(payload.get("aba") or (existing_item.aba if existing_item else "") or _default_aba_for_module(module_code, setor_tipo)).strip() or _default_aba_for_module(module_code, setor_tipo),
         "module_code": module_code,
         "controle": controle,
         "operacao": str(payload.get("operacao") or "").strip() or None,
@@ -379,6 +395,8 @@ def _scope_for_module(module_code: str) -> str:
         return "sigilatura"
     if normalized == "central-tintas":
         return "central_tintas"
+    if normalized == "cabine-pintura":
+        return "cabine_pintura"
     return "ed"
 
 
@@ -391,6 +409,12 @@ def _aba_from_setor(setor_tipo: str) -> str:
     if raw == "AMBOS":
         return "Ambos"
     return raw
+
+
+def _default_aba_for_module(module_code: str, setor_tipo: str) -> str:
+    if str(module_code or "").strip().lower() == "cabine-pintura":
+        return "TOP COAT"
+    return _aba_from_setor(setor_tipo)
 
 
 def _normalize_nullable_int(value: object | None) -> int | None:

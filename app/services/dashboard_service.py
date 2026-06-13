@@ -4,16 +4,20 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import case, select
+from sqlalchemy import case, inspect as sa_inspect, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
+    CABINE_PINTURA_STATUS_CONCLUIDO,
+    CENTRAL_TINTAS_STATUS_CONCLUIDO,
+    CabinePinturaRelatorio,
     OperationalModuleItem,
     OperationalModuleRecord,
     OperationalShift,
     SIG_MODULE_CODES,
     SHIFT_STATUS_CONCLUIDO,
     SHIFT_STATUS_NAO_INICIADO,
+    CentralTintasRelatorio,
     SigilaturaModulo,
     SigilaturaTurno,
     Turno,
@@ -33,6 +37,8 @@ from app.services.operational_module_service import (
     get_master_by_shift,
     get_module_config,
 )
+from app.services.cabine_pintura_service import cabine_pintura_flow_schema_available
+from app.services.central_tintas_service import central_tintas_flow_schema_available
 from app.services.shift_service import build_shift_detail, shift_schema_available
 from app.services.sigilatura_service import (
     _load_module_rows as load_sigilatura_module_rows,
@@ -84,7 +90,7 @@ class DashboardSnapshot:
     empty_state_message: str | None
 
 
-MACRO_MODULE_ORDER = ("PT", "ED", "SIGILATURA")
+MACRO_MODULE_ORDER = ("PT", "ED", "SIGILATURA", "CENTRAL TINTAS", "CABINE PINTURA")
 MACRO_MODULE_CODES = {
     "PT": {"pt", "pressao-filtros-pt"},
     "ED": {
@@ -98,6 +104,8 @@ MACRO_MODULE_CODES = {
         "rugosidade",
     },
     "SIGILATURA": set(SIG_MODULE_CODES),
+    "CENTRAL TINTAS": {"central-tintas"},
+    "CABINE PINTURA": {"cabine-pintura"},
 }
 PRIORITY_ORDER = ("baixo", "medio", "alto")
 CHART_COLORS = {
@@ -107,6 +115,13 @@ CHART_COLORS = {
     "medio": "#f28c28",
     "alto": "#d64545",
 }
+
+
+def _normalize_priority(value: Any) -> str:
+    prioridade = str(value or "").strip().lower()
+    if prioridade not in PRIORIDADE_LABELS:
+        return "medio"
+    return prioridade
 
 
 def _list_turno_options(session: Session) -> list[Turno]:
@@ -211,6 +226,52 @@ def _macro_module_for_code(module_code: str) -> str:
     return "ED"
 
 
+def _build_central_tintas_rows(relatorio: CentralTintasRelatorio) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in relatorio.itens:
+        valor = str(item.valor or "").strip()
+        item_nome = str(item.controle or "Item").strip()
+        if getattr(item, "operational_module_item_id", None) and getattr(item, "controle", None):
+            item_nome = str(item.controle).strip()
+        rows.append(
+            {
+                "setor": f"Turno {relatorio.turno}",
+                "item_nome": item_nome,
+                "status_item": "Preenchido" if valor else "Pendente",
+                "valor": valor or "—",
+                "observacao": str(item.observacao or "—"),
+                "responsavel": str(relatorio.responsavel or "—"),
+                "desvio": False,
+                "prioridade": "medio",
+                "is_applicable": True,
+            }
+        )
+    return rows
+
+
+def _build_cabine_pintura_rows(relatorio: CabinePinturaRelatorio) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in relatorio.itens:
+        valor = str(item.valor or "").strip()
+        modulo = str(item.modulo or "Cabine de Pintura").strip()
+        operacao = str(item.operacao_equipamento or "Sem agrupamento").strip()
+        controle = str(item.descricao_controle or "Item").strip()
+        rows.append(
+            {
+                "setor": f"Turno {relatorio.turno} · {modulo}",
+                "item_nome": f"{operacao} - {controle}" if operacao else controle,
+                "status_item": "Preenchido" if valor else "Pendente",
+                "valor": valor or "—",
+                "observacao": str(item.observacao or "—"),
+                "responsavel": str(relatorio.responsavel or "—"),
+                "desvio": False,
+                "prioridade": "medio",
+                "is_applicable": True,
+            }
+        )
+    return rows
+
+
 def _build_module_items_summary(
     session: Session,
     shift: OperationalShift,
@@ -255,7 +316,7 @@ def _build_module_items_summary(
                     "observacao": str(observacao or "—"),
                     "responsavel": str(responsavel),
                     "desvio": bool(row.get("flag")),
-                    "prioridade": str(row.get("prioridade") or "medio"),
+                    "prioridade": _normalize_priority(row.get("prioridade")),
                     "is_applicable": bool(row.get("is_applicable", True)),
                 }
             )
@@ -263,12 +324,16 @@ def _build_module_items_summary(
 
 
 def _load_item_priority_map(session: Session) -> dict[int, str]:
+    existing_columns = {
+        col["name"]
+        for col in sa_inspect(session.get_bind()).get_columns(OperationalModuleItem.__tablename__)
+    }
+    if "prioridade" not in existing_columns:
+        return {int(item_id): "medio" for item_id in session.scalars(select(OperationalModuleItem.id)).all()}
+
     priority_map: dict[int, str] = {}
     for item in session.scalars(select(OperationalModuleItem)).all():
-        prioridade = str(item.prioridade or "").strip().lower()
-        if prioridade not in PRIORIDADE_LABELS:
-            prioridade = "medio"
-        priority_map[item.id] = prioridade
+        priority_map[item.id] = _normalize_priority(getattr(item, "prioridade", None))
     return priority_map
 
 
@@ -295,7 +360,7 @@ def _sigilatura_rows_for_module(
         rows.append(
             {
                 **row,
-                "prioridade": prioridade if prioridade in PRIORIDADE_LABELS else "medio",
+                "prioridade": _normalize_priority(prioridade),
                 "is_applicable": True,
             }
         )
@@ -307,10 +372,7 @@ def _aggregate_priority_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     for row in rows:
         if not row.get("is_applicable", True):
             continue
-        prioridade = str(row.get("prioridade") or "medio").strip().lower()
-        if prioridade not in counts:
-            prioridade = "medio"
-        counts[prioridade] += 1
+        counts[_normalize_priority(row.get("prioridade"))] += 1
     return counts
 
 
@@ -346,7 +408,9 @@ def _empty_chart_row(label: str, segment_keys: list[tuple[str, str]]) -> dict[st
 def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> DashboardSnapshot:
     shift_schema_ok = shift_schema_available(session)
     sig_schema_ok = sigilatura_schema_available(session)
-    if not shift_schema_ok and not sig_schema_ok:
+    central_tintas_schema_ok = central_tintas_flow_schema_available(session)
+    cabine_pintura_schema_ok = cabine_pintura_flow_schema_available(session)
+    if not shift_schema_ok and not sig_schema_ok and not central_tintas_schema_ok and not cabine_pintura_schema_ok:
         return DashboardSnapshot(
             filters=filters,
             dashboard_day=None,
@@ -389,8 +453,35 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
             ).unique().all()
         )
 
+    central_tintas_relatorios: list[CentralTintasRelatorio] = []
+    if central_tintas_schema_ok:
+        central_tintas_relatorios = list(
+            session.scalars(
+                select(CentralTintasRelatorio)
+                .options(joinedload(CentralTintasRelatorio.itens))
+                .where(CentralTintasRelatorio.data_controle == filters.data_referencia)
+                .order_by(CentralTintasRelatorio.turno.asc(), CentralTintasRelatorio.created_at.asc())
+            ).unique().all()
+        )
+
+    cabine_pintura_relatorios: list[CabinePinturaRelatorio] = []
+    if cabine_pintura_schema_ok:
+        cabine_pintura_relatorios = list(
+            session.scalars(
+                select(CabinePinturaRelatorio)
+                .options(joinedload(CabinePinturaRelatorio.itens))
+                .where(CabinePinturaRelatorio.data_controle == filters.data_referencia)
+                .order_by(CabinePinturaRelatorio.turno.asc(), CabinePinturaRelatorio.created_at.asc())
+            ).unique().all()
+        )
+
     if filters.shift_id:
-        known_ids = {shift.id for shift in operational_shifts} | {shift.id for shift in sigilatura_shifts}
+        known_ids = (
+            {shift.id for shift in operational_shifts}
+            | {shift.id for shift in sigilatura_shifts}
+            | {relatorio.id for relatorio in central_tintas_relatorios}
+            | {relatorio.id for relatorio in cabine_pintura_relatorios}
+        )
         if filters.shift_id not in known_ids:
             raise DashboardValidationError("O turno selecionado não foi encontrado para a data informada.")
 
@@ -536,7 +627,107 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
             for priority, count in priority_counts.items():
                 macro_priority_totals[macro][priority] += count
 
-    total_turnos = len(operational_shifts) + len(sigilatura_shifts)
+    if central_tintas_relatorios:
+        shift_options.extend(
+            {
+                "id": relatorio.id,
+                "turno_nome": f"Turno {relatorio.turno} · Central de Tintas",
+                "turno_horario": None,
+                "status_label": "Concluído" if relatorio.status == CENTRAL_TINTAS_STATUS_CONCLUIDO else "Em andamento",
+                "status_tone": "success" if relatorio.status == CENTRAL_TINTAS_STATUS_CONCLUIDO else "warning",
+                "modules_progress_label": f"{sum(1 for item in relatorio.itens if str(item.valor or '').strip())}/{len(relatorio.itens)} itens",
+            }
+            for relatorio in central_tintas_relatorios
+        )
+
+        aggregate = module_aggregates.setdefault(
+            "central-tintas",
+            {
+                "code": "central-tintas",
+                "title": "Central de Tintas",
+                "slug": "central-tintas",
+                "filled_items": 0,
+                "total_items": 0,
+                "desvios": 0,
+                "last_updated_at": None,
+                "responsavel_pted": set(),
+                "responsavel_lab": set(),
+                "items": [],
+                "execution_url": "/central-tintas",
+                "history_url": "/central-tintas?tab=concluidos",
+            },
+        )
+        for relatorio in central_tintas_relatorios:
+            rows = _build_central_tintas_rows(relatorio)
+            aggregate["filled_items"] += sum(1 for item in relatorio.itens if str(item.valor or "").strip())
+            aggregate["total_items"] += len(relatorio.itens)
+            if relatorio.updated_at and (
+                aggregate["last_updated_at"] is None or relatorio.updated_at > aggregate["last_updated_at"]
+            ):
+                aggregate["last_updated_at"] = relatorio.updated_at
+            if relatorio.responsavel:
+                aggregate["responsavel_pted"].add(relatorio.responsavel)
+                aggregate["responsavel_lab"].add(relatorio.responsavel)
+            aggregate["items"].extend(rows)
+
+        macro = _macro_module_for_code("central-tintas")
+        macro_param_totals[macro]["filled"] += int(aggregate["filled_items"])
+        macro_param_totals[macro]["total"] += int(aggregate["total_items"])
+        priority_counts = _aggregate_priority_counts(aggregate["items"])
+        for priority, count in priority_counts.items():
+            macro_priority_totals[macro][priority] += count
+
+    if cabine_pintura_relatorios:
+        shift_options.extend(
+            {
+                "id": relatorio.id,
+                "turno_nome": f"Turno {relatorio.turno} · Cabine de Pintura",
+                "turno_horario": None,
+                "status_label": "Concluído" if relatorio.status == CABINE_PINTURA_STATUS_CONCLUIDO else "Em andamento",
+                "status_tone": "success" if relatorio.status == CABINE_PINTURA_STATUS_CONCLUIDO else "warning",
+                "modules_progress_label": f"{sum(1 for item in relatorio.itens if str(item.valor or '').strip())}/{len(relatorio.itens)} itens",
+            }
+            for relatorio in cabine_pintura_relatorios
+        )
+
+        aggregate = module_aggregates.setdefault(
+            "cabine-pintura",
+            {
+                "code": "cabine-pintura",
+                "title": "Cabine de Pintura",
+                "slug": "cabine-pintura",
+                "filled_items": 0,
+                "total_items": 0,
+                "desvios": 0,
+                "last_updated_at": None,
+                "responsavel_pted": set(),
+                "responsavel_lab": set(),
+                "items": [],
+                "execution_url": "/cabine-pintura",
+                "history_url": "/cabine-pintura?tab=concluidos",
+            },
+        )
+        for relatorio in cabine_pintura_relatorios:
+            rows = _build_cabine_pintura_rows(relatorio)
+            aggregate["filled_items"] += sum(1 for item in relatorio.itens if str(item.valor or "").strip())
+            aggregate["total_items"] += len(relatorio.itens)
+            if relatorio.updated_at and (
+                aggregate["last_updated_at"] is None or relatorio.updated_at > aggregate["last_updated_at"]
+            ):
+                aggregate["last_updated_at"] = relatorio.updated_at
+            if relatorio.responsavel:
+                aggregate["responsavel_pted"].add(relatorio.responsavel)
+                aggregate["responsavel_lab"].add(relatorio.responsavel)
+            aggregate["items"].extend(rows)
+
+        macro = _macro_module_for_code("cabine-pintura")
+        macro_param_totals[macro]["filled"] += int(aggregate["filled_items"])
+        macro_param_totals[macro]["total"] += int(aggregate["total_items"])
+        priority_counts = _aggregate_priority_counts(aggregate["items"])
+        for priority, count in priority_counts.items():
+            macro_priority_totals[macro][priority] += count
+
+    total_turnos = len(operational_shifts) + len(sigilatura_shifts) + len(central_tintas_relatorios) + len(cabine_pintura_relatorios)
     if total_turnos == 0:
         return DashboardSnapshot(
             filters=filters,

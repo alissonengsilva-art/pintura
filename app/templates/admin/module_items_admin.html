@@ -34,6 +34,8 @@
                     <button type="button" class="area-tab" data-area-tab data-area-code="pt">PT</button>
                     <button type="button" class="area-tab" data-area-tab data-area-code="ed">ED</button>
                     <button type="button" class="area-tab" data-area-tab data-area-code="sigilatura">Sigilatura</button>
+                    <button type="button" class="area-tab" data-area-tab data-area-code="central-tintas">Central de Tintas</button>
+                    <button type="button" class="area-tab" data-area-tab data-area-code="cabine-pintura">Cabine de Pintura</button>
                 </div>
             </div>
             <div class="module-toolbar-group module-toolbar-group--sub">
@@ -71,6 +73,16 @@
                 <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
             </div>
         </div>
+        {% if selected_module == 'cabine-pintura' and available_abas %}
+        <div class="module-toolbar-group module-toolbar-group--sub">
+            <p class="module-toolbar-title">Abas da Cabine de Pintura</p>
+            <div class="module-pill-switch" data-aba-tabs>
+                {% for aba in available_abas %}
+                <button type="button" class="module-pill {% if selected_aba == aba %}module-pill--active{% endif %}" data-aba-tab data-aba-code="{{ aba }}">{{ aba }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </section>
 
     <div id="module-items-table-container">
@@ -203,6 +215,7 @@
 
     let selectedModule = page.dataset.selectedModule;
     let selectedArea = page.dataset.selectedArea || 'ed';
+    let selectedAba = {{ (selected_aba or '')|tojson }};
     const areaGroups = JSON.parse(page.dataset.areaGroups || '{}');
     let deletedIds = new Set();
     let hasUnsavedChanges = false;
@@ -240,10 +253,21 @@
         syncUrlState();
     }
 
+    function setAbaButtons(activeAba) {
+        document.querySelectorAll('[data-aba-tab]').forEach((button) => {
+            const isActive = button.getAttribute('data-aba-code') === activeAba;
+            button.classList.toggle('module-pill--active', isActive);
+        });
+        selectedAba = activeAba || '';
+        syncUrlState();
+    }
+
     function syncUrlState() {
         const params = new URLSearchParams(window.location.search);
         params.set('area', selectedArea);
         params.set('modulo', selectedModule);
+        if (selectedAba) params.set('aba', selectedAba);
+        else params.delete('aba');
         const next = `${window.location.pathname}?${params.toString()}`;
         window.history.replaceState({}, '', next);
     }
@@ -375,14 +399,22 @@
 
     function buildNewRowMarkup() {
         const rowKey = `new-${Date.now()}-${newRowSequence++}`;
-        const itemFieldMarkup = selectedModule === 'ed'
+        const itemFieldMarkup = ['central-tintas', 'cabine-pintura'].includes(selectedModule)
             ? `
                 <input type="text" data-field="item_nome" data-editable data-inline-input value="" placeholder="operaÃ§Ã£o / Controle">
                 <input type="hidden" data-field="operacao" value="">
                 <input type="hidden" data-field="controle" value="">
+                <input type="hidden" data-field="aba" value="${selectedAba || ''}">
+            `
+            : selectedModule === 'ed'
+            ? `
+                <input type="text" data-field="operacao" data-editable data-inline-input value="" placeholder="OperaÃ§Ã£o">
+                <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Controle">
+                <input type="hidden" data-field="aba" value="${selectedAba || ''}">
             `
             : `
                 <input type="hidden" data-field="operacao" value="">
+                <input type="hidden" data-field="aba" value="${selectedAba || ''}">
                 <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do item">
             `;
         return `
@@ -466,12 +498,13 @@
                 operacao = (parts.shift() || '').trim();
                 controle = parts.join(separator).trim();
             } else {
-                operacao = '';
+                operacao = ['central-tintas', 'cabine-pintura'].includes(selectedModule) ? mergedText : '';
                 controle = mergedText;
             }
         }
         return {
             id: itemId,
+            aba: row.querySelector('[data-field="aba"]')?.value || selectedAba || '',
             operacao,
             controle,
             setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
@@ -489,8 +522,10 @@
         };
     }
 
-    async function loadModule(moduleCode) {
-        const response = await fetch(`/configuracoes/modulos-itens/${moduleCode}`, {
+    async function loadModule(moduleCode, abaCode = selectedAba) {
+        const params = new URLSearchParams();
+        if (moduleCode === 'cabine-pintura' && abaCode) params.set('aba', abaCode);
+        const response = await fetch(`/configuracoes/modulos-itens/${moduleCode}${params.toString() ? `?${params.toString()}` : ''}`, {
             headers: { 'X-Requested-With': 'fetch' }
         });
         if (!response.ok) {
@@ -499,6 +534,9 @@
         }
         container.innerHTML = await response.text();
         setModuleButtons(moduleCode);
+        if (moduleCode !== 'cabine-pintura') {
+            selectedAba = '';
+        }
         resetModuleDraftState();
         container.querySelectorAll('[data-admin-row]').forEach((row) => {
             setRowEditing(row, false);
@@ -530,7 +568,7 @@
                 return;
             }
             showToast('Alteracoes salvas com sucesso');
-            await loadModule(selectedModule);
+            await loadModule(selectedModule, selectedAba);
         } finally {
             if (saveButton) saveButton.disabled = false;
         }
@@ -542,6 +580,15 @@
             const moduleCode = moduleButton.getAttribute('data-module-code');
             if (!confirmDiscardIfNeeded()) return;
             loadModule(moduleCode);
+            return;
+        }
+
+        const abaButton = event.target.closest('[data-aba-tab]');
+        if (abaButton) {
+            const abaCode = abaButton.getAttribute('data-aba-code') || '';
+            if (!confirmDiscardIfNeeded()) return;
+            setAbaButtons(abaCode);
+            loadModule(selectedModule, abaCode);
             return;
         }
 
@@ -661,6 +708,9 @@
         if (nextModule) {
             loadModule(nextModule);
         }
+    }
+    if (selectedAba) {
+        setAbaButtons(selectedAba);
     }
     applyResponsiveLabels();
     applyPriorityTone(container);

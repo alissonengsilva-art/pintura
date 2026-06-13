@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block content %}
 <section class="turno-workspace">
@@ -15,6 +15,7 @@
             <p class="turno-workspace__subtitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Visualizacao somente leitura.</p>
         </div>
         <div class="turno-workspace__header-meta">
+            <span class="op-status-badge op-status-badge--concluido">{{ relatorio.status_label }}</span>
             <a href="/central-tintas?tab=concluidos" class="op-btn op-btn--ghost op-btn--sm">Voltar</a>
         </div>
     </header>
@@ -26,86 +27,82 @@
             <article class="turno-overview__metric"><span class="turno-overview__label">Mes</span><div class="turno-overview__value-row"><strong>{{ relatorio.mes }}</strong></div></article>
             <article class="turno-overview__metric"><span class="turno-overview__label">Responsavel</span><div class="turno-overview__value-row"><strong>{{ relatorio.responsavel }}</strong></div></article>
             <article class="turno-overview__metric"><span class="turno-overview__label">Turno</span><div class="turno-overview__value-row"><strong>{{ relatorio.turno }}</strong></div></article>
-            <article class="turno-overview__metric"><span class="turno-overview__label">Status</span><div class="turno-overview__value-row"><strong>{{ relatorio.status_label }}</strong></div></article>
+            <article class="turno-overview__metric"><span class="turno-overview__label">Progresso</span><div class="turno-overview__value-row"><strong>{{ relatorio.summary.progress_label }} - {{ relatorio.summary.percentual }}%</strong></div></article>
         </div>
     </section>
 
     <section class="turno-module-editor__shell panel-card">
         <section class="turno-module-editor__header">
-            <div class="turno-module-editor__title-wrap">
+            <div class="turno-module-editor__title-wrap" style="width:100%;">
                 <div class="turno-module-editor__title-row">
                     <h2 class="turno-module-editor__title">Checklist</h2>
+                </div>
+                <div class="dashboard-module-metrics dashboard-module-metrics--compact dashboard-module-metrics--summary" style="margin-top:1rem;">
+                    <div><span class="metric-label">Total</span><strong>{{ relatorio.summary.total }}</strong></div>
+                    <div><span class="metric-label">Preenchidos</span><strong>{{ relatorio.summary.preenchidos }}</strong></div>
+                    <div><span class="metric-label">Pendentes</span><strong>{{ relatorio.summary.pendentes }}</strong></div>
+                    <div><span class="metric-label">Status</span><strong>{{ relatorio.summary.percentual }}%</strong></div>
+                </div>
+                <div class="dashboard-module-progress" style="margin-top:1rem;">
+                    <div class="dashboard-shift-progress">
+                        <span class="dashboard-shift-progress__fill" style="width: {{ relatorio.summary.percentual }}%"></span>
+                    </div>
                 </div>
             </div>
         </section>
         <div class="op-table-wrapper turno-sector-table-wrap">
             <table class="op-table turno-sector-table op-table--readonly">
                 <thead>
-                    <tr>
-                        {% if relatorio.mode == 'catalog' %}
-                        <th>Operacao / Controle</th>
-                        <th>Parametro</th>
-                        <th>Valor</th>
-                        <th>Observacao</th>
-                        <th>Status</th>
-                        {% else %}
-                        <th>ITEM</th>
-                        <th>VALOR</th>
-                        <th>OBSERVAÇÃO</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in relatorio.itens %}
                     {% if relatorio.mode == 'catalog' %}
                     <tr>
-                        <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
-                        <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
-                        <td><span class="op-table__text">{{ item.valor or '-' }}</span></td>
-                        <td><span class="op-table__text">{{ item.observacao or '-' }}</span></td>
-                        <td><span class="op-table__text">{{ item.status or 'NAO_AVALIADO' }}</span></td>
+                        <th>Operacao / Equipamento</th>
+                        <th>Controle</th>
+                        <th>Parametro</th>
+                        <th>Valor medido</th>
+                        <th>Observacao</th>
+                        <th>Status</th>
                     </tr>
                     {% else %}
                     <tr>
-                        <td><span class="op-table__text">Tinta</span></td>
-                        <td><span class="op-table__text">{{ item.tinta or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><span class="op-table__text">Lote</span></td>
-                        <td><span class="op-table__text">{{ item.lote or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><span class="op-table__text">pH</span></td>
-                        <td><span class="op-table__text">{{ item.ph or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><span class="op-table__text">Viscosidade</span></td>
-                        <td><span class="op-table__text">{{ item.viscosidade or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><span class="op-table__text">Sujidade</span></td>
-                        <td><span class="op-table__text">{{ item.sujidade or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
-                    </tr>
-                    <tr>
-                        <td><span class="op-table__text">Ações corretivas</span></td>
-                        <td><span class="op-table__text">{{ item.acoes_corretivas or '-' }}</span></td>
-                        <td><span class="op-table__text">-</span></td>
+                        <th>Descricao</th>
+                        <th>Valor</th>
+                        <th>Observacao</th>
                     </tr>
                     {% endif %}
-                    {% else %}
-                    <tr>
-                        {% if relatorio.mode == 'catalog' %}
-                        <td colspan="5"><span class="op-table__text">Nenhum item registrado.</span></td>
+                </thead>
+                <tbody>
+                    {% if relatorio.mode == 'catalog' %}
+                        {% for grupo in relatorio.grupos %}
+                            {% for item in grupo["items"] %}
+                            <tr>
+                                {% if loop.first %}
+                                <td rowspan="{{ grupo['items']|length }}"><span class="op-table__text"><strong>{{ grupo['operacao'] }}</strong></span></td>
+                                {% endif %}
+                                <td><span class="op-table__text">{{ item.controle or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.parametro or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.valor or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.observacao or '-' }}</span></td>
+                                <td><span class="op-table__text">{{ item.status_label }}</span></td>
+                            </tr>
+                            {% endfor %}
                         {% else %}
-                        <td colspan="3"><span class="op-table__text">Nenhum item registrado.</span></td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
+                        <tr>
+                            <td colspan="6"><span class="op-table__text">Nenhum item registrado.</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        {% for item in relatorio.itens %}
+                        <tr>
+                            <td><span class="op-table__text">{{ item.controle or 'Item legado' }}</span></td>
+                            <td><span class="op-table__text">{{ item.valor or item.tinta or '-' }}</span></td>
+                            <td><span class="op-table__text">{{ item.observacao or item.acoes_corretivas or '-' }}</span></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3"><span class="op-table__text">Nenhum item registrado.</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
                 </tbody>
             </table>
         </div>
