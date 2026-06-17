@@ -269,6 +269,59 @@ def test_dashboard_defaults_to_today_when_no_date_is_provided(test_env: tuple[Te
     assert "Nenhum dado" in response.text
 
 
+def test_sidebar_replaces_individual_operational_links_with_operacoes(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/operacoes")
+
+    assert response.status_code == 200
+    assert '<span class="nav-label">Operações</span>' in response.text
+    assert '<span class="nav-label">Central de Tintas</span>' not in response.text
+    assert '<span class="nav-label">Cabine de Pintura</span>' not in response.text
+    assert '<span class="nav-label">Sigilatura</span>' not in response.text
+
+
+def test_operacoes_page_aggregates_daily_modules(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    reference_date = "2026-05-02"
+    _create_shift(client, data_referencia=reference_date, turno="1")
+    _create_pt_shift(client, data_referencia=reference_date, turno="2")
+    _create_sigilatura_shift(client, data_referencia=reference_date, turno="3")
+
+    response = client.get(f"/operacoes?data_referencia={reference_date}")
+
+    assert response.status_code == 200
+    assert "Operações da Pintura" in response.text
+    assert "02/05/2026" in response.text
+    assert "PT" in response.text
+    assert "ED" in response.text
+    assert "Sigilatura" in response.text
+    assert "Central de Tintas" in response.text
+    assert "Cabine de Pintura" in response.text
+    assert "Iniciar turno" in response.text
+
+
+def test_operacoes_start_route_creates_central_tintas_relatorio(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+
+    response = client.post(
+        "/operacoes/iniciar",
+        data={
+            "module_code": "central-tintas",
+            "data_referencia": "2026-05-03",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        assert response.headers["location"] == f"/central-tintas/{relatorio.id}"
+
+
 def test_dashboard_aggregates_all_shifts_for_selected_day(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, _ = test_env
     reference_date = "2026-04-28"
@@ -1308,6 +1361,15 @@ def test_turnos_index_lists_created_shift(test_env: tuple[TestClient, sessionmak
     assert response.status_code == 200
     assert f"/turnos/{shift_id}" in response.text
     assert "Abrir turno" in response.text
+
+
+def test_turnos_ed_alias_redirects_to_turno_atual(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/turnos-ed", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/turno-atual"
 
 
 def test_turno_execution_shows_browser_tabs_and_no_individual_start_button(test_env: tuple[TestClient, sessionmaker]) -> None:

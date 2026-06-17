@@ -8,6 +8,7 @@ from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.ed import router as ed_router
 from app.routes.espessura_ed import router as espessura_ed_router
+from app.routes.operacoes import router as operacoes_router
 from app.routes.poder_penetracao import router as poder_penetracao_router
 from app.routes.pressao_filtros_pt import router as pressao_filtros_pt_router
 from app.routes.pressao_filtros_ed import router as pressao_filtros_router
@@ -30,6 +31,7 @@ app.include_router(admin_router)
 app.include_router(aspecto_router)
 app.include_router(ed_router)
 app.include_router(espessura_ed_router)
+app.include_router(operacoes_router)
 app.include_router(poder_penetracao_router)
 app.include_router(pressao_filtros_pt_router)
 app.include_router(pressao_filtros_router)

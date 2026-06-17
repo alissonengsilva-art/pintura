@@ -503,8 +503,18 @@ def turno_atual(request: Request, db: Session = Depends(get_db)):
     return _render_turnos_index(request, db, operation_scope="ed", module_codes=ED_MODULE_CODES)
 
 
+@router.get("/turnos-ed", include_in_schema=False)
+def turnos_ed_alias():
+    return RedirectResponse(url="/turno-atual", status_code=302)
+
+
 @router.get("/turno-atual/iniciar", name="turno_iniciar")
 def turno_iniciar_form():
+    return RedirectResponse(url="/turno-atual?modal=iniciar", status_code=302)
+
+
+@router.get("/turnos-ed/iniciar", include_in_schema=False)
+def turnos_ed_iniciar_alias():
     return RedirectResponse(url="/turno-atual?modal=iniciar", status_code=302)
 
 
@@ -546,6 +556,19 @@ def turno_iniciar_post(
             open_start_modal=True,
             operation_scope="ed",
         )
+
+
+@router.post("/turnos-ed/iniciar", include_in_schema=False)
+def turnos_ed_iniciar_post(
+    request: Request,
+    db: Session = Depends(get_db),
+    data_referencia: str = Form(...),
+    turno: str = Form(None),
+    responsavel_pted: str = Form(None),
+    responsavel_lab: str = Form(None),
+    observacoes: str = Form(None),
+):
+    return turno_iniciar_post(request, db, data_referencia, turno, responsavel_pted, responsavel_lab, observacoes)
 
 
 @router.get("/turnos-pt", name="turnos_pt")

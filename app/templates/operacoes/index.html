@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="operacoes-hero panel-card">
+    <div class="operacoes-hero__content">
+        <div>
+            <span class="operacoes-hero__kicker">Centro Operacional</span>
+            <h1>Operações da Pintura</h1>
+            <p>Status dos módulos operacionais por data e turno.</p>
+        </div>
+        <div class="operacoes-hero__badge">Dia operacional</div>
+    </div>
+    <div class="operacoes-hero__actions">
+        <form method="get" action="/operacoes" class="operacoes-date-form">
+            <label for="data_referencia" class="operacoes-date-form__label">Data de referência</label>
+            <div class="operacoes-date-form__controls">
+                <input id="data_referencia" type="date" name="data_referencia" value="{{ data_referencia.isoformat() }}" class="op-form__input">
+                <button type="submit" class="button-primary">Atualizar</button>
+            </div>
+        </form>
+        <div class="operacoes-date-form__current">{{ data_label }}</div>
+    </div>
+</section>
+
+{% if error_message %}
+<div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
+{% endif %}
+
+<section class="operacoes-summary panel-card">
+    <div class="operacoes-summary__main">
+        <span class="operacoes-summary__eyebrow">Resumo executivo do dia</span>
+        <strong>{{ summary.progress_label }}</strong>
+        <p>{{ summary.percentual }}% dos módulos operacionais foram iniciados ou concluídos em {{ data_label }}.</p>
+        <div class="operacoes-summary__progress">
+            <span class="operacoes-summary__progress-fill" style="width: {{ summary.percentual }}%"></span>
+        </div>
+    </div>
+    <div class="operacoes-summary__metrics">
+        <article class="operacoes-summary-card">
+            <span>Módulos totais</span>
+            <strong>{{ summary.total_modulos }}</strong>
+        </article>
+        <article class="operacoes-summary-card">
+            <span>Concluídos</span>
+            <strong>{{ summary.concluidos }}</strong>
+        </article>
+        <article class="operacoes-summary-card">
+            <span>Em andamento</span>
+            <strong>{{ summary.em_andamento }}</strong>
+        </article>
+        <article class="operacoes-summary-card">
+            <span>Não iniciados</span>
+            <strong>{{ summary.nao_iniciados }}</strong>
+        </article>
+        <article class="operacoes-summary-card">
+            <span>Com pendências</span>
+            <strong>{{ summary.pendencias }}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="operacoes-grid">
+    {% for module in modules %}
+    <article class="operacoes-module-card {{ module.status_class }}">
+        <div class="operacoes-module-card__head">
+            <div>
+                <h2>{{ module.title }}</h2>
+                {% if module.turnos_label %}
+                <p>{{ module.turnos_label }}</p>
+                {% elif module.message %}
+                <p>{{ module.message }}</p>
+                {% endif %}
+            </div>
+            <span class="status-chip status-chip--{{ module.tone }}">{{ module.status_label }}</span>
+        </div>
+
+        <div class="operacoes-module-card__progress">
+            <div class="operacoes-module-card__progress-meta">
+                <strong>{{ module.progress_label }}</strong>
+                <span>{{ module.progress_percent }}%</span>
+            </div>
+            <div class="operacoes-module-card__progress-bar">
+                <span style="width: {{ module.progress_percent }}%"></span>
+            </div>
+            <small>itens preenchidos / total de itens</small>
+        </div>
+
+        <dl class="operacoes-module-card__meta">
+            <div>
+                <dt>Responsável</dt>
+                <dd>{{ module.responsavel }}</dd>
+            </div>
+            <div>
+                <dt>Turno</dt>
+                <dd>{{ module.turno }}</dd>
+            </div>
+            <div>
+                <dt>Última atualização</dt>
+                <dd>{{ module.updated_label }}</dd>
+            </div>
+            <div>
+                <dt>Pendências</dt>
+                <dd>{{ module.desvios }}</dd>
+            </div>
+            {% if module.responsavel_aux %}
+            <div class="operacoes-module-card__meta-wide">
+                <dt>Equipe</dt>
+                <dd>{{ module.responsavel_aux }}</dd>
+            </div>
+            {% endif %}
+        </dl>
+
+        <div class="operacoes-module-card__actions">
+            {% if module.can_start %}
+            <button
+                type="button"
+                class="button-primary"
+                data-open-operacoes-start
+                data-module-code="{{ module.code }}"
+                data-module-title="{{ module.title }}"
+            >
+                {{ module.primary_action_label }}
+            </button>
+            {% else %}
+            <a class="button-primary" href="{{ module.primary_action_url }}">{{ module.primary_action_label }}</a>
+            {% endif %}
+            <a class="button-secondary" href="{{ module.secondary_action_url }}">{{ module.secondary_action_label }}</a>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+
+<div class="op-modal {% if open_start_modal %}op-modal--open{% endif %}" id="operacoesStartModal" {% if not open_start_modal %}hidden{% endif %}>
+    <div class="op-modal__backdrop" data-close-operacoes-start></div>
+    <div class="op-modal__content operacoes-start-modal">
+        <div class="op-modal__header">
+            <div>
+                <span class="operacoes-hero__kicker">Novo turno</span>
+                <h2 class="op-modal__title" id="operacoesStartTitle">Iniciar turno</h2>
+            </div>
+            <button type="button" class="op-modal__close" data-close-operacoes-start aria-label="Fechar">×</button>
+        </div>
+        <div class="op-modal__body">
+            <form method="post" action="/operacoes/iniciar" class="op-form op-form--vertical">
+                <input type="hidden" name="module_code" id="operacoes_module_code" value="{{ selected_module_code }}">
+                <div class="op-form__grid op-form__grid--2col">
+                    <div class="op-form__group">
+                        <label class="op-form__label" for="operacoes_data_referencia">Data do controle</label>
+                        <input id="operacoes_data_referencia" type="date" name="data_referencia" class="op-form__input" value="{{ form_data.get('data_referencia', data_referencia.isoformat()) }}" required>
+                    </div>
+                    <div class="op-form__group">
+                        <label class="op-form__label" for="operacoes_turno">Turno</label>
+                        <select id="operacoes_turno" name="turno" class="op-form__select" required>
+                            <option value="">Selecione</option>
+                            {% for t in turnos %}
+                            <option value="{{ t.codigo }}" {% if form_data.get('turno') == t.codigo %}selected{% endif %}>{{ t.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="op-form__group op-form__group--full">
+                        <label class="op-form__label" for="operacoes_responsavel">Responsável</label>
+                        <select id="operacoes_responsavel" name="responsavel" class="op-form__select">
+                            <option value="">Selecione</option>
+                            {% for r in responsaveis %}
+                            <option value="{{ r.nome }}" {% if form_data.get('responsavel') == r.nome %}selected{% endif %}>{{ r.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="op-modal__actions">
+                    <button type="button" class="button-secondary" data-close-operacoes-start>Cancelar</button>
+                    <button type="submit" class="button-primary">Confirmar e iniciar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var modal = document.getElementById('operacoesStartModal');
+    if (!modal) return;
+
+    var title = document.getElementById('operacoesStartTitle');
+    var moduleField = document.getElementById('operacoes_module_code');
+    var closeButtons = document.querySelectorAll('[data-close-operacoes-start]');
+    var openButtons = document.querySelectorAll('[data-open-operacoes-start]');
+    var selectedModuleCode = '{{ selected_module_code }}';
+    var selectedModuleTitle = '';
+
+    openButtons.forEach(function (button) {
+        if (button.getAttribute('data-module-code') === selectedModuleCode) {
+            selectedModuleTitle = button.getAttribute('data-module-title') || '';
+        }
+        button.addEventListener('click', function () {
+            moduleField.value = button.getAttribute('data-module-code') || '';
+            title.textContent = 'Iniciar turno - ' + (button.getAttribute('data-module-title') || 'Operações');
+            modal.hidden = false;
+            modal.classList.add('op-modal--open');
+        });
+    });
+
+    if (selectedModuleCode && selectedModuleTitle) {
+        title.textContent = 'Iniciar turno - ' + selectedModuleTitle;
+    }
+
+    closeButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            modal.classList.remove('op-modal--open');
+            modal.hidden = true;
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            modal.classList.remove('op-modal--open');
+            modal.hidden = true;
+        }
+    });
+})();
+</script>
+{% endblock %}
