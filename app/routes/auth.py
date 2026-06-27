@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
-from app.services.auth_service import authenticate_user, login_user, logout_user
+from app.services.auth_service import authenticate_user, login_user, logout_user, sanitize_next_path
 
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
@@ -14,9 +14,10 @@ router = APIRouter(tags=["auth"])
 
 @router.get("/login", name="login")
 def login_form(request: Request, next: str | None = None):
+    next_url = sanitize_next_path(next, "/dashboard")
     context = {
         "page_title": "Entrar",
-        "next_url": next or "/turno-atual",
+        "next_url": next_url,
         "error_message": None,
     }
     return templates.TemplateResponse(request=request, name="auth/login.html", context=context)
@@ -30,17 +31,18 @@ def login_post(
     next_url: str = Form("/turno-atual"),
     db: Session = Depends(get_db),
 ):
+    safe_next_url = sanitize_next_path(next_url, "/dashboard")
     user = authenticate_user(db, username, password)
     if user is None:
         context = {
             "page_title": "Entrar",
-            "next_url": next_url,
+            "next_url": safe_next_url,
             "error_message": "Usuario ou senha invalidos.",
         }
         return templates.TemplateResponse(request=request, name="auth/login.html", context=context, status_code=400)
 
     login_user(request, user)
-    return RedirectResponse(url=next_url or "/turno-atual", status_code=303)
+    return RedirectResponse(url=safe_next_url, status_code=303)
 
 
 @router.get("/logout", name="logout")

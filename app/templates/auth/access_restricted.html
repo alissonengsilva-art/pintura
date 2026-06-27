@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="turnos-page">
+    <div class="panel-card" style="max-width: 720px; margin: 40px auto; display: grid; gap: 16px;">
+        <div>
+            <span class="turnos-page__kicker">Área administrativa</span>
+            <h1 class="turnos-page__title">{{ message_title }}</h1>
+            <p class="turnos-page__subtitle">{{ message_body }}</p>
+        </div>
+        <div class="op-alert op-alert--warning">
+            Esta área está disponível apenas para administradores.
+        </div>
+        <div class="op-form__actions">
+            <a href="/dashboard" class="button-primary" data-dashboard-link>Voltar para o dashboard</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

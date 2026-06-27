@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import inspect, or_, select
+from sqlalchemy import delete, inspect, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
@@ -120,6 +120,16 @@ def get_relatorio(session: Session, relatorio_id: int) -> CabinePinturaRelatorio
     if not cabine_pintura_flow_schema_available(session):
         return None
     return _load_relatorio(session, relatorio_id)
+
+
+def delete_relatorio(session: Session, relatorio: CabinePinturaRelatorio) -> None:
+    try:
+        session.execute(delete(CabinePinturaItem).where(CabinePinturaItem.cabine_pintura_id == relatorio.id))
+        session.execute(delete(CabinePinturaRelatorio).where(CabinePinturaRelatorio.id == relatorio.id))
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
 
 def list_relatorios(session: Session) -> list[dict[str, Any]]:

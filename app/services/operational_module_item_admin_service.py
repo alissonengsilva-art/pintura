@@ -5,24 +5,21 @@ from dataclasses import dataclass
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
-from app.models import OperationalModuleItem
+from app.models import OperationalModuleItem, Setor
+from app.services.cabine_pintura_seed import CABINE_PINTURA_ABAS, build_cabine_pintura_seed_items
 from app.services import module_parameter_validation
 from app.services import operational_module_item_service
 from app.services import sigilatura_service
 
 
-SECTOR_OPTIONS = [
-    {"value": "PTED", "label": "PT/ED"},
-    {"value": "LABORATORIO", "label": "Laboratório"},
-    {"value": "AMBOS", "label": "PT/ED e Laboratório"},
-]
+SECTOR_BOTH = operational_module_item_service.SECTOR_BOTH
 
 VALIDATION_TYPE_OPTIONS = [
     {"value": module_parameter_validation.VALIDATION_RANGE, "label": "range"},
     {"value": module_parameter_validation.VALIDATION_MIN, "label": "min"},
     {"value": module_parameter_validation.VALIDATION_MAX, "label": "max"},
     {"value": module_parameter_validation.VALIDATION_TEXT, "label": "texto"},
-    {"value": "referencia", "label": "referência"},
+    {"value": "referencia", "label": "referencia"},
     {"value": module_parameter_validation.VALIDATION_BOOLEAN, "label": "booleano"},
     {"value": module_parameter_validation.VALIDATION_SETPOINT_MARGIN, "label": "Setpoint + margem %"},
     {"value": module_parameter_validation.VALIDATION_NONE, "label": "nenhum"},
@@ -36,6 +33,7 @@ class ModuleAdminContext:
     rows: list[dict[str, object | None]]
     available_abas: list[str]
     selected_aba: str | None
+    sector_options: list[dict[str, str]]
 
 
 def list_modules() -> list[dict[str, str]]:
@@ -48,18 +46,17 @@ def build_module_context(session: Session, module_code: str, *, aba: str | None 
         raise ValueError("Modulo invalido.")
 
     _ensure_sigilatura_module_seed(session, module_code)
+    _ensure_cabine_pintura_module_seed(session, module_code)
+    sector_options = build_sector_options(session)
+    sector_label_map = {option["value"]: option["label"] for option in sector_options}
 
     all_items = list(
         session.scalars(
             select(OperationalModuleItem)
             .where(OperationalModuleItem.module_code == module_code)
             .order_by(
-                case(
-                    (OperationalModuleItem.setor_tipo == "PTED", 0),
-                    (OperationalModuleItem.setor_tipo == "LABORATORIO", 1),
-                    (OperationalModuleItem.setor_tipo == "AMBOS", 2),
-                    else_=3,
-                ),
+                case((OperationalModuleItem.setor_tipo == SECTOR_BOTH, 1), else_=0),
+                OperationalModuleItem.setor_tipo,
                 OperationalModuleItem.ordem,
                 OperationalModuleItem.id,
             )
@@ -78,14 +75,37 @@ def build_module_context(session: Session, module_code: str, *, aba: str | None 
         else:
             aba = None
     groups = _group_items(all_items)
-    rows = [_serialize_group(group) for group in groups]
+    rows = [_serialize_group(group, sector_label_map) for group in groups]
     return ModuleAdminContext(
         module_code=module_code,
         module_title=module_catalog[module_code],
         rows=rows,
         available_abas=available_abas,
         selected_aba=aba,
+        sector_options=sector_options,
     )
+
+
+def build_sector_options(session: Session) -> list[dict[str, str]]:
+    setores = list(
+        session.scalars(
+            select(Setor)
+            .order_by(Setor.nome, Setor.id)
+        ).all()
+    )
+
+    options: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for setor in setores:
+        value = _normalize_sector_value(setor.sigla or setor.nome)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        options.append({"value": value, "label": str(setor.nome or value).strip()})
+
+    if SECTOR_BOTH not in seen:
+        options.append({"value": SECTOR_BOTH, "label": "Todos os setores"})
+    return options
 
 
 def _ensure_sigilatura_module_seed(session: Session, module_code: str) -> None:
@@ -153,6 +173,57 @@ def _ensure_sigilatura_module_seed(session: Session, module_code: str) -> None:
         sigilatura_service.save_admin_parameter_overrides(session, module_code, list(dedup.values()))
 
 
+def _ensure_cabine_pintura_module_seed(session: Session, module_code: str) -> None:
+    if module_code != "cabine-pintura":
+        return
+
+    existing_items = list(
+        session.scalars(
+            select(OperationalModuleItem)
+            .where(OperationalModuleItem.module_code == module_code)
+            .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
+        ).all()
+    )
+    if not existing_items:
+        return
+
+    existing_abas = {str(item.aba or "").strip() for item in existing_items if str(item.aba or "").strip()}
+    if set(CABINE_PINTURA_ABAS).issubset(existing_abas):
+        return
+
+    existing_keys = {
+        (
+            str(item.aba or "").strip().lower(),
+            str(item.operacao or "").strip().lower(),
+            str(item.controle or "").strip().lower(),
+            str(item.turno_padrao or "").strip().lower(),
+            str(item.frequencia or "").strip().lower(),
+        )
+        for item in existing_items
+    }
+    next_order = max((int(item.ordem or 0) for item in existing_items), default=0) + 1
+    created = False
+    for seed in build_cabine_pintura_seed_items():
+        key = (
+            str(seed.get("aba") or "").strip().lower(),
+            str(seed.get("operacao") or "").strip().lower(),
+            str(seed.get("controle") or "").strip().lower(),
+            str(seed.get("turno_padrao") or "").strip().lower(),
+            str(seed.get("frequencia") or "").strip().lower(),
+        )
+        if key in existing_keys:
+            continue
+        payload = dict(seed)
+        payload["ordem"] = next_order
+        next_order += 1
+        session.add(OperationalModuleItem(**payload))
+        existing_keys.add(key)
+        created = True
+
+    if created:
+        session.commit()
+
+
 def save_module_batch(session: Session, module_code: str, payload: dict[str, object]) -> dict[str, int]:
     available_codes = {item["code"] for item in operational_module_item_service.list_frequency_modules()}
     if module_code not in available_codes:
@@ -187,7 +258,7 @@ def save_module_batch(session: Session, module_code: str, payload: dict[str, obj
             continue
         row_id = _normalize_nullable_int(raw_row.get("id"))
         group = groups_by_representative_id.get(row_id) if row_id is not None else None
-        normalized = _normalize_row_payload(module_code, raw_row, existing_item=group[0] if group else None)
+        normalized = _normalize_row_payload(session, module_code, raw_row, existing_item=group[0] if group else None)
         if group:
             for item in group:
                 _apply_row_payload(item, normalized)
@@ -229,7 +300,7 @@ def delete_item_group(session: Session, item_id: int) -> bool:
     return deleted
 
 
-def _serialize_group(group: list[OperationalModuleItem]) -> dict[str, object | None]:
+def _serialize_group(group: list[OperationalModuleItem], sector_label_map: dict[str, str]) -> dict[str, object | None]:
     item = group[0]
     limite_minimo = _normalize_nullable_float(item.limite_minimo)
     limite_maximo = _normalize_nullable_float(item.limite_maximo)
@@ -237,6 +308,7 @@ def _serialize_group(group: list[OperationalModuleItem]) -> dict[str, object | N
         limite_minimo = _normalize_nullable_float(item.valor_min)
     if limite_maximo is None:
         limite_maximo = _normalize_nullable_float(item.valor_max)
+    setor_tipo = str(item.setor_tipo or "").strip().upper()
     return {
         "id": item.id,
         "escopo": item.escopo or "",
@@ -244,8 +316,11 @@ def _serialize_group(group: list[OperationalModuleItem]) -> dict[str, object | N
         "aba": item.aba or "",
         "controle": item.controle,
         "operacao": item.operacao,
-        "setor_tipo": item.setor_tipo,
-        "setor_label": operational_module_item_service.SETOR_LABELS.get(item.setor_tipo, item.setor_tipo),
+        "setor_tipo": setor_tipo,
+        "setor_label": sector_label_map.get(
+            setor_tipo,
+            operational_module_item_service.SETOR_LABELS.get(setor_tipo, setor_tipo),
+        ),
         "frequencia_tipo": item.frequencia_tipo or operational_module_item_service.FREQUENCY_DIARIO,
         "prioridade": _normalize_priority(item.prioridade),
         "dia_semana": _normalize_weekday(item.dia_semana),
@@ -284,6 +359,7 @@ def _group_key(item: OperationalModuleItem) -> tuple[str, str, str, str]:
 
 
 def _normalize_row_payload(
+    session: Session,
     module_code: str,
     payload: dict[str, object],
     *,
@@ -293,8 +369,8 @@ def _normalize_row_payload(
     if not controle:
         raise ValueError("Informe o nome do item.")
 
-    setor_tipo = str(payload.get("setor_tipo") or "").strip().upper()
-    if setor_tipo not in {option["value"] for option in SECTOR_OPTIONS}:
+    setor_tipo = _normalize_sector_value(payload.get("setor_tipo"))
+    if setor_tipo not in set(_available_sector_values(session)):
         raise ValueError("Setor invalido.")
 
     frequencia_tipo = str(payload.get("frequencia_tipo") or "").strip().lower()
@@ -312,8 +388,6 @@ def _normalize_row_payload(
 
     if frequencia_tipo == operational_module_item_service.FREQUENCY_SEMANAL:
         if dia_semana is None and existing_item is not None:
-            # Legacy records may have weekly frequency without weekday configured.
-            # Default to Monday so batch updates do not fail unexpectedly.
             dia_semana = 0
         if dia_semana is None or not 0 <= dia_semana <= 6:
             raise ValueError("Dia da semana invalido.")
@@ -406,7 +480,7 @@ def _aba_from_setor(setor_tipo: str) -> str:
         return "PTED"
     if raw == "LABORATORIO":
         return "Laboratorio"
-    if raw == "AMBOS":
+    if raw == SECTOR_BOTH:
         return "Ambos"
     return raw
 
@@ -426,7 +500,6 @@ def _normalize_nullable_int(value: object | None) -> int | None:
 def _normalize_weekday(value: int | None) -> int | None:
     if value is None:
         return None
-    # Backward-compatibility: treat legacy Sunday=7 as Sunday=6.
     if value == 7:
         return 6
     return value
@@ -454,13 +527,29 @@ def _normalize_nullable_float(value: object | None) -> float | None:
 def _normalize_validation_type(value: object | None) -> str:
     normalized = module_parameter_validation.normalize_validation_type(str(value or ""))
     if normalized not in module_parameter_validation.VALIDATION_TYPES:
-        raise ValueError("Tipo de validação inválido.")
+        raise ValueError("Tipo de validacao invalido.")
     return normalized
 
 
 def _normalize_priority(value: object | None) -> str:
-    normalized = str(value or '').strip().lower()
+    normalized = str(value or "").strip().lower()
     if normalized not in operational_module_item_service.PRIORITY_TYPES:
         return operational_module_item_service.PRIORITY_MEDIO
     return normalized
 
+
+def _normalize_sector_value(value: object | None) -> str:
+    raw = str(value or "").strip().upper()
+    aliases = {
+        "LAB": "LABORATORIO",
+        "LABORATORIO": "LABORATORIO",
+        "PT/ED": "PTED",
+        "PTED": "PTED",
+        "FORNECEDOR": "FORN",
+        "AMBOS": SECTOR_BOTH,
+    }
+    return aliases.get(raw, raw)
+
+
+def _available_sector_values(session: Session) -> list[str]:
+    return [option["value"] for option in build_sector_options(session)]

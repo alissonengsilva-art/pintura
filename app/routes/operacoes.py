@@ -30,6 +30,18 @@ def _coerce_date(raw_value: str | None) -> date:
     return date.today()
 
 
+def _normalize_start_error_message(error: Exception, data_referencia: date, turno: str) -> str:
+    raw_message = str(error).strip()
+    lowered = raw_message.lower()
+    if "ja existe" in lowered or "já existe" in lowered:
+        turno_label = turno or "-"
+        return (
+            f"Já existe um turno {turno_label} criado para {data_referencia.strftime('%d/%m/%Y')}. "
+            "Não é permitido criar dois turnos iguais na mesma data."
+        )
+    return raw_message
+
+
 def _render_operacoes(
     request: Request,
     db: Session,
@@ -134,7 +146,7 @@ def operacoes_iniciar(
             request,
             db,
             data_referencia=data_ref,
-            error_message=str(error),
+            error_message=_normalize_start_error_message(error, data_ref, turno_value),
             open_start_modal=True,
             selected_module_code=module_code,
             form_data={

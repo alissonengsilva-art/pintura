@@ -9,11 +9,12 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
     OperationalModuleRecord,
+    OperationalItemApplicabilityOverride,
     OperationalShift,
     OperationalShiftModule,
     Responsavel,
@@ -326,6 +327,29 @@ def conclude_shift(session: Session, shift: OperationalShift, required_module_co
     shift.status_geral = SHIFT_STATUS_CONCLUIDO
     shift.updated_at = datetime.now(UTC).replace(tzinfo=None)
     session.commit()
+
+
+def delete_shift(session: Session, shift: OperationalShift) -> None:
+    """Exclui um turno operacional e registros vinculados."""
+    if not shift_schema_available(session):
+        raise ShiftValidationError("Estrutura de turnos operacionais nao instalada.")
+
+    try:
+        session.execute(
+            delete(OperationalItemApplicabilityOverride).where(
+                OperationalItemApplicabilityOverride.shift_id == shift.id
+            )
+        )
+        session.execute(
+            delete(OperationalShiftModule).where(
+                OperationalShiftModule.shift_id == shift.id
+            )
+        )
+        session.delete(shift)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
 
 def update_module_previsao(

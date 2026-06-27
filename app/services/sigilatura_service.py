@@ -6,7 +6,7 @@ import re
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import inspect, select
+from sqlalchemy import delete, inspect, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -153,6 +153,34 @@ def list_turno_options(session: Session) -> list[Turno]:
 
 def _now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def delete_turno(session: Session, turno: SigilaturaTurno) -> None:
+    image_paths = [
+        Path(image.file_path)
+        for image in session.scalars(
+            select(SigilaturaEscorrimentoImagem).where(SigilaturaEscorrimentoImagem.turno_id == turno.id)
+        ).all()
+        if str(image.file_path or "").strip()
+    ]
+    try:
+        session.execute(delete(SigilaturaEscorrimentoImagem).where(SigilaturaEscorrimentoImagem.turno_id == turno.id))
+        session.execute(delete(SigilaturaEscorrimento).where(SigilaturaEscorrimento.turno_id == turno.id))
+        session.execute(delete(SigilaturaTemperaturaForno).where(SigilaturaTemperaturaForno.turno_id == turno.id))
+        session.execute(delete(SigilaturaEspessuraPVC).where(SigilaturaEspessuraPVC.turno_id == turno.id))
+        session.execute(delete(SigilaturaResposta).where(SigilaturaResposta.turno_id == turno.id))
+        session.execute(delete(SigilaturaModulo).where(SigilaturaModulo.turno_id == turno.id))
+        session.execute(delete(SigilaturaTurno).where(SigilaturaTurno.id == turno.id))
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+    for image_path in image_paths:
+        try:
+            image_path.unlink(missing_ok=True)
+        except Exception:
+            continue
 
 
 def _text_key(value: str | None) -> str:

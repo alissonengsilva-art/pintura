@@ -40,7 +40,7 @@
             </div>
             <div class="module-toolbar-group module-toolbar-group--sub">
                 <p class="module-toolbar-title">Módulos da área selecionada</p>
-                <div data-module-tabs class="module-pill-switch">
+                <div data-module-tabs class="module-pill-switch" {% if selected_module == 'cabine-pintura' and available_abas %}hidden{% endif %}>
                     {% for module in modules %}
                     <button
                         type="button"
@@ -53,6 +53,13 @@
                     </button>
                     {% endfor %}
                 </div>
+                {% if selected_module == 'cabine-pintura' and available_abas %}
+                <div class="module-pill-switch module-pill-switch--sub" data-aba-tabs-as-modules>
+                    {% for aba in available_abas %}
+                    <button type="button" class="module-pill {% if selected_aba == aba %}module-pill--active{% endif %}" data-aba-tab data-aba-code="{{ aba }}">{{ aba }}</button>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </div>
         <div class="module-master-frequency">
@@ -73,16 +80,6 @@
                 <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
             </div>
         </div>
-        {% if selected_module == 'cabine-pintura' and available_abas %}
-        <div class="module-toolbar-group module-toolbar-group--sub">
-            <p class="module-toolbar-title">Abas da Cabine de Pintura</p>
-            <div class="module-pill-switch" data-aba-tabs>
-                {% for aba in available_abas %}
-                <button type="button" class="module-pill {% if selected_aba == aba %}module-pill--active{% endif %}" data-aba-tab data-aba-code="{{ aba }}">{{ aba }}</button>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </section>
 
     <div id="module-items-table-container">
@@ -104,6 +101,7 @@
     [data-module-admin-page] .area-tab { min-height:40px; padding:0 16px; border-radius:12px; border:1px solid #b8c8dc; background:#edf3fa; color:#234261; font-weight:700; font-size:13px; }
     [data-module-admin-page] .area-tab--active { border-color:#173f6f; background:#17436f; color:#fff; box-shadow:0 6px 16px rgba(20,62,107,.24); }
     [data-module-admin-page] .module-pill-switch { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-module-admin-page] .module-pill-switch--sub { margin-top:10px; padding-top:10px; border-top:1px dashed rgba(16,43,76,.12); }
     [data-module-admin-page] .module-pill { min-height:30px; padding:0 12px; border-radius:999px; border:1px solid #c9d5e4; background:#fff; color:#35526f; font-size:12px; font-weight:600; }
     [data-module-admin-page] .module-pill--active { border-color:#205489; background:#e9f2fc; color:#173f6d; }
     [data-module-admin-page] .module-master-frequency { margin-top:12px; padding:10px; border:1px solid rgba(20,44,78,.12); border-radius:12px; background:#f8fbff; display:grid; gap:8px; }
@@ -208,6 +206,7 @@
     const applyMasterFrequencyButton = document.querySelector('[data-apply-master-frequency]');
     const moduleTabsContainer = page.querySelector('[data-module-tabs]');
     const sectorOptions = {{ sector_options|tojson }};
+    const defaultSectorValue = sectorOptions.length ? String(sectorOptions[0].value) : 'AMBOS';
     const validationTypeOptions = {{ validation_type_options|tojson }};
     const frequencyOptions = {{ frequency_options|tojson }};
     const priorityOptions = {{ priority_options|tojson }};
@@ -424,7 +423,7 @@
                 </td>
                 <td data-col-setor>
                     <select data-field="setor_tipo" data-editable data-inline-select>
-                        ${renderOptions(sectorOptions, 'PTED')}
+                        ${renderOptions(sectorOptions, defaultSectorValue)}
                     </select>
                 </td>
                 <td data-col-frequencia>
@@ -507,7 +506,7 @@
             aba: row.querySelector('[data-field="aba"]')?.value || selectedAba || '',
             operacao,
             controle,
-            setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || 'PTED',
+            setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || defaultSectorValue,
             frequencia_tipo: frequency,
             prioridade: row.querySelector('[data-field="prioridade"]')?.value || 'medio',
             dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,

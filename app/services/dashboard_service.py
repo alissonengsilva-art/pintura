@@ -115,6 +115,7 @@ CHART_COLORS = {
     "medio": "#f28c28",
     "alto": "#d64545",
 }
+DAILY_TURNOS = ("1", "2", "3")
 
 
 def _normalize_priority(value: Any) -> str:
@@ -135,7 +136,9 @@ def _list_turno_options(session: Session) -> list[Turno]:
 
 
 def parse_dashboard_filters(params: Any, session: Session) -> DashboardFilters:
-    data_value = (params.get("data_referencia") or "").strip() if hasattr(params, "get") else ""
+    data_value = ""
+    if hasattr(params, "get"):
+        data_value = (params.get("data") or params.get("data_referencia") or "").strip()
     if not data_value:
         target_date = date.today()
     else:
@@ -224,6 +227,68 @@ def _macro_module_for_code(module_code: str) -> str:
         if module_code in codes:
             return macro
     return "ED"
+
+
+def _normalize_turno_slot(value: Any) -> str | None:
+    turno = str(value or "").strip()
+    return turno if turno in DAILY_TURNOS else None
+
+
+def _turno_aggregate_key(value: Any) -> str | None:
+    turno = str(value or "").strip()
+    return turno or None
+
+
+def _dedupe_records(records: list[Any], key_getter) -> list[Any]:
+    deduped: dict[Any, Any] = {}
+    passthrough: list[Any] = []
+    for record in records:
+        key = key_getter(record)
+        if key is None:
+            passthrough.append(record)
+            continue
+        deduped[key] = record
+    return list(deduped.values()) + passthrough
+
+
+def _is_concluded_status(value: Any) -> bool:
+    return str(value or "").strip().upper() == SHIFT_STATUS_CONCLUIDO
+
+
+def _resolve_expected_turn_total(turn_totals: dict[str, int]) -> int:
+    if not turn_totals:
+        return 0
+    standard_keys = [turno for turno in DAILY_TURNOS if turno in turn_totals]
+    extra_keys = [turno for turno in turn_totals if turno not in DAILY_TURNOS]
+    if not standard_keys:
+        return sum(int(turn_totals.get(turno, 0)) for turno in extra_keys)
+    fallback_total = max(int(turn_totals.get(turno, 0)) for turno in standard_keys) or max(int(total) for total in turn_totals.values())
+    standard_total = sum(int(turn_totals.get(turno, fallback_total)) for turno in DAILY_TURNOS)
+    extras_total = sum(int(turn_totals.get(turno, 0)) for turno in extra_keys)
+    return standard_total + extras_total
+
+
+def _resolve_expected_priority_counts(turn_priority_counts: dict[str, dict[str, int]]) -> dict[str, int]:
+    if not turn_priority_counts:
+        return {priority: 0 for priority in PRIORITY_ORDER}
+    standard_keys = [turno for turno in DAILY_TURNOS if turno in turn_priority_counts]
+    extra_keys = [turno for turno in turn_priority_counts if turno not in DAILY_TURNOS]
+    if not standard_keys:
+        return {
+            priority: sum(int(turn_priority_counts.get(turno, {}).get(priority, 0)) for turno in extra_keys)
+            for priority in PRIORITY_ORDER
+        }
+    fallback_counts = {
+        priority: max(int(turn_priority_counts.get(turno, {}).get(priority, 0)) for turno in standard_keys)
+        for priority in PRIORITY_ORDER
+    }
+    return {
+        priority: (
+            sum(int(turn_priority_counts.get(turno, fallback_counts).get(priority, 0)) for turno in DAILY_TURNOS)
+            + sum(int(turn_priority_counts.get(turno, {}).get(priority, 0)) for turno in extra_keys)
+        )
+        for priority in PRIORITY_ORDER
+    }
 
 
 def _build_central_tintas_rows(relatorio: CentralTintasRelatorio) -> list[dict[str, Any]]:
@@ -430,49 +495,65 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
     macro_param_totals = {macro: {"filled": 0, "total": 0} for macro in MACRO_MODULE_ORDER}
     macro_priority_totals = {macro: {priority: 0 for priority in PRIORITY_ORDER} for macro in MACRO_MODULE_ORDER}
     shift_options: list[dict[str, Any]] = []
+    day_turn_statuses: dict[str, list[bool]] = {}
 
     operational_shifts: list[OperationalShift] = []
     if shift_schema_ok:
-        operational_shifts = list(
+        operational_shifts = _dedupe_records(
+            list(
             session.scalars(
                 select(OperationalShift)
                 .options(joinedload(OperationalShift.modulos))
                 .where(OperationalShift.data_referencia == filters.data_referencia)
                 .order_by(OperationalShift.operation_scope.asc(), OperationalShift.turno.asc(), OperationalShift.created_at.asc())
             ).unique().all()
+            ),
+            lambda shift: (
+                shift.operation_scope,
+                _turno_aggregate_key(shift.turno),
+            ) if _turno_aggregate_key(shift.turno) else None,
         )
 
     sigilatura_shifts: list[SigilaturaTurno] = []
     if sig_schema_ok:
-        sigilatura_shifts = list(
+        sigilatura_shifts = _dedupe_records(
+            list(
             session.scalars(
                 select(SigilaturaTurno)
                 .options(joinedload(SigilaturaTurno.modulos).joinedload(SigilaturaModulo.respostas))
                 .where(SigilaturaTurno.data_referencia == filters.data_referencia)
                 .order_by(SigilaturaTurno.turno.asc(), SigilaturaTurno.created_at.asc())
             ).unique().all()
+            ),
+            lambda turno_obj: _turno_aggregate_key(turno_obj.turno),
         )
 
     central_tintas_relatorios: list[CentralTintasRelatorio] = []
     if central_tintas_schema_ok:
-        central_tintas_relatorios = list(
+        central_tintas_relatorios = _dedupe_records(
+            list(
             session.scalars(
                 select(CentralTintasRelatorio)
                 .options(joinedload(CentralTintasRelatorio.itens))
                 .where(CentralTintasRelatorio.data_controle == filters.data_referencia)
                 .order_by(CentralTintasRelatorio.turno.asc(), CentralTintasRelatorio.created_at.asc())
             ).unique().all()
+            ),
+            lambda relatorio: _turno_aggregate_key(relatorio.turno),
         )
 
     cabine_pintura_relatorios: list[CabinePinturaRelatorio] = []
     if cabine_pintura_schema_ok:
-        cabine_pintura_relatorios = list(
+        cabine_pintura_relatorios = _dedupe_records(
+            list(
             session.scalars(
                 select(CabinePinturaRelatorio)
                 .options(joinedload(CabinePinturaRelatorio.itens))
                 .where(CabinePinturaRelatorio.data_controle == filters.data_referencia)
                 .order_by(CabinePinturaRelatorio.turno.asc(), CabinePinturaRelatorio.created_at.asc())
             ).unique().all()
+            ),
+            lambda relatorio: _turno_aggregate_key(relatorio.turno),
         )
 
     if filters.shift_id:
@@ -488,7 +569,12 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
     turno_map = {str(turno.codigo or ""): turno for turno in filters.turno_options}
 
     for shift in operational_shifts:
+        turno_slot = _turno_aggregate_key(shift.turno)
+        if turno_slot is None:
+            continue
+        day_turn_statuses.setdefault(turno_slot, [])
         shift_detail = build_shift_detail(session, shift)
+        day_turn_statuses[turno_slot].append(_is_concluded_status(shift_detail["status_geral"]))
         turno_ref = turno_map.get(str(shift.turno or ""))
         turno_nome = turno_ref.nome if turno_ref else (f"Turno {shift.turno}" if shift.turno else "Sem turno")
         turno_horario = _turno_horario_label(turno_ref)
@@ -533,11 +619,13 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                     "items": [],
                     "execution_url": f"/turnos/{shift.id}?modulo={module_code}",
                     "history_url": f"/{module['slug']}/historico?data_referencia={filters.data_referencia.isoformat()}",
+                    "turn_totals": {},
+                    "turn_priority_counts": {},
                 },
             )
             aggregate["filled_items"] += module_preenchidos
-            aggregate["total_items"] += module_total
             aggregate["desvios"] += module_desvios
+            aggregate["turn_totals"][turno_slot] = max(int(aggregate["turn_totals"].get(turno_slot, 0)), module_total)
             if module_record and (aggregate["last_updated_at"] is None or (module_record.updated_at and module_record.updated_at > aggregate["last_updated_at"])):
                 aggregate["last_updated_at"] = module_record.updated_at
             if shift_detail.get("responsavel_pted"):
@@ -554,13 +642,18 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
 
             macro = _macro_module_for_code(module_code)
             macro_param_totals[macro]["filled"] += module_preenchidos
-            macro_param_totals[macro]["total"] += module_total
             priority_counts = _aggregate_priority_counts(module_rows)
+            aggregate["turn_priority_counts"][turno_slot] = priority_counts
             for priority, count in priority_counts.items():
-                macro_priority_totals[macro][priority] += count
+                macro_priority_totals[macro][priority] += 0
 
     for turno_obj in sigilatura_shifts:
+        turno_slot = _turno_aggregate_key(turno_obj.turno)
+        if turno_slot is None:
+            continue
+        day_turn_statuses.setdefault(turno_slot, [])
         detail = build_turno_detail(session, turno_obj)
+        day_turn_statuses[turno_slot].append(_is_concluded_status(detail["status_geral"]))
         turno_nome = f"Turno {turno_obj.turno}"
         shift_options.append(
             {
@@ -595,11 +688,13 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                     "items": [],
                     "execution_url": f"/turnos-sigilatura/{turno_obj.id}?modulo={module_code}",
                     "history_url": "/turnos-sigilatura",
+                    "turn_totals": {},
+                    "turn_priority_counts": {},
                 },
             )
             aggregate["filled_items"] += module_preenchidos
-            aggregate["total_items"] += module_total
             aggregate["desvios"] += module_desvios
+            aggregate["turn_totals"][turno_slot] = max(int(aggregate["turn_totals"].get(turno_slot, 0)), module_total)
             if module_record and (aggregate["last_updated_at"] is None or (module_record.updated_at and module_record.updated_at > aggregate["last_updated_at"])):
                 aggregate["last_updated_at"] = module_record.updated_at
             if detail.get("responsavel"):
@@ -622,10 +717,10 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
 
             macro = _macro_module_for_code(module_code)
             macro_param_totals[macro]["filled"] += module_preenchidos
-            macro_param_totals[macro]["total"] += module_total
             priority_counts = _aggregate_priority_counts(module_rows)
+            aggregate["turn_priority_counts"][turno_slot] = priority_counts
             for priority, count in priority_counts.items():
-                macro_priority_totals[macro][priority] += count
+                macro_priority_totals[macro][priority] += 0
 
     if central_tintas_relatorios:
         shift_options.extend(
@@ -655,12 +750,19 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                 "items": [],
                 "execution_url": "/central-tintas",
                 "history_url": "/central-tintas?tab=concluidos",
+                "turn_totals": {},
+                "turn_priority_counts": {},
             },
         )
         for relatorio in central_tintas_relatorios:
+            turno_slot = _turno_aggregate_key(relatorio.turno)
+            if turno_slot is None:
+                continue
+            day_turn_statuses.setdefault(turno_slot, [])
+            day_turn_statuses[turno_slot].append(_is_concluded_status(relatorio.status))
             rows = _build_central_tintas_rows(relatorio)
-            aggregate["filled_items"] += sum(1 for item in relatorio.itens if str(item.valor or "").strip())
-            aggregate["total_items"] += len(relatorio.itens)
+            turn_filled = sum(1 for item in relatorio.itens if str(item.valor or "").strip())
+            aggregate["filled_items"] += turn_filled
             if relatorio.updated_at and (
                 aggregate["last_updated_at"] is None or relatorio.updated_at > aggregate["last_updated_at"]
             ):
@@ -669,13 +771,11 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                 aggregate["responsavel_pted"].add(relatorio.responsavel)
                 aggregate["responsavel_lab"].add(relatorio.responsavel)
             aggregate["items"].extend(rows)
+            aggregate["turn_totals"][turno_slot] = max(int(aggregate["turn_totals"].get(turno_slot, 0)), len(relatorio.itens))
+            aggregate["turn_priority_counts"][turno_slot] = _aggregate_priority_counts(rows)
 
         macro = _macro_module_for_code("central-tintas")
         macro_param_totals[macro]["filled"] += int(aggregate["filled_items"])
-        macro_param_totals[macro]["total"] += int(aggregate["total_items"])
-        priority_counts = _aggregate_priority_counts(aggregate["items"])
-        for priority, count in priority_counts.items():
-            macro_priority_totals[macro][priority] += count
 
     if cabine_pintura_relatorios:
         shift_options.extend(
@@ -705,12 +805,19 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                 "items": [],
                 "execution_url": "/cabine-pintura",
                 "history_url": "/cabine-pintura?tab=concluidos",
+                "turn_totals": {},
+                "turn_priority_counts": {},
             },
         )
         for relatorio in cabine_pintura_relatorios:
+            turno_slot = _turno_aggregate_key(relatorio.turno)
+            if turno_slot is None:
+                continue
+            day_turn_statuses.setdefault(turno_slot, [])
+            day_turn_statuses[turno_slot].append(_is_concluded_status(relatorio.status))
             rows = _build_cabine_pintura_rows(relatorio)
-            aggregate["filled_items"] += sum(1 for item in relatorio.itens if str(item.valor or "").strip())
-            aggregate["total_items"] += len(relatorio.itens)
+            turn_filled = sum(1 for item in relatorio.itens if str(item.valor or "").strip())
+            aggregate["filled_items"] += turn_filled
             if relatorio.updated_at and (
                 aggregate["last_updated_at"] is None or relatorio.updated_at > aggregate["last_updated_at"]
             ):
@@ -719,15 +826,12 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
                 aggregate["responsavel_pted"].add(relatorio.responsavel)
                 aggregate["responsavel_lab"].add(relatorio.responsavel)
             aggregate["items"].extend(rows)
+            aggregate["turn_totals"][turno_slot] = max(int(aggregate["turn_totals"].get(turno_slot, 0)), len(relatorio.itens))
+            aggregate["turn_priority_counts"][turno_slot] = _aggregate_priority_counts(rows)
 
         macro = _macro_module_for_code("cabine-pintura")
         macro_param_totals[macro]["filled"] += int(aggregate["filled_items"])
-        macro_param_totals[macro]["total"] += int(aggregate["total_items"])
-        priority_counts = _aggregate_priority_counts(aggregate["items"])
-        for priority, count in priority_counts.items():
-            macro_priority_totals[macro][priority] += count
-
-    total_turnos = len(operational_shifts) + len(sigilatura_shifts) + len(central_tintas_relatorios) + len(cabine_pintura_relatorios)
+    total_turnos = sum(1 for statuses in day_turn_statuses.values() if statuses)
     if total_turnos == 0:
         return DashboardSnapshot(
             filters=filters,
@@ -764,14 +868,17 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
     total_items = 0
     total_preenchidos = 0
     total_desvios = 0
+    turnos_concluidos = sum(1 for statuses in day_turn_statuses.values() if statuses and all(statuses))
+    turnos_andamento = sum(1 for statuses in day_turn_statuses.values() if statuses and not all(statuses))
     modulos_concluidos = 0
     modulos_andamento = 0
     modulos_nao_iniciados = 0
 
     for aggregate in sorted(module_aggregates.values(), key=lambda item: item["title"].lower()):
-        module_total = int(aggregate["total_items"])
+        module_total = _resolve_expected_turn_total(aggregate["turn_totals"])
         module_preenchidos = int(aggregate["filled_items"])
         module_desvios = int(aggregate["desvios"])
+        aggregate["total_items"] = module_total
         total_items += module_total
         total_preenchidos += module_preenchidos
         total_desvios += module_desvios
@@ -791,6 +898,11 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
         responsavel_pted = ", ".join(sorted(aggregate["responsavel_pted"])) or "—"
         responsavel_lab = ", ".join(sorted(aggregate["responsavel_lab"])) or "—"
         last_updated = _format_datetime(aggregate["last_updated_at"])
+        macro = _macro_module_for_code(aggregate["code"])
+        macro_param_totals[macro]["total"] += module_total
+        resolved_priority_counts = _resolve_expected_priority_counts(aggregate["turn_priority_counts"])
+        for priority, count in resolved_priority_counts.items():
+            macro_priority_totals[macro][priority] += int(count)
         module_cards.append(
             {
                 "code": aggregate["code"],
@@ -830,8 +942,8 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
     percentual_geral = int(round((total_preenchidos / total_items) * 100)) if total_items > 0 else 0
     metrics = [
         {"label": "Turnos no dia", "value": total_turnos, "tone": "neutral"},
-        {"label": "Módulos concluídos", "value": modulos_concluidos, "tone": "success"},
-        {"label": "Módulos em andamento", "value": modulos_andamento, "tone": "warning"},
+        {"label": "Turnos concluídos", "value": turnos_concluidos, "tone": "success"},
+        {"label": "Turnos em andamento", "value": turnos_andamento, "tone": "warning"},
         {"label": "Desvios no dia", "value": total_desvios, "tone": "alert" if total_desvios > 0 else "neutral"},
     ]
 
@@ -870,8 +982,8 @@ def build_dashboard_snapshot(session: Session, filters: DashboardFilters) -> Das
             "percentual": percentual_geral,
             "total_desvios": total_desvios,
             "progress_label": f"{total_preenchidos}/{total_items}",
-            "modulos_concluidos": modulos_concluidos,
-            "modulos_em_andamento": modulos_andamento,
+            "modulos_concluidos": turnos_concluidos,
+            "modulos_em_andamento": turnos_andamento,
         },
         has_global_alert=total_desvios > 0,
         global_alert_message=(

@@ -11,7 +11,7 @@ from app.config import settings
 from app.db import get_db
 from app.models import OperationalModuleItem
 from app.services import operational_module_item_admin_service, operational_module_item_service, sigilatura_service
-from app.services.auth_service import require_admin
+from app.services.auth_service import require_admin_page
 from app.services.navigation import SETTINGS_HUB_ITEMS, layout_context
 from app.services.operational_module_service import MODULE_CONFIGS
 from app.services.reference_service import (
@@ -133,7 +133,7 @@ def _build_module_admin_context(db: Session, module_code: str) -> dict:
         "rows": module_context.rows,
         "available_abas": module_context.available_abas,
         "selected_aba": module_context.selected_aba,
-        "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
+        "sector_options": module_context.sector_options,
         "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
         "priority_options": operational_module_item_service.PRIORITY_OPTIONS,
@@ -162,7 +162,7 @@ def _build_module_admin_context_with_query(
         "rows": module_context.rows,
         "available_abas": module_context.available_abas,
         "selected_aba": module_context.selected_aba,
-        "sector_options": operational_module_item_admin_service.SECTOR_OPTIONS,
+        "sector_options": module_context.sector_options,
         "validation_type_options": operational_module_item_admin_service.VALIDATION_TYPE_OPTIONS,
         "frequency_options": operational_module_item_service.FREQUENCY_OPTIONS,
         "priority_options": operational_module_item_service.PRIORITY_OPTIONS,
@@ -311,7 +311,7 @@ def _build_general_editor_context(
 
 
 @router.get("/configuracoes", name="configuracoes_home")
-def configuracoes_home(request: Request, _admin=Depends(require_admin)):
+def configuracoes_home(request: Request, _admin=Depends(require_admin_page)):
     context = {
         "page_title": "Configuraes",
         "page_description": "Central administrativa para ajustes estruturais do sistema.",
@@ -322,7 +322,7 @@ def configuracoes_home(request: Request, _admin=Depends(require_admin)):
 
 
 @router.get("/configuracoes/frequencias", name="configuracoes_frequencias")
-def configuracoes_frequencias(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+def configuracoes_frequencias(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin_page)):
     selected_module = request.query_params.get("modulo", "")
     query = f"?modulo={quote_plus(selected_module)}" if selected_module else ""
     return RedirectResponse(url=f"/configuracoes/modulos-itens{query}", status_code=302)
@@ -333,7 +333,7 @@ def configuracoes_frequencias_modulo(
     modulo_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     return RedirectResponse(url=f"/configuracoes/modulos-itens/{quote_plus(modulo_id)}", status_code=302)
 
@@ -343,7 +343,7 @@ async def configuracoes_frequencias_salvar(
     item_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     payload = await request.json()
     try:
@@ -354,7 +354,7 @@ async def configuracoes_frequencias_salvar(
 
 
 @router.get("/configuracoes/modulos-itens", name="configuracoes_modulos_itens")
-def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+def configuracoes_modulos_itens(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin_page)):
     modules = operational_module_item_admin_service.list_modules()
     selected_module = request.query_params.get("modulo", "").strip()
     selected_area = (request.query_params.get("area", "") or "").strip().lower()
@@ -387,7 +387,7 @@ def configuracoes_modulos_itens_modulo(
     modulo_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     selected_aba = request.query_params.get("aba", "").strip() or None
     context = {
@@ -402,7 +402,7 @@ async def configuracoes_modulos_itens_batch(
     modulo_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     try:
         result = operational_module_item_admin_service.save_module_batch(module_code=modulo_id, session=db, payload=await request.json())
@@ -412,19 +412,19 @@ async def configuracoes_modulos_itens_batch(
 
 
 @router.get("/cadastros/modulos-itens", name="admin_modulos_itens_redirect")
-def admin_modulos_itens_redirect(request: Request, _admin=Depends(require_admin)):
+def admin_modulos_itens_redirect(request: Request, _admin=Depends(require_admin_page)):
     selected_module = request.query_params.get("module_code", "").strip()
     query = f"?modulo={quote_plus(selected_module)}" if selected_module else ""
     return RedirectResponse(url=f"/configuracoes/modulos-itens{query}", status_code=302)
 
 
 @router.get("/cadastros/modulos-itens/novo", name="admin_modulos_itens_new_redirect")
-def admin_modulos_itens_new_redirect(_admin=Depends(require_admin)):
+def admin_modulos_itens_new_redirect(_admin=Depends(require_admin_page)):
     return RedirectResponse(url="/configuracoes/modulos-itens", status_code=302)
 
 
 @router.get("/cadastros", name="cadastros_home")
-def cadastros_home(_admin=Depends(require_admin)):
+def cadastros_home(_admin=Depends(require_admin_page)):
     return RedirectResponse(url="/configuracoes", status_code=302)
 
 
@@ -433,7 +433,7 @@ def admin_temperatura_faixas(
     request: Request,
     escopo: str | None = None,
     modulo: str | None = None,
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     scope = _resolve_general_editor_scope(escopo)
     module_code = _resolve_general_editor_module(scope, modulo)
@@ -445,13 +445,13 @@ def admin_temperatura_faixas(
 async def admin_temperatura_faixas_salvar(
     _request: Request,
     _db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     return RedirectResponse(url="/configuracoes/modulos-itens", status_code=303)
 
 
 @router.get("/cadastros/{entity}", name="admin_list")
-def admin_list(entity: str, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+def admin_list(entity: str, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin_page)):
     try:
         get_entity_config(entity)
     except KeyError as error:
@@ -462,7 +462,7 @@ def admin_list(entity: str, request: Request, db: Session = Depends(get_db), _ad
 
 
 @router.get("/cadastros/{entity}/novo", name="admin_create_form")
-def admin_create_form(entity: str, request: Request, _admin=Depends(require_admin)):
+def admin_create_form(entity: str, request: Request, _admin=Depends(require_admin_page)):
     try:
         config = get_entity_config(entity)
     except KeyError as error:
@@ -493,7 +493,7 @@ async def admin_create(
     entity: str,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     try:
         config = get_entity_config(entity)
@@ -538,7 +538,7 @@ def admin_edit_form(
     record_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     try:
         config = get_entity_config(entity)
@@ -572,7 +572,7 @@ async def admin_edit(
     record_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
+    _admin=Depends(require_admin_page),
 ):
     try:
         config = get_entity_config(entity)
@@ -607,7 +607,7 @@ async def admin_edit(
 
 
 @router.post("/cadastros/{entity}/{record_id}/excluir", name="admin_delete")
-def admin_delete(entity: str, record_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+def admin_delete(entity: str, record_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin_page)):
     try:
         get_entity_config(entity)
     except KeyError as error:

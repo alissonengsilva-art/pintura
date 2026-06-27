@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import inspect, select
+from sqlalchemy import delete, inspect, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import (
@@ -114,6 +114,16 @@ def get_relatorio(session: Session, relatorio_id: int) -> CentralTintasRelatorio
     if not central_tintas_flow_schema_available(session):
         return None
     return _load_relatorio(session, relatorio_id)
+
+
+def delete_relatorio(session: Session, relatorio: CentralTintasRelatorio) -> None:
+    try:
+        session.execute(delete(CentralTintasItem).where(CentralTintasItem.central_tintas_id == relatorio.id))
+        session.execute(delete(CentralTintasRelatorio).where(CentralTintasRelatorio.id == relatorio.id))
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
 
 def list_relatorios(session: Session) -> list[dict[str, Any]]:

@@ -16,18 +16,24 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import get_db
 from app.main import app
-from app.services.auth_service import require_admin
+from app.services.auth_service import require_admin, require_admin_page
 from app.models import (
     Base,
+    CabinePinturaItem,
     CabinePinturaRelatorio,
+    CentralTintasItem,
     CentralTintasRelatorio,
     ItemED,
     Modelo,
     OperationalModuleItem,
     OperationalModuleRecord,
     OperationalShift,
+    OperationalShiftModule,
     Responsavel,
     Setor,
+    SigilaturaModulo,
+    SigilaturaResposta,
+    SigilaturaTurno,
     TemperaturaFornoLancamento,
     Turno,
     User,
@@ -47,6 +53,7 @@ from app.services.operational_module_service import (
 )
 from app.services.shift_service import build_shift_detail
 from app.services.sigilatura_service import _escorrimento_field_key, _evaluate_param_rule
+import app.middleware.simple_session as simple_session_middleware
 
 
 @pytest.fixture()
@@ -70,6 +77,15 @@ def test_env() -> Generator[tuple[TestClient, sessionmaker], None, None]:
                 full_name="Admin",
                 password_hash=hash_password("123456"),
                 is_admin=True,
+                is_active=True,
+            )
+        )
+        session.add(
+            User(
+                username="operador",
+                full_name="Operador",
+                password_hash=hash_password("123456"),
+                is_admin=False,
                 is_active=True,
             )
         )
@@ -154,6 +170,15 @@ def _login_admin(client: TestClient) -> None:
     assert response.status_code == 303
 
 
+def _login_operador(client: TestClient) -> None:
+    response = client.post(
+        "/login",
+        data={"username": "operador", "password": "123456", "next_url": "/dashboard"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+
 def test_sigilatura_temperature_rule_accepts_plus_minus_tolerance() -> None:
     assert _evaluate_param_rule("150 +- 10 °C", "150") == ("DENTRO", "NAO")
     assert _evaluate_param_rule("150 +/- 10 °C", "140") == ("DENTRO", "NAO")
@@ -168,6 +193,11 @@ def test_sigilatura_escorrimento_catalog_uses_real_model_fields() -> None:
 
 def _enable_admin_override() -> None:
     app.dependency_overrides[require_admin] = lambda: object()
+    app.dependency_overrides[require_admin_page] = lambda: object()
+
+
+def _wire_session_middleware(session_factory: sessionmaker, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(simple_session_middleware, "SessionLocal", session_factory)
 
 
 def _temperatura_payload(setor: str, *, data_referencia: str = "2026-04-17", outlier: bool = False) -> dict[str, str]:
@@ -269,16 +299,182 @@ def test_dashboard_defaults_to_today_when_no_date_is_provided(test_env: tuple[Te
     assert "Nenhum dado" in response.text
 
 
+def test_dashboard_accepts_data_query_parameter(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/dashboard?data=2026-06-27")
+
+    assert response.status_code == 200
+    assert 'name="data"' in response.text
+    assert 'value="2026-06-27"' in response.text
+
+
+def test_dashboard_daily_progress_considers_three_turns_for_selected_date(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    start_response = client.post(
+        "/central-tintas/iniciar",
+        data={
+            "data_referencia": "2026-06-27",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        item_ids = [item.id for item in relatorio.itens]
+
+    payload = {"submit_action": "concluir"}
+    for index, item_id in enumerate(item_ids, start=1):
+        payload[f"item_{item_id}_valor"] = f"valor-{index}"
+        payload[f"item_{item_id}_observacao"] = ""
+
+    save_response = client.post(
+        f"/central-tintas/{relatorio_id}/salvar",
+        data=payload,
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    response = client.get("/dashboard?data=2026-06-27")
+
+    assert response.status_code == 200
+    assert "33%" in response.text
+
+
+def test_dashboard_keeps_pt_and_ed_in_progress_for_same_turn_and_date(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    reference_date = "2026-06-28"
+    _create_shift(client, data_referencia=reference_date, turno="1")
+    _create_pt_shift(client, data_referencia=reference_date, turno="1")
+
+    with session_factory() as session:
+        filters = dashboard_service.parse_dashboard_filters({"data": reference_date}, session)
+        snapshot = dashboard_service.build_dashboard_snapshot(session, filters)
+        shift_names = [row["turno_nome"] for row in snapshot.shift_options]
+
+    assert len(snapshot.shift_options) == 2
+    assert any("Turno 1" in name and "Sigilatura" not in name for name in shift_names)
+
+
+def test_operacoes_start_shows_duplicate_turn_warning_for_same_date(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    first = client.post(
+        "/operacoes/iniciar",
+        data={
+            "module_code": "ed",
+            "data_referencia": "2026-06-29",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+        follow_redirects=False,
+    )
+    assert first.status_code == 303
+
+    second = client.post(
+        "/operacoes/iniciar",
+        data={
+            "module_code": "ed",
+            "data_referencia": "2026-06-29",
+            "turno": "1",
+            "responsavel": "Condutor PT/ED",
+        },
+    )
+
+    assert second.status_code == 400
+    assert "Não é permitido criar dois turnos iguais na mesma data." in second.text
+    assert "Já existe um turno 1 criado para 29/06/2026." in second.text
+
+
 def test_sidebar_replaces_individual_operational_links_with_operacoes(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, _ = test_env
 
     response = client.get("/operacoes")
 
     assert response.status_code == 200
-    assert '<span class="nav-label">Operações</span>' in response.text
-    assert '<span class="nav-label">Central de Tintas</span>' not in response.text
-    assert '<span class="nav-label">Cabine de Pintura</span>' not in response.text
-    assert '<span class="nav-label">Sigilatura</span>' not in response.text
+    assert 'href="/operacoes"' in response.text
+    assert 'class="app-sidebar__label">Opera' in response.text
+    assert 'class="app-sidebar__label">Central de Tintas<' not in response.text
+    assert 'class="app-sidebar__label">Cabine de Pintura<' not in response.text
+    assert 'class="app-sidebar__label">Sigilatura<' not in response.text
+
+
+def test_configuracoes_redirects_anonymous_user_to_login_with_next(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+
+    response = client.get("/configuracoes", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?next=/configuracoes"
+
+
+def test_login_preserves_safe_next_for_configuracoes(test_env: tuple[TestClient, sessionmaker], monkeypatch: pytest.MonkeyPatch) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+
+    response = client.post(
+        "/login",
+        data={"username": "admin", "password": "123456", "next_url": "/configuracoes"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/configuracoes"
+
+
+def test_login_rejects_external_next_url(test_env: tuple[TestClient, sessionmaker], monkeypatch: pytest.MonkeyPatch) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+
+    response = client.post(
+        "/login",
+        data={"username": "admin", "password": "123456", "next_url": "https://evil.example/steal"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+
+
+def test_configuracoes_shows_access_restricted_page_for_common_user(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    _login_operador(client)
+
+    response = client.get("/configuracoes")
+
+    assert response.status_code == 403
+    assert "Acesso restrito" in response.text
+    assert "apenas para administradores" in response.text
+    assert '{"detail":' not in response.text
+
+
+def test_sidebar_hides_configuracoes_for_anonymous_and_common_user_and_shows_for_admin(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+
+    anonymous = client.get("/dashboard")
+    assert 'href="/configuracoes"' not in anonymous.text
+
+    _login_operador(client)
+    operador = client.get("/dashboard")
+    assert 'href="/configuracoes"' not in operador.text
+
+    client.get("/logout", follow_redirects=False)
+    _login_admin(client)
+    admin = client.get("/dashboard")
+    assert 'href="/configuracoes"' in admin.text
 
 
 def test_operacoes_page_aggregates_daily_modules(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -501,7 +697,39 @@ def test_unified_module_items_admin_page_supports_cabine_pintura_area_and_abas(t
     assert "TOP COAT" in response.text
     assert "TEMPERATURA FORNO" in response.text
     assert "DATA PAQ" in response.text
+    assert "Abas da Cabine de Pintura" not in response.text
     assert 'data-field="aba"' in response.text
+
+
+def test_unified_module_items_admin_page_backfills_missing_cabine_pintura_abas(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        session.query(OperationalModuleItem).filter(
+            OperationalModuleItem.module_code == "cabine-pintura",
+            OperationalModuleItem.aba.in_(["TEMPERATURA FORNO", "DATA PAQ"]),
+        ).delete(synchronize_session=False)
+        session.commit()
+
+    response = client.get("/configuracoes/modulos-itens?area=cabine-pintura&modulo=cabine-pintura&aba=TOP%20COAT")
+
+    assert response.status_code == 200
+    assert "TOP COAT" in response.text
+    assert "TEMPERATURA FORNO" in response.text
+    assert "DATA PAQ" in response.text
+
+    with session_factory() as session:
+        abas = {
+            str(value[0])
+            for value in session.query(OperationalModuleItem.aba)
+            .filter(OperationalModuleItem.module_code == "cabine-pintura")
+            .distinct()
+            .all()
+        }
+    assert "TOP COAT" in abas
+    assert "TEMPERATURA FORNO" in abas
+    assert "DATA PAQ" in abas
 
 
 def test_unified_module_items_partial_changes_module_tab(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -1651,3 +1879,160 @@ def test_legacy_detail_remains_available(test_env: tuple[TestClient, sessionmake
 
     assert response.status_code == 200
     assert "Registro antigo" in response.text
+
+
+def test_turnos_index_shows_delete_button_only_for_admin(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    _create_shift(client, data_referencia="2026-06-01", turno="1")
+
+    response = client.get("/turno-atual")
+    assert response.status_code == 200
+    assert "Excluir" not in response.text
+
+    _login_admin(client)
+    response = client.get("/turno-atual")
+    assert response.status_code == 200
+    assert "Excluir" in response.text
+
+
+def test_turno_delete_requires_admin(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_shift(client, data_referencia="2026-06-02", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-06-02", turno="1")
+
+    response = client.post(f"/turnos/{shift_id}/excluir", data={"redirect_to": "/turno-atual"}, follow_redirects=False)
+
+    assert response.status_code == 403
+
+
+def test_admin_can_delete_operational_shift_and_children(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    _create_shift(client, data_referencia="2026-06-03", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-06-03", turno="1")
+    client.post(
+        f"/turnos/{shift_id}/modulos/temperatura-forno-ed/setores/PTED/salvar",
+        data={**_temperatura_payload("PTED", data_referencia="2026-06-03"), "submit_action": "salvar"},
+        follow_redirects=False,
+    )
+
+    with session_factory() as session:
+        assert session.get(OperationalShift, shift_id) is not None
+        assert session.scalars(select(OperationalShiftModule).where(OperationalShiftModule.shift_id == shift_id)).all()
+        assert session.scalars(select(OperationalModuleRecord).where(OperationalModuleRecord.shift_id == shift_id)).all()
+
+    _login_admin(client)
+    response = client.post(
+        f"/turnos/{shift_id}/excluir",
+        data={"redirect_to": "/turno-atual?tab=andamento"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/turno-atual?tab=andamento&success=")
+    with session_factory() as session:
+        assert session.get(OperationalShift, shift_id) is None
+        assert not session.scalars(select(OperationalShiftModule).where(OperationalShiftModule.shift_id == shift_id)).all()
+        assert not session.scalars(select(OperationalModuleRecord).where(OperationalModuleRecord.shift_id == shift_id)).all()
+
+
+def test_admin_can_delete_sigilatura_turno(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    _create_sigilatura_shift(client, data_referencia="2026-06-04", turno="1")
+
+    with session_factory() as session:
+        turno = session.scalars(select(SigilaturaTurno)).first()
+        assert turno is not None
+        turno_id = turno.id
+        assert session.scalars(select(SigilaturaModulo).where(SigilaturaModulo.turno_id == turno_id)).all()
+
+    _login_admin(client)
+    response = client.post(
+        f"/turnos-sigilatura/{turno_id}/excluir",
+        data={"redirect_to": "/turnos-sigilatura?tab=andamento"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/turnos-sigilatura?tab=andamento&success=")
+    with session_factory() as session:
+        assert session.get(SigilaturaTurno, turno_id) is None
+        assert not session.scalars(select(SigilaturaModulo).where(SigilaturaModulo.turno_id == turno_id)).all()
+        assert not session.scalars(select(SigilaturaResposta).where(SigilaturaResposta.turno_id == turno_id)).all()
+
+
+def test_admin_can_delete_central_tintas_relatorio(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    response = client.post(
+        "/central-tintas/iniciar",
+        data={"data_referencia": "2026-06-05", "turno": "1", "responsavel": "Condutor PT/ED"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CentralTintasRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        assert session.scalars(select(CentralTintasItem).where(CentralTintasItem.central_tintas_id == relatorio_id)).all()
+
+    _login_admin(client)
+    response = client.post(
+        f"/central-tintas/{relatorio_id}/excluir",
+        data={"redirect_to": "/central-tintas?tab=andamento"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/central-tintas?tab=andamento&success=")
+    with session_factory() as session:
+        assert session.get(CentralTintasRelatorio, relatorio_id) is None
+        assert not session.scalars(select(CentralTintasItem).where(CentralTintasItem.central_tintas_id == relatorio_id)).all()
+
+
+def test_admin_can_delete_cabine_pintura_relatorio(
+    test_env: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = test_env
+    _wire_session_middleware(session_factory, monkeypatch)
+    response = client.post(
+        "/cabine-pintura/iniciar",
+        data={"data_referencia": "2026-06-06", "turno": "1", "responsavel": "Condutor PT/ED"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    with session_factory() as session:
+        relatorio = session.scalars(select(CabinePinturaRelatorio)).first()
+        assert relatorio is not None
+        relatorio_id = relatorio.id
+        assert session.scalars(select(CabinePinturaItem).where(CabinePinturaItem.cabine_pintura_id == relatorio_id)).all()
+
+    _login_admin(client)
+    response = client.post(
+        f"/cabine-pintura/{relatorio_id}/excluir",
+        data={"redirect_to": "/cabine-pintura?tab=andamento"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/cabine-pintura?tab=andamento&success=")
+    with session_factory() as session:
+        assert session.get(CabinePinturaRelatorio, relatorio_id) is None
+        assert not session.scalars(select(CabinePinturaItem).where(CabinePinturaItem.cabine_pintura_id == relatorio_id)).all()

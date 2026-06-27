@@ -141,6 +141,9 @@
             <button type="button" class="op-modal__close" data-close-operacoes-start aria-label="Fechar">×</button>
         </div>
         <div class="op-modal__body">
+            <div class="op-alert op-alert--warning" style="margin-bottom: 12px;">
+                Não é permitido criar dois turnos iguais na mesma data.
+            </div>
             <form method="post" action="/operacoes/iniciar" class="op-form op-form--vertical">
                 <input type="hidden" name="module_code" id="operacoes_module_code" value="{{ selected_module_code }}">
                 <div class="op-form__grid op-form__grid--2col">

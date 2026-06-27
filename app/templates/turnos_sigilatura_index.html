@@ -14,6 +14,9 @@
     {% if schema_error_message %}
     <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
     {% endif %}
+    {% if success_message %}
+    <div class="op-alert op-alert--success panel-card">{{ success_message }}</div>
+    {% endif %}
     {% if error_message %}
     <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
     {% endif %}
@@ -51,7 +54,22 @@
                     <span class="op-status-badge op-status-badge--{{ shift.status_geral|lower|replace('_', '-') }}">{{ shift.status_geral_label }}</span>
                     <span>{{ shift.concluidos }}/{{ shift.total_modules }}</span>
                     <span>{{ shift.em_andamento }}</span>
-                    <a href="/turnos-sigilatura/{{ shift.id }}" class="button-primary small">Abrir turno</a>
+                    <div class="op-form__actions">
+                        <a href="/turnos-sigilatura/{{ shift.id }}" class="button-primary small">Abrir turno</a>
+                        {% if request.session.get('is_admin') %}
+                        <button
+                            type="button"
+                            class="button-danger small"
+                            data-open-delete-modal
+                            data-delete-action="/turnos-sigilatura/{{ shift.id }}/excluir"
+                            data-turno-id="{{ shift.id }}"
+                            data-turno-modulo="Sigilatura"
+                            data-turno-data="{{ shift.data_label }}"
+                            data-turno-status="{{ shift.status_geral_label }}"
+                            data-turno-responsavel="{{ shift.responsavel or '-' }}"
+                        >Excluir</button>
+                        {% endif %}
+                    </div>
                 </div>
             </article>
             {% else %}
@@ -76,7 +94,22 @@
                     <strong class="turno-card__value">{{ shift.turno or '-' }}</strong>
                     <strong class="turno-card__value">{{ shift.responsavel or '-' }}</strong>
                     <span class="turno-card__status-text">{{ shift.status_geral_label }} - {{ shift.concluidos }}/{{ shift.total_modules }} módulos</span>
-                    <a href="/turnos-sigilatura/{{ shift.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                    <div class="op-form__actions">
+                        <a href="/turnos-sigilatura/{{ shift.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                        {% if request.session.get('is_admin') %}
+                        <button
+                            type="button"
+                            class="button-danger small"
+                            data-open-delete-modal
+                            data-delete-action="/turnos-sigilatura/{{ shift.id }}/excluir"
+                            data-turno-id="{{ shift.id }}"
+                            data-turno-modulo="Sigilatura"
+                            data-turno-data="{{ shift.data_label }}"
+                            data-turno-status="{{ shift.status_geral_label }}"
+                            data-turno-responsavel="{{ shift.responsavel or '-' }}"
+                        >Excluir</button>
+                        {% endif %}
+                    </div>
                 </div>
             </article>
             {% else %}
@@ -126,10 +159,42 @@
     </div>
 </div>
 
+{% if request.session.get('is_admin') %}
+<div class="op-modal" id="deleteSigilaturaModal">
+    <div class="op-modal__backdrop" data-close-delete-modal></div>
+    <div class="op-modal__content panel-card">
+        <div class="turnos-modal__header">
+            <div>
+                <span class="turnos-page__kicker">Ação administrativa</span>
+                <h2 class="turnos-modal__title">Excluir turno?</h2>
+            </div>
+            <button type="button" class="turnos-modal__close" data-close-delete-modal aria-label="Fechar">×</button>
+        </div>
+        <p>Esta ação irá apagar o turno selecionado e seus dados relacionados. Essa ação não poderá ser desfeita.</p>
+        <div class="panel-card" style="margin: 12px 0;">
+            <p><strong>Módulo:</strong> <span data-delete-modulo>-</span></p>
+            <p><strong>Data:</strong> <span data-delete-data>-</span></p>
+            <p><strong>Status:</strong> <span data-delete-status>-</span></p>
+            <p><strong>Responsável:</strong> <span data-delete-responsavel>-</span></p>
+            <p><strong>ID:</strong> <span data-delete-id>-</span></p>
+        </div>
+        <form method="post" id="deleteSigilaturaForm" class="op-form op-form--vertical">
+            <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+            <div class="op-modal__actions">
+                <button type="button" class="button-secondary" data-close-delete-modal>Cancelar</button>
+                <button type="submit" class="button-danger">Sim, excluir turno</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
     var tabs = document.querySelectorAll('[data-turnos-tab]');
     var panels = document.querySelectorAll('[data-turnos-panel]');
+    var deleteModal = document.getElementById('deleteSigilaturaModal');
+    var deleteForm = document.getElementById('deleteSigilaturaForm');
     tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
             var target = this.getAttribute('data-turnos-tab');
@@ -151,6 +216,21 @@
     });
     document.querySelectorAll('[data-close-start-modal]').forEach(function(btn) {
         btn.addEventListener('click', function() { modal.classList.remove('op-modal--open'); modal.hidden = true; });
+    });
+    document.querySelectorAll('[data-close-delete-modal]').forEach(function(btn) {
+        btn.addEventListener('click', function() { if (deleteModal) deleteModal.classList.remove('op-modal--open'); });
+    });
+    document.querySelectorAll('[data-open-delete-modal]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            if (!deleteModal || !deleteForm) return;
+            deleteForm.action = this.getAttribute('data-delete-action');
+            deleteModal.querySelector('[data-delete-modulo]').textContent = this.getAttribute('data-turno-modulo') || '-';
+            deleteModal.querySelector('[data-delete-data]').textContent = this.getAttribute('data-turno-data') || '-';
+            deleteModal.querySelector('[data-delete-status]').textContent = this.getAttribute('data-turno-status') || '-';
+            deleteModal.querySelector('[data-delete-responsavel]').textContent = this.getAttribute('data-turno-responsavel') || '-';
+            deleteModal.querySelector('[data-delete-id]').textContent = this.getAttribute('data-turno-id') || '-';
+            deleteModal.classList.add('op-modal--open');
+        });
     });
 })();
 </script>

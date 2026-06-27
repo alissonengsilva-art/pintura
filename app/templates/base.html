@@ -25,7 +25,7 @@
                 </div>
 
                 <nav class="app-sidebar__nav" aria-label="Menu principal">
-                    <a class="app-sidebar__item {% if active_page == 'dashboard' %}is-active{% endif %}" href="/dashboard">
+                    <a class="app-sidebar__item {% if active_page == 'dashboard' %}is-active{% endif %}" href="/dashboard" data-dashboard-link>
                         <span class="app-sidebar__icon" aria-hidden="true">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" role="img" focusable="false">
                                 <path d="M3 13h8v8H3zM13 3h8v18h-8zM3 3h8v6H3z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -54,6 +54,7 @@
                         <span class="app-sidebar__label">Relatórios</span>
                     </a>
 
+                    {% if request.session.get('is_admin') %}
                     <a class="app-sidebar__item {% if active_page == 'configuracoes' %}is-active{% endif %}" href="/configuracoes">
                         <span class="app-sidebar__icon" aria-hidden="true">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" role="img" focusable="false">
@@ -63,6 +64,7 @@
                         </span>
                         <span class="app-sidebar__label">Configurações</span>
                     </a>
+                    {% endif %}
                 </nav>
 
                 <div class="app-sidebar__session sidebar-session">
@@ -87,5 +89,18 @@
             </section>
         </main>
     </div>
+<script>
+(function () {
+    var storageKey = 'dashboard_selected_date';
+    var savedDate = window.localStorage.getItem(storageKey);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(savedDate || ''))) return;
+    document.querySelectorAll('[data-dashboard-link]').forEach(function (link) {
+        var href = link.getAttribute('href') || '/dashboard';
+        var url = new URL(href, window.location.origin);
+        url.searchParams.set('data', savedDate);
+        link.setAttribute('href', url.pathname + url.search);
+    });
+})();
+</script>
 </body>
 </html>

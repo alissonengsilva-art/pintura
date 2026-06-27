@@ -3,6 +3,7 @@ from __future__ import annotations
 from hashlib import pbkdf2_hmac
 from hmac import compare_digest
 from os import urandom
+from urllib.parse import quote, urlsplit
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -15,6 +16,15 @@ PBKDF2_ITERATIONS = 390000
 SESSION_USER_ID_KEY = "user_id"
 SESSION_USERNAME_KEY = "username"
 SESSION_IS_ADMIN_KEY = "is_admin"
+
+
+class AdminLoginRequiredError(Exception):
+    def __init__(self, next_url: str):
+        self.next_url = next_url
+
+
+class AdminPermissionDeniedError(Exception):
+    pass
 
 
 def hash_password(password: str, *, salt: bytes | None = None) -> str:
@@ -63,6 +73,23 @@ def logout_user(request: Request) -> None:
     request.session.clear()
 
 
+def sanitize_next_path(raw_value: str | None, default_path: str = "/dashboard") -> str:
+    candidate = str(raw_value or "").strip()
+    if not candidate:
+        return default_path
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default_path
+    path = parsed.path or default_path
+    if not path.startswith("/"):
+        return default_path
+    return f"{path}?{parsed.query}" if parsed.query else path
+
+
+def build_login_redirect(next_path: str) -> str:
+    return f"/login?next={quote(sanitize_next_path(next_path), safe='/?=&')}"
+
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User | None:
     user_id = request.session.get(SESSION_USER_ID_KEY)
     if not user_id:
@@ -82,4 +109,13 @@ def require_admin(current_user: User | None = Depends(get_current_user)) -> User
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso administrativo restrito.")
     if not current_user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario sem permissao administrativa.")
+    return current_user
+
+
+def require_admin_page(request: Request, current_user: User | None = Depends(get_current_user)) -> User:
+    if current_user is None:
+        next_path = sanitize_next_path(str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""), "/configuracoes")
+        raise AdminLoginRequiredError(next_path)
+    if not current_user.is_admin:
+        raise AdminPermissionDeniedError()
     return current_user

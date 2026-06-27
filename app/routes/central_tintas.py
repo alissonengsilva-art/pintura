@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+import logging
 from datetime import date
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
+from app.models.user import User
+from app.services.auth_service import require_admin
 from app.services.central_tintas_service import (
     CentralTintasValidationError,
     build_relatorio_context,
     create_relatorio,
+    delete_relatorio,
     get_relatorio,
     list_relatorios,
     save_relatorio,
@@ -25,6 +29,20 @@ from app.services.shift_service import list_shared_options as shift_list_options
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def _safe_redirect_url(raw_value: str | None, default_path: str) -> str:
+    candidate = str(raw_value or "").strip()
+    if not candidate:
+        return default_path
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default_path
+    path = parsed.path or default_path
+    if not path.startswith("/"):
+        return default_path
+    return f"{path}?{parsed.query}" if parsed.query else path
 
 
 @router.get("/central-tintas", name="central_tintas")
@@ -46,6 +64,7 @@ def central_tintas(request: Request, db: Session = Depends(get_db)):
         "responsaveis": options.get("responsaveis", []),
         "data_hoje": date.today().isoformat(),
         "error_message": request.query_params.get("error", ""),
+        "success_message": request.query_params.get("success", ""),
         "form_data": {
             "data_referencia": request.query_params.get("data_referencia", ""),
             "turno": request.query_params.get("turno", ""),
@@ -141,3 +160,41 @@ def central_tintas_visualizar(relatorio_id: int, request: Request, db: Session =
         **layout_context(str(request.url.path), active_path="/central-tintas", scope_source=request.query_params),
     }
     return templates.TemplateResponse(request=request, name="central_tintas_view.html", context=context)
+
+
+@router.post("/central-tintas/{relatorio_id}/excluir", name="central_tintas_excluir")
+def central_tintas_excluir(
+    relatorio_id: int,
+    redirect_to: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    relatorio = get_relatorio(db, relatorio_id)
+    if relatorio is None:
+        raise HTTPException(status_code=404, detail="Relatorio nao encontrado")
+
+    target_url = _safe_redirect_url(redirect_to, "/central-tintas")
+    try:
+        delete_relatorio(db, relatorio)
+        logger.info("Turno excluido: id=%s modulo=%s usuario=%s", relatorio_id, "Central de Tintas", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'success': 'Turno excluido com sucesso.'})}",
+            status_code=303,
+        )
+    except CentralTintasValidationError as error:
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'error': str(error)})}",
+            status_code=303,
+        )
+    except Exception:
+        logger.exception("Falha ao excluir turno: id=%s modulo=%s usuario=%s", relatorio_id, "Central de Tintas", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=(
+                f"{target_url}{separator}"
+                f"{urlencode({'error': 'Nao foi possivel excluir o turno. Tente novamente ou verifique se existem dados vinculados.'})}"
+            ),
+            status_code=303,
+        )

@@ -13,16 +13,16 @@
     </div>
 
     <div class="dashboard-brand-header__date">
-        <form class="dashboard-brand-header__date-form" method="get" action="/dashboard">
+        <form class="dashboard-brand-header__date-form" method="get" action="/dashboard" data-dashboard-date-form>
             <label class="dashboard-brand-header__date-field" for="data_referencia">
                 <span class="dashboard-brand-header__date-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" role="img" focusable="false">
                         <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v11a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm12 8H5v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8ZM5 7v1h14V7a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1Z"/>
                     </svg>
                 </span>
-                <input id="data_referencia" type="date" name="data_referencia" value="{{ filters.data_referencia.isoformat() }}" aria-label="Data de referencia">
+                <input id="data_referencia" type="date" name="data" value="{{ filters.data_referencia.isoformat() }}" aria-label="Data de referencia" data-dashboard-date-input>
             </label>
-            <button class="op-btn op-btn--primary op-btn--sm" type="submit">Atualizar</button>
+            <button class="op-btn op-btn--primary op-btn--sm" type="submit" data-dashboard-date-submit>Atualizar</button>
         </form>
     </div>
 </section>
@@ -240,6 +240,53 @@
 
 <script>
 (function () {
+    var storageKey = 'dashboard_selected_date';
+    var currentPath = window.location.pathname || '';
+    var currentUrl = new URL(window.location.href);
+    var dateInput = document.querySelector('[data-dashboard-date-input]');
+    var dateForm = document.querySelector('[data-dashboard-date-form]');
+    var dashboardLinks = document.querySelectorAll('[data-dashboard-link]');
+
+    function isValidIsoDate(value) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+    }
+
+    function applyDashboardHref(dateValue) {
+        if (!isValidIsoDate(dateValue)) return;
+        dashboardLinks.forEach(function (link) {
+            var href = link.getAttribute('href') || '/dashboard';
+            var url = new URL(href, window.location.origin);
+            url.searchParams.set('data', dateValue);
+            link.setAttribute('href', url.pathname + url.search);
+        });
+    }
+
+    if (dateInput && isValidIsoDate(dateInput.value)) {
+        applyDashboardHref(dateInput.value);
+    }
+
+    if (currentPath === '/dashboard' && !currentUrl.searchParams.get('data') && !currentUrl.searchParams.get('data_referencia')) {
+        var savedDate = window.localStorage.getItem(storageKey);
+        if (isValidIsoDate(savedDate)) {
+            currentUrl.searchParams.set('data', savedDate);
+            window.location.replace(currentUrl.pathname + '?' + currentUrl.searchParams.toString());
+            return;
+        }
+    }
+
+    if (dateForm && dateInput) {
+        dateForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var selectedDate = dateInput.value;
+            var nextUrl = new URL('/dashboard', window.location.origin);
+            if (isValidIsoDate(selectedDate)) {
+                window.localStorage.setItem(storageKey, selectedDate);
+                nextUrl.searchParams.set('data', selectedDate);
+            }
+            window.location.href = nextUrl.pathname + nextUrl.search;
+        });
+    }
+
     var modal = document.getElementById('dashboardModuleDetailModal');
     if (!modal) return;
     var closeButtons = modal.querySelectorAll('[data-close-dashboard-detail]');

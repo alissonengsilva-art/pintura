@@ -14,6 +14,12 @@
     {% if schema_error_message %}
     <div class="op-alert op-alert--error panel-card">{{ schema_error_message }}</div>
     {% endif %}
+    {% if success_message %}
+    <div class="op-alert op-alert--success panel-card">{{ success_message }}</div>
+    {% endif %}
+    {% if error_message and not open_start_modal %}
+    <div class="op-alert op-alert--error panel-card">{{ error_message }}</div>
+    {% endif %}
 
     <section class="turnos-toolbar panel-card">
         <div class="turnos-toolbar__tabs">
@@ -47,7 +53,22 @@
                     <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
                     <span class="turno-card__status-text">{{ relatorio.status_label }}</span>
                     <strong class="turno-card__value">{{ relatorio.itens_count }}</strong>
-                    <a href="/cabine-pintura/{{ relatorio.id }}" class="button-primary small">Abrir turno</a>
+                    <div class="op-form__actions">
+                        <a href="/cabine-pintura/{{ relatorio.id }}" class="button-primary small">Abrir turno</a>
+                        {% if request.session.get('is_admin') %}
+                        <button
+                            type="button"
+                            class="button-danger small"
+                            data-open-delete-modal
+                            data-delete-action="/cabine-pintura/{{ relatorio.id }}/excluir"
+                            data-turno-id="{{ relatorio.id }}"
+                            data-turno-modulo="Cabine de Pintura"
+                            data-turno-data="{{ relatorio.data_label }}"
+                            data-turno-status="{{ relatorio.status_label }}"
+                            data-turno-responsavel="{{ relatorio.responsavel or '-' }}"
+                        >Excluir</button>
+                        {% endif %}
+                    </div>
                 </div>
             </article>
             {% endfor %}
@@ -76,7 +97,22 @@
                     <strong class="turno-card__value">{{ relatorio.turno or '-' }}</strong>
                     <strong class="turno-card__value">{{ relatorio.responsavel or '-' }}</strong>
                     <strong class="turno-card__value">{{ relatorio.updated_label }}</strong>
-                    <a href="/cabine-pintura/{{ relatorio.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                    <div class="op-form__actions">
+                        <a href="/cabine-pintura/{{ relatorio.id }}/visualizar" class="button-secondary small">Visualizar turno</a>
+                        {% if request.session.get('is_admin') %}
+                        <button
+                            type="button"
+                            class="button-danger small"
+                            data-open-delete-modal
+                            data-delete-action="/cabine-pintura/{{ relatorio.id }}/excluir"
+                            data-turno-id="{{ relatorio.id }}"
+                            data-turno-modulo="Cabine de Pintura"
+                            data-turno-data="{{ relatorio.data_label }}"
+                            data-turno-status="{{ relatorio.status_label }}"
+                            data-turno-responsavel="{{ relatorio.responsavel or '-' }}"
+                        >Excluir</button>
+                        {% endif %}
+                    </div>
                 </div>
             </article>
             {% endfor %}
@@ -138,19 +174,67 @@
     </div>
 </div>
 
+{% if request.session.get('is_admin') %}
+<div class="op-modal" id="deleteCabinePinturaModal">
+    <div class="op-modal__backdrop" data-close-delete-modal></div>
+    <div class="op-modal__content panel-card">
+        <div class="turnos-modal__header">
+            <div>
+                <span class="turnos-page__kicker">Ação administrativa</span>
+                <h2 class="turnos-modal__title">Excluir turno?</h2>
+            </div>
+            <button type="button" class="turnos-modal__close" data-close-delete-modal aria-label="Fechar">×</button>
+        </div>
+        <p>Esta ação irá apagar o turno selecionado e seus dados relacionados. Essa ação não poderá ser desfeita.</p>
+        <div class="panel-card" style="margin: 12px 0;">
+            <p><strong>Módulo:</strong> <span data-delete-modulo>-</span></p>
+            <p><strong>Data:</strong> <span data-delete-data>-</span></p>
+            <p><strong>Status:</strong> <span data-delete-status>-</span></p>
+            <p><strong>Responsável:</strong> <span data-delete-responsavel>-</span></p>
+            <p><strong>ID:</strong> <span data-delete-id>-</span></p>
+        </div>
+        <form method="post" id="deleteCabinePinturaForm" class="op-form op-form--vertical">
+            <input type="hidden" name="redirect_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+            <div class="op-form__actions">
+                <button type="button" class="button-secondary" data-close-delete-modal>Cancelar</button>
+                <button type="submit" class="button-danger">Sim, excluir turno</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
     var modal = document.getElementById('startCabinePinturaModal');
+    var deleteModal = document.getElementById('deleteCabinePinturaModal');
+    var deleteForm = document.getElementById('deleteCabinePinturaForm');
     var openButtons = document.querySelectorAll('[data-open-start-modal]');
     var closeButtons = document.querySelectorAll('[data-close-start-modal]');
+    var deleteButtons = document.querySelectorAll('[data-open-delete-modal]');
+    var closeDeleteButtons = document.querySelectorAll('[data-close-delete-modal]');
     var tabs = document.querySelectorAll('[data-turnos-tab]');
     var panels = document.querySelectorAll('[data-turnos-panel]');
 
     function openModal() { modal.classList.add('op-modal--open'); }
     function closeModal() { modal.classList.remove('op-modal--open'); }
+    function closeDeleteModal() { if (deleteModal) deleteModal.classList.remove('op-modal--open'); }
 
     openButtons.forEach(function(button) { button.addEventListener('click', openModal); });
     closeButtons.forEach(function(button) { button.addEventListener('click', closeModal); });
+    closeDeleteButtons.forEach(function(button) { button.addEventListener('click', closeDeleteModal); });
+    deleteButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            if (!deleteModal || !deleteForm) return;
+            deleteForm.action = this.getAttribute('data-delete-action');
+            deleteModal.querySelector('[data-delete-modulo]').textContent = this.getAttribute('data-turno-modulo') || '-';
+            deleteModal.querySelector('[data-delete-data]').textContent = this.getAttribute('data-turno-data') || '-';
+            deleteModal.querySelector('[data-delete-status]').textContent = this.getAttribute('data-turno-status') || '-';
+            deleteModal.querySelector('[data-delete-responsavel]').textContent = this.getAttribute('data-turno-responsavel') || '-';
+            deleteModal.querySelector('[data-delete-id]').textContent = this.getAttribute('data-turno-id') || '-';
+            deleteModal.classList.add('op-modal--open');
+        });
+    });
 
     tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
@@ -167,7 +251,10 @@
     });
 
     document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') closeModal();
+        if (event.key === 'Escape') {
+            closeModal();
+            closeDeleteModal();
+        }
     });
 })();
 </script>

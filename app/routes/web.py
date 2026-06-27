@@ -1,6 +1,9 @@
 ﻿from datetime import date
 from urllib.parse import urlencode
 
+import logging
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -17,7 +20,9 @@ from app.models import (
     SHIFT_STATUS_NAO_INICIADO,
     SHIFT_STATUS_PARCIAL,
 )
+from app.models.user import User
 from app.services import item_frequency_runtime_service
+from app.services.auth_service import require_admin
 from app.services.dashboard_service import (
     DashboardValidationError,
     build_dashboard_snapshot,
@@ -59,6 +64,7 @@ from app.services.shift_service import (
     build_shifts_history,
     conclude_shift,
     create_shift,
+    delete_shift,
     get_shift_by_id,
     list_shared_options as shift_list_options,
     shift_schema_available,
@@ -68,6 +74,7 @@ from app.services.shift_service import (
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 PT_MODULE_CODES = ["pt", "pressao-filtros-pt"]
 ED_MODULE_CODES = [
@@ -118,6 +125,19 @@ def _coerce_date(raw_value: str | None, fallback: date | None = None) -> date | 
     if fallback is not None:
         return fallback
     return date.today()
+
+
+def _safe_redirect_url(raw_value: str | None, default_path: str) -> str:
+    candidate = str(raw_value or "").strip()
+    if not candidate:
+        return default_path
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default_path
+    path = parsed.path or default_path
+    if not path.startswith("/"):
+        return default_path
+    return f"{path}?{parsed.query}" if parsed.query else path
 
 
 def _parse_report_filters(request: Request) -> ReportFilters:
@@ -428,7 +448,8 @@ def _render_turnos_index(
         "turnos": options.get("turnos", []),
         "responsaveis": options.get("responsaveis", []),
         "data_hoje": date.today().isoformat(),
-        "error_message": error_message,
+        "error_message": error_message or request.query_params.get("error"),
+        "success_message": request.query_params.get("success"),
         "form_data": form_data or {},
         "open_start_modal": open_start_modal or request.query_params.get("modal") == "iniciar",
         "schema_error_message": None if shift_schema_available(db) else MISSING_SCHEMA_MESSAGE,
@@ -750,6 +771,88 @@ def turno_pt_visualizacao(shift_id: int, request: Request, db: Session = Depends
 @router.post("/turnos-pt/{shift_id}/concluir", name="turno_pt_concluir")
 def turno_pt_concluir(shift_id: int, request: Request, db: Session = Depends(get_db)):
     return turno_concluir(shift_id, request, db)
+
+
+@router.post("/turnos/{shift_id}/excluir", name="turno_excluir")
+def turno_excluir(
+    shift_id: int,
+    redirect_to: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+
+    if getattr(shift, "operation_scope", "ed") != "ed":
+        return RedirectResponse(url=f"/turnos-pt/{shift_id}/excluir", status_code=307)
+
+    target_url = _safe_redirect_url(redirect_to, "/turno-atual")
+    try:
+        delete_shift(db, shift)
+        logger.info("Turno operacional excluido: id=%s modulo=%s usuario=%s", shift_id, "ED", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'success': 'Turno excluido com sucesso.'})}",
+            status_code=303,
+        )
+    except ShiftValidationError as error:
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'error': str(error)})}",
+            status_code=303,
+        )
+    except Exception:
+        logger.exception("Falha ao excluir turno operacional: id=%s modulo=%s usuario=%s", shift_id, "ED", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=(
+                f"{target_url}{separator}"
+                f"{urlencode({'error': 'Nao foi possivel excluir o turno. Tente novamente ou verifique se existem dados vinculados.'})}"
+            ),
+            status_code=303,
+        )
+
+
+@router.post("/turnos-pt/{shift_id}/excluir", name="turno_pt_excluir")
+def turno_pt_excluir(
+    shift_id: int,
+    redirect_to: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    shift = get_shift_by_id(db, shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail="Turno nao encontrado")
+
+    if getattr(shift, "operation_scope", "ed") != "pt":
+        return RedirectResponse(url=f"/turnos/{shift_id}/excluir", status_code=307)
+
+    target_url = _safe_redirect_url(redirect_to, "/turnos-pt")
+    try:
+        delete_shift(db, shift)
+        logger.info("Turno operacional excluido: id=%s modulo=%s usuario=%s", shift_id, "PT", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'success': 'Turno excluido com sucesso.'})}",
+            status_code=303,
+        )
+    except ShiftValidationError as error:
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'error': str(error)})}",
+            status_code=303,
+        )
+    except Exception:
+        logger.exception("Falha ao excluir turno operacional: id=%s modulo=%s usuario=%s", shift_id, "PT", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=(
+                f"{target_url}{separator}"
+                f"{urlencode({'error': 'Nao foi possivel excluir o turno. Tente novamente ou verifique se existem dados vinculados.'})}"
+            ),
+            status_code=303,
+        )
 
 
 @router.post("/turnos/{shift_id}/modulos/{module_code}/setores/{setor_tipo}/salvar", name="turno_modulo_salvar_setor")

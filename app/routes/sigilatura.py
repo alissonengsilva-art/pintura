@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
+import logging
 from datetime import date
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -9,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
+from app.models.user import User
+from app.services.auth_service import require_admin
 from app.services.navigation import layout_context
 from app.services.shift_service import list_shared_options as shift_list_options
 from app.services.sigilatura_service import (
@@ -19,6 +23,7 @@ from app.services.sigilatura_service import (
     build_turno_detail,
     conclude_turno,
     create_turno,
+    delete_turno,
     get_turno_by_id,
     list_turno_options,
     list_turnos_history,
@@ -30,6 +35,7 @@ from app.services.sigilatura_service import (
 
 templates = Jinja2Templates(directory=str(settings.templates_dir))
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _coerce_date(raw_value: str | None, fallback: date | None = None) -> date | None:
@@ -45,6 +51,19 @@ def _shift_exec_url(shift_id: int, module_code: str | None = None) -> str:
     if not module_code:
         return f"/turnos-sigilatura/{shift_id}"
     return f"/turnos-sigilatura/{shift_id}?modulo={module_code}"
+
+
+def _safe_redirect_url(raw_value: str | None, default_path: str) -> str:
+    candidate = str(raw_value or "").strip()
+    if not candidate:
+        return default_path
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default_path
+    path = parsed.path or default_path
+    if not path.startswith("/"):
+        return default_path
+    return f"{path}?{parsed.query}" if parsed.query else path
 
 
 def _render_index(
@@ -73,7 +92,8 @@ def _render_index(
         "turnos": list_turno_options(db),
         "responsaveis": shift_list_options(db).get("responsaveis", []),
         "data_hoje": date.today().isoformat(),
-        "error_message": error_message,
+        "error_message": error_message or request.query_params.get("error"),
+        "success_message": request.query_params.get("success"),
         "form_data": form_data or {},
         "open_start_modal": open_start_modal or request.query_params.get("modal") == "iniciar",
         "schema_error_message": None if sigilatura_schema_available(db) else "Estrutura de Sigilatura nÃ£o instalada. Execute as migrations.",
@@ -191,6 +211,44 @@ def turnos_sigilatura_visualizacao(
     return templates.TemplateResponse(request=request, name="turnos_sigilatura_view.html", context=context)
 
 
+@router.post("/turnos-sigilatura/{shift_id}/excluir", name="turnos_sigilatura_excluir")
+def turnos_sigilatura_excluir(
+    shift_id: int,
+    redirect_to: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    turno = get_turno_by_id(db, shift_id)
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno de sigilatura nao encontrado")
+
+    target_url = _safe_redirect_url(redirect_to, "/turnos-sigilatura")
+    try:
+        delete_turno(db, turno)
+        logger.info("Turno excluido: id=%s modulo=%s usuario=%s", shift_id, "Sigilatura", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'success': 'Turno excluido com sucesso.'})}",
+            status_code=303,
+        )
+    except SigilaturaValidationError as error:
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=f"{target_url}{separator}{urlencode({'error': str(error)})}",
+            status_code=303,
+        )
+    except Exception:
+        logger.exception("Falha ao excluir turno: id=%s modulo=%s usuario=%s", shift_id, "Sigilatura", current_user.username)
+        separator = "&" if "?" in target_url else "?"
+        return RedirectResponse(
+            url=(
+                f"{target_url}{separator}"
+                f"{urlencode({'error': 'Nao foi possivel excluir o turno. Tente novamente ou verifique se existem dados vinculados.'})}"
+            ),
+            status_code=303,
+        )
+
+
 @router.post("/turnos-sigilatura/{shift_id}/modulos/{module_code}/salvar", name="turnos_sigilatura_salvar_modulo")
 async def turnos_sigilatura_salvar_modulo(
     shift_id: int,
@@ -279,5 +337,3 @@ def turnos_sigilatura_concluir(shift_id: int, request: Request, db: Session = De
     except SigilaturaValidationError as error:
         active_module = request.query_params.get("modulo")
         return _render_execution(request, db, shift_id, active_module, error_message=str(error), status_code=400)
-
-
