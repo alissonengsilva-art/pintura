@@ -437,6 +437,8 @@ def _aggregate_priority_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     for row in rows:
         if not row.get("is_applicable", True):
             continue
+        if not row.get("desvio"):
+            continue
         counts[_normalize_priority(row.get("prioridade"))] += 1
     return counts
 

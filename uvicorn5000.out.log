@@ -1,0 +1,4 @@
+INFO:     127.0.0.1:50292 - "GET /operacoes HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50292 - "GET /static/css/main.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56944 - "GET /static/image/logo.png HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56944 - "GET /static/favicon.svg HTTP/1.1" 200 OK

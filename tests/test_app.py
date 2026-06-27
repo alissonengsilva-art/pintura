@@ -346,6 +346,19 @@ def test_dashboard_daily_progress_considers_three_turns_for_selected_date(test_e
     assert "33%" in response.text
 
 
+def test_dashboard_priority_chart_uses_only_day_deviations(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _create_pt_shift(client, data_referencia="2026-06-27", turno="1")
+
+    with session_factory() as session:
+        filters = dashboard_service.parse_dashboard_filters({"data": "2026-06-27"}, session)
+        snapshot = dashboard_service.build_dashboard_snapshot(session, filters)
+        prioridades = {row["label"]: row["total"] for row in snapshot.chart_prioridades}
+
+    assert prioridades["PT"] == 0
+    assert prioridades["ED"] == 0
+
+
 def test_dashboard_keeps_pt_and_ed_in_progress_for_same_turn_and_date(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = test_env
     reference_date = "2026-06-28"
@@ -495,6 +508,10 @@ def test_operacoes_page_aggregates_daily_modules(test_env: tuple[TestClient, ses
     assert "Central de Tintas" in response.text
     assert "Cabine de Pintura" in response.text
     assert "Iniciar turno" in response.text
+    assert "1º Turno" in response.text
+    assert "2º Turno" in response.text
+    assert "3º Turno" in response.text
+    assert "Ver histórico" in response.text
 
 
 def test_operacoes_start_route_creates_central_tintas_relatorio(test_env: tuple[TestClient, sessionmaker]) -> None:

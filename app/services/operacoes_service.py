@@ -43,6 +43,12 @@ ED_MODULE_CODES = [
     "rugosidade",
 ]
 
+STANDARD_SHIFT_CODES = ("1", "2", "3")
+STANDARD_SHIFT_LABELS = {
+    "1": "1º Turno",
+    "2": "2º Turno",
+    "3": "3º Turno",
+}
 
 STATUS_NAO_INICIADO = "nao_iniciado"
 STATUS_EM_ANDAMENTO = "em_andamento"
@@ -136,49 +142,38 @@ def _build_shift_module_card(
     )
     shifts = list(session.scalars(statement).unique().all())
     details = [build_shift_detail(session, shift, module_codes=module_codes) for shift in shifts]
-    paired_details = list(zip(shifts, details))
-    active_pair = next((pair for pair in paired_details if pair[1]["status_geral"] != "CONCLUIDO"), None)
-    target_pair = active_pair or (paired_details[0] if paired_details else None)
-    target_shift = target_pair[0] if target_pair else None
-    target = target_pair[1] if target_pair else None
-    if target is None:
-        return _empty_module_card(code=code, title=title, list_url=list_url)
 
-    base_status = STATUS_EM_ANDAMENTO if target["status_geral"] != "CONCLUIDO" else STATUS_CONCLUIDO
-    desvios = sum(int(module.get("desvios", 0)) for module in target.get("modules", []))
-    display_status = STATUS_PENDENTE if desvios > 0 else base_status
-    has_active = base_status == STATUS_EM_ANDAMENTO
-    primary_action_url = (
-        f"/turnos-pt/{target['id']}" if operation_scope == "pt" else f"/turnos/{target['id']}"
-    )
-    if not has_active:
-        primary_action_url = f"{primary_action_url}/visualizar"
+    turno_map: dict[str, dict[str, Any]] = {}
+    for shift, detail in zip(shifts, details):
+        turno_code = _normalize_turno_code(getattr(shift, "turno", None) or detail.get("turno"))
+        if turno_code not in STANDARD_SHIFT_CODES or turno_code in turno_map:
+            continue
+        status = STATUS_CONCLUIDO if detail.get("status_geral") == "CONCLUIDO" else STATUS_EM_ANDAMENTO
+        responsavel = detail.get("responsavel_pted") or detail.get("responsavel_lab") or "-"
+        turno_map[turno_code] = {
+            "turno_code": turno_code,
+            "status": status,
+            "filled_count": int(detail.get("total_concluidos", 0)),
+            "total_count": int(detail.get("total_exigiveis", 0)),
+            "desvios": sum(int(module.get("desvios", 0)) for module in detail.get("modules", [])),
+            "updated_at": getattr(shift, "updated_at", None),
+            "responsavel": responsavel,
+            "action_label": "Abrir" if status == STATUS_EM_ANDAMENTO else "Visualizar",
+            "action_url": (
+                f"/turnos-pt/{detail['id']}" if operation_scope == "pt" else f"/turnos/{detail['id']}"
+            ),
+            "action_kind": "link",
+            "action_style": "primary" if status == STATUS_EM_ANDAMENTO else "secondary",
+        }
+        if status == STATUS_CONCLUIDO:
+            turno_map[turno_code]["action_url"] = f"{turno_map[turno_code]['action_url']}/visualizar"
 
-    responsavel = target.get("responsavel_pted") or target.get("responsavel_lab") or "-"
-    extra_meta = None
-    if operation_scope == "ed" and target.get("responsavel_lab") and target.get("responsavel_lab") != responsavel:
-        extra_meta = f"Laboratório: {target['responsavel_lab']}"
-
-    return _finalize_module_card(
+    return _build_module_card_from_turnos(
         code=code,
         title=title,
         list_url=list_url,
-        base_status=base_status,
-        display_status=display_status,
-        filled_count=int(target.get("total_concluidos", 0)),
-        total_count=int(target.get("total_exigiveis", 0)),
-        progress_percent=int(target.get("progresso_percentual", 0)),
-        responsavel=responsavel,
-        turno=target.get("turno") or "-",
-        updated_label=_format_datetime_label(getattr(target_shift, "updated_at", None)),
-        desvios=desvios,
-        primary_action_label="Abrir turno" if has_active else "Visualizar",
-        primary_action_url=primary_action_url,
-        start_url="/operacoes/iniciar",
-        has_active=has_active,
-        turnos_encontrados=len(details),
-        message=None,
-        responsavel_aux=extra_meta,
+        turno_map=turno_map,
+        can_start=True,
     )
 
 
@@ -195,46 +190,39 @@ def _build_sigilatura_module_card(session: Session, data_referencia: date) -> di
     )
     turnos = list(session.scalars(statement).unique().all())
     details = [build_turno_detail(session, turno) for turno in turnos]
-    paired_details = list(zip(turnos, details))
-    active_pair = next((pair for pair in paired_details if pair[1]["status_geral"] != SIG_SHIFT_STATUS_CONCLUIDO), None)
-    target_pair = active_pair or (paired_details[0] if paired_details else None)
-    target_turno = target_pair[0] if target_pair else None
-    target = target_pair[1] if target_pair else None
-    if target is None:
-        return _empty_module_card(code="sigilatura", title="Sigilatura", list_url=list_url)
 
-    base_status = (
-        STATUS_CONCLUIDO
-        if target["status_geral"] == SIG_SHIFT_STATUS_CONCLUIDO
-        else STATUS_EM_ANDAMENTO
-        if target["status_geral"] in {SIG_SHIFT_STATUS_EM_ANDAMENTO, SIG_SHIFT_STATUS_PARCIAL}
-        else STATUS_NAO_INICIADO
-    )
-    display_status = STATUS_PENDENTE if int(target.get("total_desvios", 0)) > 0 else base_status
-    has_active = base_status == STATUS_EM_ANDAMENTO
-    primary_action_url = f"/turnos-sigilatura/{target['id']}"
-    if not has_active:
-        primary_action_url = f"{primary_action_url}/visualizar"
+    turno_map: dict[str, dict[str, Any]] = {}
+    for turno, detail in zip(turnos, details):
+        turno_code = _normalize_turno_code(getattr(turno, "turno", None) or detail.get("turno"))
+        if turno_code not in STANDARD_SHIFT_CODES or turno_code in turno_map:
+            continue
 
-    return _finalize_module_card(
+        raw_status = detail.get("status_geral")
+        status = STATUS_CONCLUIDO if raw_status == SIG_SHIFT_STATUS_CONCLUIDO else STATUS_EM_ANDAMENTO
+        turno_map[turno_code] = {
+            "turno_code": turno_code,
+            "status": status,
+            "filled_count": int(detail.get("total_filled", 0)),
+            "total_count": int(detail.get("total_items", 0)),
+            "desvios": int(detail.get("total_desvios", 0)),
+            "updated_at": getattr(turno, "updated_at", None),
+            "responsavel": detail.get("responsavel") or "-",
+            "action_label": "Abrir" if raw_status in {SIG_SHIFT_STATUS_EM_ANDAMENTO, SIG_SHIFT_STATUS_PARCIAL} else "Visualizar",
+            "action_url": (
+                f"/turnos-sigilatura/{detail['id']}"
+                if raw_status in {SIG_SHIFT_STATUS_EM_ANDAMENTO, SIG_SHIFT_STATUS_PARCIAL}
+                else f"/turnos-sigilatura/{detail['id']}/visualizar"
+            ),
+            "action_kind": "link",
+            "action_style": "primary" if raw_status in {SIG_SHIFT_STATUS_EM_ANDAMENTO, SIG_SHIFT_STATUS_PARCIAL} else "secondary",
+        }
+
+    return _build_module_card_from_turnos(
         code="sigilatura",
         title="Sigilatura",
         list_url=list_url,
-        base_status=base_status,
-        display_status=display_status,
-        filled_count=int(target.get("total_filled", 0)),
-        total_count=int(target.get("total_items", 0)),
-        progress_percent=int(target.get("progresso", 0)),
-        responsavel=target.get("responsavel") or "-",
-        turno=target.get("turno") or "-",
-        updated_label=_format_datetime_label(getattr(target_turno, "updated_at", None)),
-        desvios=int(target.get("total_desvios", 0)),
-        primary_action_label="Abrir turno" if has_active else "Visualizar",
-        primary_action_url=primary_action_url,
-        start_url="/operacoes/iniciar",
-        has_active=has_active,
-        turnos_encontrados=len(details),
-        message=None,
+        turno_map=turno_map,
+        can_start=True,
     )
 
 
@@ -291,62 +279,78 @@ def _build_relatorio_module_card(
         .order_by(model.updated_at.desc(), model.turno.desc(), model.id.desc())
     )
     relatorios = list(session.scalars(statement).unique().all())
-    active = next((relatorio for relatorio in relatorios if relatorio.status == active_status), None)
-    target = active or (relatorios[0] if relatorios else None)
-    if target is None:
-        return _empty_module_card(code=code, title=title, list_url=list_url)
 
-    context = context_builder(session, target)
-    base_status = STATUS_CONCLUIDO if target.status == concluded_status else STATUS_EM_ANDAMENTO
-    progress = context.get("summary", {})
-    filled_count = int(progress.get("preenchidos", 0))
-    total_count = int(progress.get("total", 0))
-    display_status = base_status
-    return _finalize_module_card(
+    turno_map: dict[str, dict[str, Any]] = {}
+    for relatorio in relatorios:
+        turno_code = _normalize_turno_code(getattr(relatorio, "turno", None))
+        if turno_code not in STANDARD_SHIFT_CODES or turno_code in turno_map:
+            continue
+
+        context = context_builder(session, relatorio)
+        progress = context.get("summary", {})
+        is_active = relatorio.status == active_status
+        turno_map[turno_code] = {
+            "turno_code": turno_code,
+            "status": STATUS_EM_ANDAMENTO if is_active else STATUS_CONCLUIDO,
+            "filled_count": int(progress.get("preenchidos", 0)),
+            "total_count": int(progress.get("total", 0)),
+            "desvios": int(progress.get("desvios", 0) or 0),
+            "updated_at": getattr(relatorio, "updated_at", None),
+            "responsavel": context.get("responsavel") or "-",
+            "action_label": "Abrir" if is_active else "Visualizar",
+            "action_url": f"{list_url}/{relatorio.id}" if is_active else f"{list_url}/{relatorio.id}/visualizar",
+            "action_kind": "link",
+            "action_style": "primary" if is_active else "secondary",
+        }
+        if relatorio.status not in {active_status, concluded_status}:
+            turno_map[turno_code]["status"] = STATUS_EM_ANDAMENTO
+            turno_map[turno_code]["action_label"] = "Abrir"
+            turno_map[turno_code]["action_url"] = f"{list_url}/{relatorio.id}"
+            turno_map[turno_code]["action_style"] = "primary"
+
+    return _build_module_card_from_turnos(
         code=code,
         title=title,
         list_url=list_url,
-        base_status=base_status,
-        display_status=display_status,
-        filled_count=filled_count,
-        total_count=total_count,
-        progress_percent=int(progress.get("percentual", 0)),
-        responsavel=context.get("responsavel") or "-",
-        turno=context.get("turno") or "-",
-        updated_label=_format_datetime_label(getattr(target, "updated_at", None)),
-        desvios=0,
-        primary_action_label="Abrir turno" if base_status == STATUS_EM_ANDAMENTO else "Visualizar",
-        primary_action_url=f"{list_url}/{target.id}" if base_status == STATUS_EM_ANDAMENTO else f"{list_url}/{target.id}/visualizar",
-        start_url="/operacoes/iniciar",
-        has_active=base_status == STATUS_EM_ANDAMENTO,
-        turnos_encontrados=len(relatorios),
-        message=None,
+        turno_map=turno_map,
+        can_start=True,
     )
 
 
-def _finalize_module_card(
+def _build_module_card_from_turnos(
     *,
     code: str,
     title: str,
     list_url: str,
-    base_status: str,
-    display_status: str,
-    filled_count: int,
-    total_count: int,
-    progress_percent: int,
-    responsavel: str,
-    turno: str,
-    updated_label: str,
-    desvios: int,
-    primary_action_label: str,
-    primary_action_url: str,
-    start_url: str,
-    has_active: bool,
-    turnos_encontrados: int,
-    message: str | None,
-    responsavel_aux: str | None = None,
-    can_start: bool | None = None,
+    turno_map: dict[str, dict[str, Any]],
+    can_start: bool,
+    message: str | None = None,
 ) -> dict[str, Any]:
+    shift_rows = [_build_shift_row(code, title, turno_code, turno_map.get(turno_code), can_start=can_start) for turno_code in STANDARD_SHIFT_CODES]
+
+    existing_rows = [row for row in shift_rows if row["status"] != STATUS_NAO_INICIADO]
+    total_desvios = sum(int(row.get("desvios", 0)) for row in existing_rows)
+    filled_count = sum(int(row.get("filled_count", 0)) for row in existing_rows)
+    total_count = sum(int(row.get("total_count", 0)) for row in existing_rows)
+    started_count = len(existing_rows)
+    all_concluded = bool(shift_rows) and all(row["status"] == STATUS_CONCLUIDO for row in shift_rows)
+    any_active = any(row["status"] == STATUS_EM_ANDAMENTO for row in shift_rows)
+    all_not_started = all(row["status"] == STATUS_NAO_INICIADO for row in shift_rows)
+    base_status = (
+        STATUS_CONCLUIDO
+        if all_concluded
+        else STATUS_NAO_INICIADO
+        if all_not_started
+        else STATUS_EM_ANDAMENTO
+    )
+    display_status = _resolve_display_status(
+        base_status=base_status,
+        total_desvios=total_desvios,
+        any_active=any_active,
+        all_not_started=all_not_started,
+    )
+    latest_update = max((row["updated_at"] for row in existing_rows if row.get("updated_at") is not None), default=None)
+
     return {
         "code": code,
         "title": title,
@@ -355,53 +359,109 @@ def _finalize_module_card(
         "status_label": STATUS_LABELS[display_status],
         "tone": STATUS_TONES[display_status],
         "status_class": f"operacoes-status--{display_status.replace('_', '-')}",
-        "progress_label": f"{filled_count}/{total_count}",
-        "progress_percent": progress_percent,
+        "progress_label": f"{filled_count}/{total_count}" if total_count else "0/0",
+        "progress_percent": int(round((filled_count / total_count) * 100)) if total_count else 0,
         "filled_count": filled_count,
         "total_count": total_count,
-        "responsavel": responsavel,
-        "responsavel_aux": responsavel_aux,
-        "turno": turno,
-        "updated_label": updated_label,
-        "desvios": desvios,
+        "responsavel": existing_rows[0]["responsavel"] if existing_rows else "-",
+        "turno": existing_rows[0]["turno_label"] if existing_rows else "-",
+        "updated_label": _format_datetime_label(latest_update),
+        "updated_time_label": _format_time_label(latest_update),
+        "desvios": total_desvios,
         "message": message,
-        "turnos_label": f"{turnos_encontrados} turno{'s' if turnos_encontrados != 1 else ''} no dia" if turnos_encontrados else None,
-        "primary_action_label": primary_action_label,
-        "primary_action_url": primary_action_url,
+        "turnos_label": f"{started_count}/3 turnos iniciados" if started_count else "Sem turno no dia",
+        "shift_rows": shift_rows,
+        "footer_items_label": f"{total_count} itens",
+        "footer_pendencias_label": f"{total_desvios} pendência{'s' if total_desvios != 1 else ''}",
+        "footer_updated_label": f"Atualizado { _format_time_label(latest_update) }" if latest_update else "Sem atualização",
         "secondary_action_label": "Ver histórico",
         "secondary_action_url": list_url,
-        "start_url": start_url,
-        "has_active": has_active,
-        "can_start": base_status == STATUS_NAO_INICIADO if can_start is None else can_start,
+        "can_start": can_start,
     }
 
 
+def _build_shift_row(
+    module_code: str,
+    module_title: str,
+    turno_code: str,
+    turno_data: dict[str, Any] | None,
+    *,
+    can_start: bool,
+) -> dict[str, Any]:
+    if turno_data is None:
+        return {
+            "turno_code": turno_code,
+            "turno_label": STANDARD_SHIFT_LABELS[turno_code],
+            "status": STATUS_NAO_INICIADO,
+            "status_label": STATUS_LABELS[STATUS_NAO_INICIADO],
+            "tone": STATUS_TONES[STATUS_NAO_INICIADO],
+            "status_class": f"operacoes-status--{STATUS_NAO_INICIADO.replace('_', '-')}",
+            "filled_count": 0,
+            "total_count": 0,
+            "desvios": 0,
+            "updated_at": None,
+            "responsavel": "-",
+            "action_label": "Iniciar" if can_start else "Indisponível",
+            "action_url": "#",
+            "action_kind": "start" if can_start else "disabled",
+            "action_style": "ghost",
+            "module_code": module_code,
+            "module_title": module_title,
+        }
+
+    row = dict(turno_data)
+    row["turno_label"] = STANDARD_SHIFT_LABELS[turno_code]
+    row["status_label"] = STATUS_LABELS[row["status"]]
+    row["tone"] = STATUS_TONES[row["status"]]
+    row["status_class"] = f"operacoes-status--{row['status'].replace('_', '-')}"
+    row["module_code"] = module_code
+    row["module_title"] = module_title
+    return row
+
+
+def _resolve_display_status(
+    *,
+    base_status: str,
+    total_desvios: int,
+    any_active: bool,
+    all_not_started: bool,
+) -> str:
+    if any_active:
+        return STATUS_EM_ANDAMENTO
+    if total_desvios > 0:
+        return STATUS_PENDENTE
+    if all_not_started:
+        return STATUS_NAO_INICIADO
+    return base_status
+
+
 def _empty_module_card(*, code: str, title: str, list_url: str, message: str | None = None) -> dict[str, Any]:
-    resolved_message = message or "Nenhum turno iniciado para esta data."
-    return _finalize_module_card(
+    return _build_module_card_from_turnos(
         code=code,
         title=title,
         list_url=list_url,
-        base_status=STATUS_NAO_INICIADO,
-        display_status=STATUS_NAO_INICIADO,
-        filled_count=0,
-        total_count=0,
-        progress_percent=0,
-        responsavel="-",
-        turno="-",
-        updated_label="-",
-        desvios=0,
-        primary_action_label="Iniciar turno",
-        primary_action_url="#",
-        start_url="/operacoes/iniciar",
-        has_active=False,
-        turnos_encontrados=0,
-        message=resolved_message,
-        can_start="não configurada" not in resolved_message.lower() and "nao configurada" not in resolved_message.lower(),
+        turno_map={},
+        can_start=not _is_unavailable_message(message),
+        message=message,
     )
+
+
+def _is_unavailable_message(message: str | None) -> bool:
+    lowered = str(message or "").strip().lower()
+    return "não configurada" in lowered or "nao configurada" in lowered
+
+
+def _normalize_turno_code(value: Any) -> str:
+    return str(value or "").strip()
 
 
 def _format_datetime_label(value) -> str:
     if value is None:
         return "-"
     return value.strftime("%d/%m/%Y %H:%M")
+
+
+def _format_time_label(value) -> str:
+    if value is None:
+        return "-"
+    return value.strftime("%H:%M")

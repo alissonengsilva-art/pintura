@@ -27,35 +27,13 @@
 {% endif %}
 
 <section class="operacoes-summary panel-card">
-    <div class="operacoes-summary__main">
-        <span class="operacoes-summary__eyebrow">Resumo executivo do dia</span>
-        <strong>{{ summary.progress_label }}</strong>
-        <p>{{ summary.percentual }}% dos módulos operacionais foram iniciados ou concluídos em {{ data_label }}.</p>
-        <div class="operacoes-summary__progress">
-            <span class="operacoes-summary__progress-fill" style="width: {{ summary.percentual }}%"></span>
-        </div>
-    </div>
-    <div class="operacoes-summary__metrics">
-        <article class="operacoes-summary-card">
-            <span>Módulos totais</span>
-            <strong>{{ summary.total_modulos }}</strong>
-        </article>
-        <article class="operacoes-summary-card">
-            <span>Concluídos</span>
-            <strong>{{ summary.concluidos }}</strong>
-        </article>
-        <article class="operacoes-summary-card">
-            <span>Em andamento</span>
-            <strong>{{ summary.em_andamento }}</strong>
-        </article>
-        <article class="operacoes-summary-card">
-            <span>Não iniciados</span>
-            <strong>{{ summary.nao_iniciados }}</strong>
-        </article>
-        <article class="operacoes-summary-card">
-            <span>Com pendências</span>
-            <strong>{{ summary.pendencias }}</strong>
-        </article>
+    <div class="operacoes-summary__inline">
+        <span class="operacoes-summary__title">Resumo do dia</span>
+        <span class="operacoes-summary__pill">{{ summary.progress_label }}</span>
+        <span class="operacoes-summary__item">Concluídos <strong>{{ summary.concluidos }}</strong></span>
+        <span class="operacoes-summary__item">Em andamento <strong>{{ summary.em_andamento }}</strong></span>
+        <span class="operacoes-summary__item">Não iniciados <strong>{{ summary.nao_iniciados }}</strong></span>
+        <span class="operacoes-summary__item">Pendências <strong>{{ summary.pendencias }}</strong></span>
     </div>
 </section>
 
@@ -65,65 +43,51 @@
         <div class="operacoes-module-card__head">
             <div>
                 <h2>{{ module.title }}</h2>
-                {% if module.turnos_label %}
                 <p>{{ module.turnos_label }}</p>
-                {% elif module.message %}
-                <p>{{ module.message }}</p>
-                {% endif %}
             </div>
             <span class="status-chip status-chip--{{ module.tone }}">{{ module.status_label }}</span>
         </div>
 
-        <div class="operacoes-module-card__progress">
-            <div class="operacoes-module-card__progress-meta">
-                <strong>{{ module.progress_label }}</strong>
-                <span>{{ module.progress_percent }}%</span>
+        <div class="operacoes-shift-list">
+            {% for row in module.shift_rows %}
+            <div class="operacoes-shift-row {{ row.status_class }}">
+                <div class="operacoes-shift-row__info">
+                    <strong>{{ row.turno_label }}</strong>
+                    <small>{{ row.status_label }}</small>
+                </div>
+                <div class="operacoes-shift-row__action">
+                    {% if row.action_kind == 'start' %}
+                    <button
+                        type="button"
+                        class="operacoes-shift-button operacoes-shift-button--{{ row.action_style }}"
+                        data-open-operacoes-start
+                        data-module-code="{{ row.module_code }}"
+                        data-module-title="{{ row.module_title }}"
+                        data-turno-code="{{ row.turno_code }}"
+                    >
+                        {{ row.action_label }}
+                    </button>
+                    {% elif row.action_kind == 'disabled' %}
+                    <span class="operacoes-shift-button operacoes-shift-button--disabled">{{ row.action_label }}</span>
+                    {% else %}
+                    <a class="operacoes-shift-button operacoes-shift-button--{{ row.action_style }}" href="{{ row.action_url }}">{{ row.action_label }}</a>
+                    {% endif %}
+                </div>
             </div>
-            <div class="operacoes-module-card__progress-bar">
-                <span style="width: {{ module.progress_percent }}%"></span>
-            </div>
-            <small>itens preenchidos / total de itens</small>
+            {% endfor %}
         </div>
 
-        <dl class="operacoes-module-card__meta">
-            <div>
-                <dt>Responsável</dt>
-                <dd>{{ module.responsavel }}</dd>
-            </div>
-            <div>
-                <dt>Turno</dt>
-                <dd>{{ module.turno }}</dd>
-            </div>
-            <div>
-                <dt>Última atualização</dt>
-                <dd>{{ module.updated_label }}</dd>
-            </div>
-            <div>
-                <dt>Pendências</dt>
-                <dd>{{ module.desvios }}</dd>
-            </div>
-            {% if module.responsavel_aux %}
-            <div class="operacoes-module-card__meta-wide">
-                <dt>Equipe</dt>
-                <dd>{{ module.responsavel_aux }}</dd>
-            </div>
-            {% endif %}
-        </dl>
+        <div class="operacoes-module-card__footer">
+            <span>{{ module.footer_items_label }}</span>
+            <span>{{ module.footer_pendencias_label }}</span>
+            <span>{{ module.footer_updated_label }}</span>
+        </div>
+
+        {% if module.message %}
+        <div class="operacoes-module-card__note">{{ module.message }}</div>
+        {% endif %}
 
         <div class="operacoes-module-card__actions">
-            {% if module.can_start %}
-            <button
-                type="button"
-                class="button-primary"
-                data-open-operacoes-start
-                data-module-code="{{ module.code }}"
-                data-module-title="{{ module.title }}"
-            >
-                {{ module.primary_action_label }}
-            </button>
-            {% else %}
-            <a class="button-primary" href="{{ module.primary_action_url }}">{{ module.primary_action_label }}</a>
-            {% endif %}
             <a class="button-secondary" href="{{ module.secondary_action_url }}">{{ module.secondary_action_label }}</a>
         </div>
     </article>
@@ -146,6 +110,7 @@
             </div>
             <form method="post" action="/operacoes/iniciar" class="op-form op-form--vertical">
                 <input type="hidden" name="module_code" id="operacoes_module_code" value="{{ selected_module_code }}">
+                <input type="hidden" id="operacoes_selected_turno" value="{{ form_data.get('turno', '') }}">
                 <div class="op-form__grid op-form__grid--2col">
                     <div class="op-form__group">
                         <label class="op-form__label" for="operacoes_data_referencia">Data do controle</label>
@@ -186,6 +151,8 @@
 
     var title = document.getElementById('operacoesStartTitle');
     var moduleField = document.getElementById('operacoes_module_code');
+    var turnoField = document.getElementById('operacoes_turno');
+    var selectedTurnoField = document.getElementById('operacoes_selected_turno');
     var closeButtons = document.querySelectorAll('[data-close-operacoes-start]');
     var openButtons = document.querySelectorAll('[data-open-operacoes-start]');
     var selectedModuleCode = '{{ selected_module_code }}';
@@ -197,6 +164,9 @@
         }
         button.addEventListener('click', function () {
             moduleField.value = button.getAttribute('data-module-code') || '';
+            if (turnoField) {
+                turnoField.value = button.getAttribute('data-turno-code') || '';
+            }
             title.textContent = 'Iniciar turno - ' + (button.getAttribute('data-module-title') || 'Operações');
             modal.hidden = false;
             modal.classList.add('op-modal--open');
@@ -205,6 +175,9 @@
 
     if (selectedModuleCode && selectedModuleTitle) {
         title.textContent = 'Iniciar turno - ' + selectedModuleTitle;
+    }
+    if (turnoField && selectedTurnoField && selectedTurnoField.value) {
+        turnoField.value = selectedTurnoField.value;
     }
 
     closeButtons.forEach(function (button) {
