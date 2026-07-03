@@ -1,32 +1,153 @@
-﻿<section class="panel-card table-panel">
+<section class="panel-card table-panel {% if module_code == 'aspecto' %}table-panel--aspecto{% endif %}">
+    {% if module_code == 'aspecto' %}
+    <div class="aspecto-admin-shell" data-aspecto-admin>
+        <div class="aspecto-admin-header">
+            <p class="aspecto-admin-eyebrow">Configuracoes</p>
+            <h3>ED / Aspecto</h3>
+            <p>Catalogos de listas suspensas usados nas colunas do modulo de aspecto.</p>
+        </div>
+
+        <div class="aspecto-category-nav" data-aspecto-category-nav>
+            {% for option in aspecto_option_categories %}
+            {% set option_count = rows | selectattr('operacao', 'equalto', option.value) | list | length %}
+            <button
+                type="button"
+                class="aspecto-category-pill"
+                data-aspecto-category-button
+                data-category="{{ option.value }}"
+            >
+                <span>{{ option.label }}</span>
+                <strong data-aspecto-category-count-badge>{{ option_count }}</strong>
+            </button>
+            {% endfor %}
+        </div>
+
+        <div class="aspecto-category-panel">
+            <div class="aspecto-category-panel__header">
+                <div>
+                    <h4 data-aspecto-category-heading>Posicao</h4>
+                    <p data-aspecto-category-description>Opcoes usadas na coluna Posicao.</p>
+                </div>
+            </div>
+
+            <div class="aspecto-category-panel__toolbar">
+                <button type="button" class="button-primary" data-add-item-inline>Novo item</button>
+            </div>
+
+            <div class="table-wrapper table-wrapper--aspecto">
+                <table class="module-items-grid module-items-grid--aspecto">
+                    <thead>
+                        <tr class="table-row table-head-row table-row--aspecto">
+                            <th data-col-ordem>Ordem</th>
+                            <th data-col-valor>Valor</th>
+                            <th data-col-ativo>Status</th>
+                            <th data-col-acoes>Acoes</th>
+                        </tr>
+                    </thead>
+                    <tbody data-aspecto-table-body>
+                        {% for row in rows %}
+                        <tr
+                            class="table-row table-row--aspecto aspecto-catalog-row"
+                            data-admin-row
+                            data-row-key="{{ row.id }}"
+                            data-editing="false"
+                            data-category="{{ row.operacao }}"
+                            data-status="{% if row.ativo %}ativo{% else %}inativo{% endif %}"
+                        >
+                            <td data-col-ordem>
+                                <input type="number" data-field="ordem" data-editable data-inline-input value="{{ row.ordem }}" min="0" disabled>
+                            </td>
+                            <td data-col-valor>
+                                <div class="aspecto-value-stack">
+                                    <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled placeholder="Valor da lista">
+                                    <div class="aspecto-value-meta">
+                                        <select data-field="operacao" data-editable data-inline-select class="aspecto-category-select" disabled>
+                                            {% for option in aspecto_option_categories %}
+                                            <option value="{{ option.value }}" {% if row.operacao == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <input type="hidden" data-field="aba" value="{{ row.aba or selected_aba or '' }}">
+                                <select data-field="setor_tipo" hidden>
+                                    {% for option in sector_options %}
+                                    <option value="{{ option.value }}" {% if row.setor_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select data-field="frequencia_tipo" hidden>
+                                    {% for option in frequency_options %}
+                                    <option value="{{ option.value }}" {% if row.frequencia_tipo == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select data-field="prioridade" hidden>
+                                    {% for option in priority_options %}
+                                    <option value="{{ option.value }}" {% if row.prioridade == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="hidden" data-field="dia_semana" value="{{ row.dia_semana if row.dia_semana is not none else '' }}">
+                                <input type="hidden" data-field="dia_mes" value="{{ row.dia_mes if row.dia_mes is not none else '' }}">
+                                <select data-field="tipo_validacao" hidden>
+                                    {% for option in validation_type_options %}
+                                    <option value="{{ option.value }}" {% if row.tipo_validacao == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="hidden" data-field="limite_minimo" value="{{ row.limite_minimo if row.limite_minimo is not none else '' }}">
+                                <input type="hidden" data-field="limite_maximo" value="{{ row.limite_maximo if row.limite_maximo is not none else '' }}">
+                                <input type="hidden" data-field="unidade" value="{{ row.unidade or '' }}">
+                                <input type="hidden" data-field="parametro_exibicao" value="{{ row.parametro_exibicao or '' }}">
+                            </td>
+                            <td data-col-ativo>
+                                <label class="aspecto-status-toggle">
+                                    <input type="checkbox" data-field="ativo" data-editable {% if row.ativo %}checked{% endif %} disabled>
+                                    <span class="aspecto-status-pill" data-aspecto-status-pill>{% if row.ativo %}Ativo{% else %}Inativo{% endif %}</span>
+                                </label>
+                            </td>
+                            <td data-col-acoes class="actions-cell">
+                                <button type="button" class="button-secondary small" data-row-edit>Editar</button>
+                                <button type="button" class="button-danger small" data-row-delete>Excluir</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <tr data-aspecto-empty-state {% if rows %}hidden{% endif %}>
+                            <td colspan="4" class="empty-state">Nenhum item encontrado nesta categoria.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
     <div class="section-header-inline compact">
         <div>
             <h3>{{ module_title }}</h3>
-            <p>Edite os itens e a periodicidade deste módulo.</p>
+            <p>Edite os itens e a periodicidade deste modulo.</p>
         </div>
     </div>
 
     <div class="table-wrapper">
         <table class="module-items-grid">
             <thead>
-                <tr class="table-row table-head-row">
+                <tr class="table-row table-head-row {% if show_turno_responsavel %}table-row--with-turno{% endif %}">
                     <th data-col-item>Item</th>
                     <th data-col-setor>Setor</th>
-                    <th data-col-frequencia>Frequência</th>
+                    {% if show_turno_responsavel %}
+                    <th data-col-turno>Turno Responsavel</th>
+                    {% endif %}
+                    <th data-col-frequencia>Frequencia</th>
                     <th data-col-prioridade>Prioridade</th>
                     <th data-col-dia>Dia</th>
                     <th data-col-ordem>Ordem</th>
                     <th data-col-ativo>Ativo</th>
-                    <th data-col-validacao>Validação</th>
+                    <th data-col-validacao>Validacao</th>
                     <th data-col-limites>Regra / Limite</th>
                     <th data-col-unidade>Unidade</th>
-                    <th data-col-referencia>Referência visual</th>
-                    <th data-col-acoes>Ações</th>
+                    <th data-col-referencia>Referencia visual</th>
+                    <th data-col-acoes>Acoes</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in rows %}
-                <tr class="table-row" data-admin-row data-row-key="{{ row.id }}" data-editing="false">
+                <tr class="table-row {% if show_turno_responsavel %}table-row--with-turno{% endif %}" data-admin-row data-row-key="{{ row.id }}" data-editing="false">
                     <td data-col-item>
                         {% if module_code in ['central-tintas', 'cabine-pintura'] %}
                         <input
@@ -35,15 +156,26 @@
                             data-editable
                             data-inline-input
                             value="{% if row.operacao %}{{ row.operacao }} - {% endif %}{{ row.controle }}"
-                            placeholder="Operação / Controle"
+                            placeholder="Operacao / Controle"
                             disabled
                         >
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
                         <input type="hidden" data-field="controle" value="{{ row.controle }}">
                         <input type="hidden" data-field="aba" value="{{ row.aba or selected_aba or '' }}">
-                        {% elif module_code == 'ed' %}
-                        <input type="text" data-field="operacao" data-editable data-inline-input value="{{ row.operacao or '' }}" disabled placeholder="Operação">
+                        {% elif module_code in ['ed', 'aspecto'] %}
+                        {% if module_code == 'aspecto' %}
+                        <div class="aspecto-option-stack">
+                            <select data-field="operacao" data-editable data-inline-select disabled>
+                                {% for option in aspecto_option_categories %}
+                                <option value="{{ option.value }}" {% if row.operacao == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled placeholder="Opcao da lista">
+                        </div>
+                        {% else %}
+                        <input type="text" data-field="operacao" data-editable data-inline-input value="{{ row.operacao or '' }}" disabled placeholder="Operacao">
                         <input type="text" data-field="controle" data-editable data-inline-input value="{{ row.controle }}" disabled placeholder="Controle">
+                        {% endif %}
                         {% else %}
                         <input type="hidden" data-field="operacao" value="{{ row.operacao or '' }}">
                         {% if row.operacao and module_code not in ['escorrimento', 'rugosidade', 'sigilatura', 'espessura-pvc', 'temperatura-forno-sigilatura'] %}
@@ -59,6 +191,15 @@
                             {% endfor %}
                         </select>
                     </td>
+                    {% if show_turno_responsavel %}
+                    <td data-col-turno>
+                        <select data-field="turno_padrao" data-editable data-inline-select disabled>
+                            {% for option in turn_options %}
+                            <option value="{{ option.value }}" {% if row.turno_padrao == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    {% endif %}
                     <td data-col-frequencia>
                         <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia" disabled>
                             {% for option in frequency_options %}
@@ -74,7 +215,7 @@
                         </select>
                     </td>
                     <td data-col-dia>
-                        <span data-day-static {% if row.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>—</span>
+                        <span data-day-static {% if row.frequencia_tipo in ['semanal', 'mensal'] %}hidden{% endif %}>-</span>
                         <div data-day-weekly {% if row.frequencia_tipo != 'semanal' %}hidden{% endif %}>
                             <select data-field="dia_semana" data-editable disabled>
                                 <option value="">Selecione</option>
@@ -111,7 +252,7 @@
                         <input type="text" data-field="unidade" data-editable data-inline-input value="{{ row.unidade or '' }}" disabled>
                     </td>
                     <td data-col-referencia>
-                        <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="{{ row.parametro_exibicao or '' }}" placeholder="Ex.: ≥2,5 L/min (≥150 L/h)" disabled>
+                        <input type="text" data-field="parametro_exibicao" data-editable data-inline-input value="{{ row.parametro_exibicao or '' }}" placeholder="Ex.: >=2,5 L/min (>=150 L/h)" disabled>
                     </td>
                     <td data-col-acoes class="actions-cell">
                         <button type="button" class="button-secondary small" data-row-edit>Editar</button>
@@ -120,10 +261,11 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="12" class="empty-state">Nenhum item encontrado para este módulo.</td>
+                    <td colspan="{% if show_turno_responsavel %}13{% else %}12{% endif %}" class="empty-state">Nenhum item encontrado para este modulo.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
 </section>

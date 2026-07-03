@@ -24,6 +24,21 @@ VALIDATION_TYPE_OPTIONS = [
     {"value": module_parameter_validation.VALIDATION_SETPOINT_MARGIN, "label": "Setpoint + margem %"},
     {"value": module_parameter_validation.VALIDATION_NONE, "label": "nenhum"},
 ]
+TURN_OPTIONS = [
+    {"value": "TODOS", "label": "Todos"},
+    {"value": "1", "label": "1º turno"},
+    {"value": "2", "label": "2º turno"},
+    {"value": "3", "label": "3º turno"},
+]
+PT_TURN_VALUES = {str(option["value"]) for option in TURN_OPTIONS}
+ASPECTO_OPTION_CATEGORIES = [
+    {"value": "POSICAO", "label": "POSIÇÃO"},
+    {"value": "PECAS", "label": "PEÇAS"},
+    {"value": "ANOMALIA", "label": "ANOMALIA"},
+    {"value": "LADO", "label": "LADO"},
+    {"value": "GERACAO", "label": "GERAÇÃO"},
+]
+ASPECTO_OPTION_CATEGORY_VALUES = {str(option["value"]) for option in ASPECTO_OPTION_CATEGORIES}
 
 
 @dataclass(frozen=True)
@@ -34,6 +49,9 @@ class ModuleAdminContext:
     available_abas: list[str]
     selected_aba: str | None
     sector_options: list[dict[str, str]]
+    turn_options: list[dict[str, str]]
+    show_turno_responsavel: bool
+    aspecto_option_categories: list[dict[str, str]]
 
 
 def list_modules() -> list[dict[str, str]]:
@@ -62,18 +80,18 @@ def build_module_context(session: Session, module_code: str, *, aba: str | None 
             )
         ).all()
     )
+    if module_code == "aspecto":
+        all_items = [
+            item
+            for item in all_items
+            if str(item.operacao or "").strip().upper() in ASPECTO_OPTION_CATEGORY_VALUES
+        ]
     available_abas = []
     if module_code == "cabine-pintura":
-        available_abas = [
-            aba_value
-            for aba_value in dict.fromkeys(str(item.aba or "").strip() for item in all_items if str(item.aba or "").strip())
-            if aba_value
-        ]
-        if available_abas:
-            aba = str(aba or "").strip() or available_abas[0]
-            all_items = [item for item in all_items if str(item.aba or "").strip() == aba]
-        else:
-            aba = None
+        available_abas = list(CABINE_PINTURA_ABAS)
+        normalized_aba = str(aba or "").strip()
+        aba = normalized_aba if normalized_aba in available_abas else available_abas[0]
+        all_items = [item for item in all_items if str(item.aba or "").strip() == aba]
     groups = _group_items(all_items)
     rows = [_serialize_group(group, sector_label_map) for group in groups]
     return ModuleAdminContext(
@@ -83,6 +101,9 @@ def build_module_context(session: Session, module_code: str, *, aba: str | None 
         available_abas=available_abas,
         selected_aba=aba,
         sector_options=sector_options,
+        turn_options=TURN_OPTIONS,
+        show_turno_responsavel=module_code == "pt",
+        aspecto_option_categories=ASPECTO_OPTION_CATEGORIES,
     )
 
 
@@ -321,6 +342,7 @@ def _serialize_group(group: list[OperationalModuleItem], sector_label_map: dict[
             setor_tipo,
             operational_module_item_service.SETOR_LABELS.get(setor_tipo, setor_tipo),
         ),
+        "turno_padrao": _normalize_turno_padrao_for_module(item.module_code, item.turno_padrao),
         "frequencia_tipo": item.frequencia_tipo or operational_module_item_service.FREQUENCY_DIARIO,
         "prioridade": _normalize_priority(item.prioridade),
         "dia_semana": _normalize_weekday(item.dia_semana),
@@ -336,7 +358,7 @@ def _serialize_group(group: list[OperationalModuleItem], sector_label_map: dict[
 
 
 def _group_items(items: list[OperationalModuleItem]) -> list[list[OperationalModuleItem]]:
-    grouped: dict[tuple[str, str, str, str], list[OperationalModuleItem]] = {}
+    grouped: dict[tuple[str, ...], list[OperationalModuleItem]] = {}
     ordered_groups: list[list[OperationalModuleItem]] = []
     for item in items:
         key = _group_key(item)
@@ -349,13 +371,21 @@ def _group_items(items: list[OperationalModuleItem]) -> list[list[OperationalMod
     return ordered_groups
 
 
-def _group_key(item: OperationalModuleItem) -> tuple[str, str, str, str]:
-    return (
+def _group_key(item: OperationalModuleItem) -> tuple[str, ...]:
+    base_key = (
         f"{str(item.module_code or '').strip().lower()}|{str(item.aba or '').strip().lower()}",
         str(item.setor_tipo or "").strip().upper(),
         str(item.operacao or "").strip().lower(),
         str(item.controle or "").strip().lower(),
     )
+    if str(item.module_code or "").strip().lower() == "pt":
+        return (
+            *base_key,
+            str(item.turno_padrao or "").strip().upper(),
+            str(item.numero_coleta or ""),
+            str(item.id or ""),
+        )
+    return base_key
 
 
 def _normalize_row_payload(
@@ -368,6 +398,9 @@ def _normalize_row_payload(
     controle = str(payload.get("controle") or "").strip()
     if not controle:
         raise ValueError("Informe o nome do item.")
+    operacao = str(payload.get("operacao") or "").strip()
+    if module_code == "aspecto":
+        operacao = normalize_aspecto_option_category(operacao)
 
     setor_tipo = _normalize_sector_value(payload.get("setor_tipo"))
     if setor_tipo not in set(_available_sector_values(session)):
@@ -417,8 +450,13 @@ def _normalize_row_payload(
         "aba": str(payload.get("aba") or (existing_item.aba if existing_item else "") or _default_aba_for_module(module_code, setor_tipo)).strip() or _default_aba_for_module(module_code, setor_tipo),
         "module_code": module_code,
         "controle": controle,
-        "operacao": str(payload.get("operacao") or "").strip() or None,
+        "operacao": operacao or None,
         "setor_tipo": setor_tipo,
+        "turno_padrao": _normalize_turno_padrao_payload(
+            module_code,
+            payload.get("turno_padrao"),
+            existing_item.turno_padrao if existing_item else None,
+        ),
         "frequencia_tipo": frequencia_tipo,
         "prioridade": prioridade,
         "dia_semana": dia_semana,
@@ -445,6 +483,7 @@ def _apply_row_payload(item: OperationalModuleItem, payload: dict[str, object | 
     item.aba = payload["aba"]
     item.operacao = payload["operacao"]
     item.setor_tipo = str(payload["setor_tipo"])
+    item.turno_padrao = payload["turno_padrao"]
     item.frequencia_tipo = str(payload["frequencia_tipo"])
     item.prioridade = _normalize_priority(payload.get("prioridade"))
     item.dia_semana = payload["dia_semana"]
@@ -489,6 +528,39 @@ def _default_aba_for_module(module_code: str, setor_tipo: str) -> str:
     if str(module_code or "").strip().lower() == "cabine-pintura":
         return "TOP COAT"
     return _aba_from_setor(setor_tipo)
+
+
+def _normalize_turno_padrao_for_module(module_code: str | None, value: object | None) -> str:
+    if str(module_code or "").strip().lower() != "pt":
+        return str(value or "").strip()
+    normalized = str(value or "").strip().upper()
+    if normalized in {"", "TODOS"}:
+        return "TODOS"
+    if normalized in PT_TURN_VALUES:
+        return normalized
+    return "TODOS"
+
+
+def _normalize_turno_padrao_payload(
+    module_code: str,
+    payload_value: object | None,
+    existing_value: object | None,
+) -> str | None:
+    if str(module_code or "").strip().lower() == "pt":
+        normalized = _normalize_turno_padrao_for_module(module_code, payload_value if payload_value is not None else existing_value)
+        if normalized not in PT_TURN_VALUES:
+            raise ValueError("Turno responsável inválido.")
+        return normalized
+    raw_value = payload_value if payload_value is not None else existing_value
+    text = str(raw_value or "").strip()
+    return text or None
+
+
+def normalize_aspecto_option_category(value: object | None) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized not in ASPECTO_OPTION_CATEGORY_VALUES:
+        raise ValueError("Categoria de opção do Aspecto inválida.")
+    return normalized
 
 
 def _normalize_nullable_int(value: object | None) -> int | None:

@@ -701,6 +701,21 @@ def test_unified_module_items_admin_page_supports_central_tintas_area(test_env: 
     assert 'data-field="item_nome"' in response.text
 
 
+def test_unified_module_items_admin_page_supports_aspecto_option_catalog(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens?area=ed&modulo=aspecto")
+
+    assert response.status_code == 200
+    assert "Aspecto" in response.text
+    assert "aspectoOptionCategories" in response.text
+    assert "POSICAO" in response.text
+    assert "PECAS" in response.text
+    assert "ANOMALIA" in response.text
+    assert "GERACAO" in response.text
+
+
 def test_unified_module_items_admin_page_supports_cabine_pintura_area_and_abas(test_env: tuple[TestClient, sessionmaker]) -> None:
     client, _ = test_env
     _enable_admin_override()
@@ -716,6 +731,28 @@ def test_unified_module_items_admin_page_supports_cabine_pintura_area_and_abas(t
     assert "DATA PAQ" in response.text
     assert "Abas da Cabine de Pintura" not in response.text
     assert 'data-field="aba"' in response.text
+
+
+def test_unified_module_items_admin_page_renders_edit_all_button(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens?area=pt&modulo=pt")
+
+    assert response.status_code == 200
+    assert 'data-edit-all' in response.text
+    assert "Editar todos" in response.text
+
+
+def test_unified_module_items_admin_page_renders_turno_responsavel_for_pt(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, _ = test_env
+    _enable_admin_override()
+
+    response = client.get("/configuracoes/modulos-itens?area=pt&modulo=pt")
+
+    assert response.status_code == 200
+    assert "Turno Responsável" in response.text
+    assert 'data-field="turno_padrao"' in response.text
 
 
 def test_unified_module_items_admin_page_backfills_missing_cabine_pintura_abas(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -747,6 +784,39 @@ def test_unified_module_items_admin_page_backfills_missing_cabine_pintura_abas(t
     assert "TOP COAT" in abas
     assert "TEMPERATURA FORNO" in abas
     assert "DATA PAQ" in abas
+
+
+def test_unified_module_items_admin_page_ignores_invalid_cabine_pintura_abas(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        session.add(
+            OperationalModuleItem(
+                module_code="cabine-pintura",
+                modulo="cabine-pintura",
+                escopo="cabine_pintura",
+                aba="PREPARACAO",
+                operacao="TESTE",
+                controle="ABA INVALIDA",
+                setor_tipo="AMBOS",
+                frequencia_tipo="diario",
+                prioridade="medio",
+                ordem=9999,
+                ativo=True,
+                obrigatorio=True,
+                tipo_validacao="nenhum",
+            )
+        )
+        session.commit()
+
+    response = client.get("/configuracoes/modulos-itens?area=cabine-pintura&modulo=cabine-pintura")
+
+    assert response.status_code == 200
+    assert "TOP COAT" in response.text
+    assert "TEMPERATURA FORNO" in response.text
+    assert "DATA PAQ" in response.text
+    assert "PREPARACAO" not in response.text
 
 
 def test_unified_module_items_partial_changes_module_tab(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -849,6 +919,134 @@ def test_module_items_batch_updates_existing_item_fields(test_env: tuple[TestCli
         assert saved.dia_mes == 7
         assert saved.ordem == 44
         assert saved.ativo is False
+
+
+def test_module_items_batch_updates_pt_turno_responsavel(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item = OperationalModuleItem(
+            module_code="pt",
+            modulo="pt",
+            escopo="pt",
+            setor_tipo="PTED",
+            controle="ITEM PT TESTE",
+            turno_padrao="TODOS",
+            frequencia_tipo="diario",
+            prioridade="medio",
+            ordem=1,
+            ativo=True,
+            obrigatorio=True,
+            tipo_validacao="nenhum",
+        )
+        session.add(item)
+        session.commit()
+        item_id = item.id
+
+    response = client.post(
+        "/configuracoes/modulos-itens/pt/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_id,
+                    "controle": "Banho 1",
+                    "operacao": "",
+                    "setor_tipo": "PTED",
+                    "turno_padrao": "2",
+                    "frequencia_tipo": "diario",
+                    "dia_semana": None,
+                    "dia_mes": None,
+                    "ordem": 10,
+                    "ativo": True,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved = session.get(OperationalModuleItem, item_id)
+        assert saved is not None
+        assert saved.turno_padrao == "2"
+
+
+def test_module_items_batch_updates_only_selected_pt_item(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+    _enable_admin_override()
+
+    with session_factory() as session:
+        item_turno_1 = OperationalModuleItem(
+            module_code="pt",
+            modulo="pt",
+            escopo="pt",
+            setor_tipo="PTED",
+            operacao="BANHO",
+            controle="DESENGRAXANTE 0",
+            turno_padrao="1",
+            numero_coleta=1,
+            frequencia_tipo="diario",
+            prioridade="medio",
+            ordem=1,
+            ativo=True,
+            obrigatorio=True,
+            tipo_validacao="nenhum",
+        )
+        item_turno_2 = OperationalModuleItem(
+            module_code="pt",
+            modulo="pt",
+            escopo="pt",
+            setor_tipo="PTED",
+            operacao="BANHO",
+            controle="DESENGRAXANTE 0",
+            turno_padrao="2",
+            numero_coleta=1,
+            frequencia_tipo="diario",
+            prioridade="medio",
+            ordem=2,
+            ativo=True,
+            obrigatorio=True,
+            tipo_validacao="nenhum",
+        )
+        session.add_all([item_turno_1, item_turno_2])
+        session.commit()
+        item_turno_1_id = item_turno_1.id
+        item_turno_2_id = item_turno_2.id
+
+    response = client.post(
+        "/configuracoes/modulos-itens/pt/batch",
+        json={
+            "rows": [
+                {
+                    "id": item_turno_1_id,
+                    "controle": "DESENGRAXANTE 0",
+                    "operacao": "BANHO",
+                    "setor_tipo": "PTED",
+                    "turno_padrao": "3",
+                    "frequencia_tipo": "diario",
+                    "dia_semana": None,
+                    "dia_mes": None,
+                    "ordem": 1,
+                    "ativo": True,
+                }
+            ],
+            "delete_ids": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    with session_factory() as session:
+        saved_turno_1 = session.get(OperationalModuleItem, item_turno_1_id)
+        saved_turno_2 = session.get(OperationalModuleItem, item_turno_2_id)
+        assert saved_turno_1 is not None
+        assert saved_turno_2 is not None
+        assert saved_turno_1.turno_padrao == "3"
+        assert saved_turno_2.turno_padrao == "2"
 
 
 def test_module_items_batch_accepts_legacy_sunday_weekday_value(test_env: tuple[TestClient, sessionmaker]) -> None:
@@ -1039,6 +1237,107 @@ def test_module_items_batch_creates_new_item(test_env: tuple[TestClient, session
         assert created is not None
         assert created.frequencia_tipo == "semanal"
         assert created.dia_semana == 2
+
+
+def test_turno_pt_execution_disables_items_from_other_turnos(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+
+    with session_factory() as session:
+        session.add_all(
+            [
+                OperationalModuleItem(
+                    module_code="pt",
+                    modulo="pt",
+                    escopo="pt",
+                    setor_tipo="PTED",
+                    controle="ITEM TURNO 1",
+                    turno_padrao="1",
+                    frequencia_tipo="diario",
+                    prioridade="medio",
+                    ordem=1,
+                    ativo=True,
+                    obrigatorio=True,
+                    tipo_validacao="nenhum",
+                ),
+                OperationalModuleItem(
+                    module_code="pt",
+                    modulo="pt",
+                    escopo="pt",
+                    setor_tipo="PTED",
+                    controle="ITEM TODOS TURNOS",
+                    turno_padrao="TODOS",
+                    frequencia_tipo="diario",
+                    prioridade="medio",
+                    ordem=2,
+                    ativo=True,
+                    obrigatorio=True,
+                    tipo_validacao="nenhum",
+                ),
+            ]
+        )
+        session.commit()
+
+    _create_pt_shift(client, data_referencia="2026-07-03", turno="2")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-07-03", turno="2")
+
+    response = client.get(f"/turnos-pt/{shift_id}?modulo=pt")
+
+    assert response.status_code == 200
+    assert "ITEM TODOS TURNOS" in response.text
+    assert "ITEM TURNO 1" in response.text
+    assert "Agendado 1º turno" in response.text
+
+
+def test_turno_execution_aspecto_shows_model_column_and_selects(test_env: tuple[TestClient, sessionmaker]) -> None:
+    client, session_factory = test_env
+
+    with session_factory() as session:
+        session.add_all(
+            [
+                OperationalModuleItem(
+                    module_code="aspecto",
+                    modulo="aspecto",
+                    escopo="ed",
+                    setor_tipo="PTED",
+                    operacao="POSICAO",
+                    controle="P-01",
+                    frequencia_tipo="diario",
+                    prioridade="medio",
+                    ordem=1,
+                    ativo=True,
+                    obrigatorio=True,
+                    tipo_validacao="nenhum",
+                ),
+                OperationalModuleItem(
+                    module_code="aspecto",
+                    modulo="aspecto",
+                    escopo="ed",
+                    setor_tipo="PTED",
+                    operacao="PECAS",
+                    controle="Porta",
+                    frequencia_tipo="diario",
+                    prioridade="medio",
+                    ordem=2,
+                    ativo=True,
+                    obrigatorio=True,
+                    tipo_validacao="nenhum",
+                ),
+            ]
+        )
+        session.commit()
+
+    _create_shift(client, data_referencia="2026-07-03", turno="1")
+    shift_id = _get_shift_id(session_factory, data_referencia="2026-07-03", turno="1")
+
+    response = client.get(f"/turnos/{shift_id}?modulo=aspecto")
+
+    assert response.status_code == 200
+    assert ">Modelo<" in response.text
+    assert 'name="modelo_PTED_1"' in response.text
+    assert 'name="cod_posicao_PTED_1"' in response.text
+    assert 'name="local_PTED_1"' in response.text
+    assert "P-01" in response.text
+    assert "Porta" in response.text
 
 
 def test_module_items_batch_deletes_item_group(test_env: tuple[TestClient, sessionmaker]) -> None:

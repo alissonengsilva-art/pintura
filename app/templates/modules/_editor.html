@@ -167,7 +167,18 @@
                                 </td>
                                 {% else %}
                                 <td class="op-table__col--{{ column.key }}">
-                                    {% if column.kind == 'input' %}
+                                    {% if column.kind == 'select' %}
+                                        <select
+                                            name="{{ column.key }}_{{ setor_view.setor_tipo }}_{{ row.reference }}"
+                                            class="op-input op-input--compact {% if row_scheduled %}field--disabled-scheduled{% endif %}"
+                                            {% if setor_readonly or row_scheduled %}disabled{% endif %}
+                                        >
+                                            <option value="">Selecione</option>
+                                            {% for option in row[column.key ~ '_options'] or [] %}
+                                            <option value="{{ option.value }}" {% if row[column.key] == option.value %}selected{% endif %}>{{ option.label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    {% elif column.kind == 'input' %}
                                         {% if module_state.module_config.code == 'aspecto' %}
                                         <input
                                             type="text"
@@ -360,15 +371,19 @@
             var newRow = templateRow.cloneNode(true);
             newRow.classList.remove('op-table__row--flagged');
             newRow.classList.remove('check-row--scheduled');
-            newRow.querySelectorAll('input').forEach(function(input) {
-                var name = input.getAttribute('name') || '';
+            newRow.querySelectorAll('input, select').forEach(function(field) {
+                var name = field.getAttribute('name') || '';
                 if (name.indexOf('_' + setor + '_') > -1) {
                     var prefix = name.split('_' + setor + '_')[0];
-                    input.setAttribute('name', prefix + '_' + setor + '_' + nextRef);
+                    field.setAttribute('name', prefix + '_' + setor + '_' + nextRef);
                 }
-                input.value = '';
-                input.removeAttribute('readonly');
-                input.removeAttribute('disabled');
+                if (field.tagName === 'SELECT') {
+                    field.value = '';
+                } else {
+                    field.value = '';
+                    field.removeAttribute('readonly');
+                }
+                field.removeAttribute('disabled');
             });
             newRow.querySelectorAll('.op-badge').forEach(function(badge) {
                 badge.textContent = '';

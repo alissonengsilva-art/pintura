@@ -29,6 +29,14 @@ from app.services import rugosidade_service
 from app.services import temperatura_forno_service
 from app.services import tensao_retificadores_service
 
+ASPECTO_SELECT_FIELD_MAP = {
+    "cod_posicao": {"category": "POSICAO", "label": "Posição"},
+    "local": {"category": "PECAS", "label": "Local"},
+    "anomalia": {"category": "ANOMALIA", "label": "Anomalia"},
+    "lado": {"category": "LADO", "label": "Lado"},
+    "geracao": {"category": "GERACAO", "label": "Geração"},
+}
+
 SETOR_PTED = "PTED"
 SETOR_LAB = "LABORATORIO"
 SETOR_SEQUENCE = [SETOR_PTED, SETOR_LAB]
@@ -432,6 +440,8 @@ def build_sector_view(
     rows = config.default_rows_builder(session, context, setor_tipo)
     hydrated_rows = _hydrate_rows(rows, entry_map)
     if config.code == "aspecto" and entry_map:
+        aspecto_option_map = _aspecto_select_options(session)
+        aspecto_model_options = _aspecto_model_options(session)
         known_refs = {str(row.get("reference")) for row in hydrated_rows}
         extra_rows: list[dict[str, Any]] = []
         for reference, stored_row in entry_map.items():
@@ -444,6 +454,7 @@ def build_sector_view(
                 "item_observation": stored_row.get("item_observation", ""),
                 "cis": "",
                 "cod_posicao": "",
+                "modelo": "",
                 "local": "",
                 "anomalia": "",
                 "lado": "",
@@ -455,6 +466,14 @@ def build_sector_view(
                 "flag": False,
                 "is_applicable": True,
                 "applicability_label": "Aplicável",
+                "prioridade": stored_row.get("prioridade", "medio"),
+                "prioridade_label": stored_row.get("prioridade_label", PRIORIDADE_LABELS["medio"]),
+                "modelo_options": aspecto_model_options,
+                "cod_posicao_options": aspecto_option_map["cod_posicao"],
+                "local_options": aspecto_option_map["local"],
+                "anomalia_options": aspecto_option_map["anomalia"],
+                "lado_options": aspecto_option_map["lado"],
+                "geracao_options": aspecto_option_map["geracao"],
             }
             extra_row.update(stored_row)
             extra_rows.append(extra_row)
@@ -735,6 +754,25 @@ def _runtime_item_state(session: Session, context: dict[str, Any], item: Any) ->
         override.override_status if override else None,
         override.reason if override else None,
     )
+    turno_agendado = _resolve_item_turno_agendado(item)
+    turno_contexto = str(context.get("turno") or "").strip()
+    turno_incompativel = (
+        str(getattr(item, "module_code", "") or "").strip().lower() == "pt"
+        and bool(turno_agendado)
+        and bool(turno_contexto)
+        and turno_agendado != turno_contexto
+    )
+    if turno_incompativel and state.get("is_applicable", True):
+        state.update(
+            {
+                "is_applicable": False,
+                "applicability_state": "not_applicable",
+                "applicability_label": "Não aplicável neste turno",
+                "applicability_source": "automatic",
+                "resolved_status": "not_applicable",
+                "affects_progress": False,
+            }
+        )
     weekday = getattr(item, "dia_semana", None)
     if weekday == 7:
         weekday = 6
@@ -744,7 +782,11 @@ def _runtime_item_state(session: Session, context: dict[str, Any], item: Any) ->
     scheduled_tooltip = None
     if not state.get("is_applicable", True):
         frequency_type = state.get("frequency_type")
-        if frequency_type == item_frequency_runtime_service.FREQUENCY_SEMANAL and weekday_label:
+        if turno_incompativel and turno_agendado:
+            turno_label = _turno_label(turno_agendado)
+            scheduled_short = f"Agendado {turno_label.lower()}"
+            scheduled_tooltip = f"Este item só pode ser preenchido no {turno_label.lower()}."
+        elif frequency_type == item_frequency_runtime_service.FREQUENCY_SEMANAL and weekday_label:
             scheduled_short = f"Agendado {weekday_label}"
             scheduled_tooltip = f"Este item e semanal e so pode ser preenchido na {weekday_label}."
         elif frequency_type == item_frequency_runtime_service.FREQUENCY_MENSAL and day_of_month:
@@ -1259,8 +1301,55 @@ def _pt_pressao_parse(session: Session, context: dict[str, Any], setor_tipo: str
     return rows, summary
 
 
-def _module_items(session: Session, module_code: str, setor_tipo: str):
-    return operational_module_item_service.get_items_by_module_and_setor(session, module_code, setor_tipo)
+def _module_items(session: Session, module_code: str, setor_tipo: str, turno: str | None = None):
+    return operational_module_item_service.get_items_by_module_and_setor_and_turno(
+        session,
+        module_code,
+        setor_tipo,
+        turno=turno,
+    )
+
+
+def _resolve_item_turno_agendado(item: Any) -> str | None:
+    turno = str(getattr(item, "turno_padrao", "") or "").strip().upper()
+    if turno in {"1", "2", "3"}:
+        return turno
+    return None
+
+
+def _turno_label(turno: str) -> str:
+    return {
+        "1": "1º turno",
+        "2": "2º turno",
+        "3": "3º turno",
+    }.get(str(turno).strip(), f"turno {turno}")
+
+
+def _aspecto_model_options(session: Session) -> list[dict[str, str]]:
+    return [
+        {"value": str(model.nome or ""), "label": str(model.nome or "")}
+        for model in session.scalars(select(Modelo).where(Modelo.ativo.is_(True)).order_by(Modelo.nome)).all()
+    ]
+
+
+def _aspecto_select_options(session: Session) -> dict[str, list[dict[str, str]]]:
+    items = [
+        item
+        for item in operational_module_item_service.get_active_items(session, "aspecto")
+        if str(item.operacao or "").strip().upper() in {meta["category"] for meta in ASPECTO_SELECT_FIELD_MAP.values()}
+    ]
+    grouped: dict[str, list[dict[str, str]]] = {key: [] for key in ASPECTO_SELECT_FIELD_MAP}
+    seen: dict[str, set[str]] = {key: set() for key in ASPECTO_SELECT_FIELD_MAP}
+    category_to_field = {meta["category"]: field_key for field_key, meta in ASPECTO_SELECT_FIELD_MAP.items()}
+
+    for item in items:
+        field_key = category_to_field.get(str(item.operacao or "").strip().upper())
+        option_value = str(item.controle or "").strip()
+        if not field_key or not option_value or option_value in seen[field_key]:
+            continue
+        grouped[field_key].append({"value": option_value, "label": option_value})
+        seen[field_key].add(option_value)
+    return grouped
 
 
 def _module_reference(module_code: str, item) -> str:
@@ -1655,38 +1744,50 @@ def _rugosidade_parse(session: Session, context: dict[str, Any], setor_tipo: str
 
 
 def _build_aspecto_item_rows(session: Session, _context: dict[str, Any], setor_tipo: str) -> list[dict[str, Any]]:
-    return [
-        {
-            "reference": _module_reference("aspecto", item),
-            "order": item.ordem,
-            "item_id": item.id,
-            **_item_priority_payload(item),
-            "item_observation": (item.observacao or "").strip() if item.observacao else "",
-            "cis": "",
-            "cod_posicao": "",
-            "local": "",
-            "anomalia": "",
-            "lado": "",
-            "geracao": "",
-            "quantidade": "",
-            "row_observation": "",
-            "value": "",
-            "status_label": _runtime_item_state(session, _context, item)["applicability_label"]
-            if not _runtime_item_state(session, _context, item)["is_applicable"]
-            else "Linha vazia",
-            "flag": False,
-            **_runtime_item_state(session, _context, item),
-        }
-        for item in _module_items(session, "aspecto", setor_tipo)
-    ]
+    option_map = _aspecto_select_options(session)
+    modelo_options = _aspecto_model_options(session)
+    rows: list[dict[str, Any]] = []
+    for index in range(1, 6):
+        rows.append(
+            {
+                "reference": str(index),
+                "order": index,
+                "item_id": None,
+                "prioridade": "medio",
+                "prioridade_label": PRIORIDADE_LABELS["medio"],
+                "item_observation": "",
+                "cis": "",
+                "cod_posicao": "",
+                "modelo": "",
+                "local": "",
+                "anomalia": "",
+                "lado": "",
+                "geracao": "",
+                "quantidade": "",
+                "row_observation": "",
+                "value": "",
+                "status_label": "Linha vazia",
+                "flag": False,
+                "is_applicable": True,
+                "applicability_label": "Aplicável",
+                "modelo_options": modelo_options,
+                "cod_posicao_options": option_map["cod_posicao"],
+                "local_options": option_map["local"],
+                "anomalia_options": option_map["anomalia"],
+                "lado_options": option_map["lado"],
+                "geracao_options": option_map["geracao"],
+            }
+        )
+    return rows
 
 
 def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, form_data: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     base_rows = _build_aspecto_item_rows(session, context, setor_tipo)
     base_rows_by_reference = {row["reference"]: row for row in base_rows}
+    option_defaults = base_rows[0] if base_rows else {}
     max_order = max((int(row.get("order") or 0) for row in base_rows), default=0)
     dynamic_references: set[str] = set()
-    for field_key in ("cis", "cod_posicao", "local", "anomalia", "lado", "geracao", "quantidade", "row_observation"):
+    for field_key in ("cis", "cod_posicao", "modelo", "local", "anomalia", "lado", "geracao", "quantidade", "row_observation"):
         prefix = f"{field_key}_{setor_tipo}_"
         for form_key in form_data.keys():
             if str(form_key).startswith(prefix):
@@ -1703,6 +1804,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "item_observation": "",
                 "cis": "",
                 "cod_posicao": "",
+                "modelo": "",
                 "local": "",
                 "anomalia": "",
                 "lado": "",
@@ -1714,6 +1816,14 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "flag": False,
                 "is_applicable": True,
                 "applicability_label": "Aplicável",
+                "prioridade": "medio",
+                "prioridade_label": PRIORIDADE_LABELS["medio"],
+                "modelo_options": option_defaults.get("modelo_options", []),
+                "cod_posicao_options": option_defaults.get("cod_posicao_options", []),
+                "local_options": option_defaults.get("local_options", []),
+                "anomalia_options": option_defaults.get("anomalia_options", []),
+                "lado_options": option_defaults.get("lado_options", []),
+                "geracao_options": option_defaults.get("geracao_options", []),
             }
         )
     base_rows_by_reference = {row["reference"]: row for row in base_rows}
@@ -1726,13 +1836,14 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
         reference = base_row["reference"]
         cis = (form_data.get(f"cis_{setor_tipo}_{reference}") or "").strip()
         cod_posicao = (form_data.get(f"cod_posicao_{setor_tipo}_{reference}") or "").strip()
+        modelo = (form_data.get(f"modelo_{setor_tipo}_{reference}") or "").strip()
         local = (form_data.get(f"local_{setor_tipo}_{reference}") or "").strip()
         anomalia = (form_data.get(f"anomalia_{setor_tipo}_{reference}") or "").strip()
         lado = (form_data.get(f"lado_{setor_tipo}_{reference}") or "").strip()
         geracao = (form_data.get(f"geracao_{setor_tipo}_{reference}") or "").strip()
         quantidade = (form_data.get(f"quantidade_{setor_tipo}_{reference}") or "").strip()
         row_observation = (form_data.get(f"row_observation_{setor_tipo}_{reference}") or "").strip()
-        if not any([cis, cod_posicao, local, anomalia, lado, geracao, quantidade]):
+        if not any([cis, cod_posicao, modelo, local, anomalia, lado, geracao, quantidade]):
             required_base_row = reference in base_rows_by_reference and int(base_row.get("order") or 0) <= 5
             if required_base_row:
                 rows.append(dict(base_rows_by_reference[reference]))
@@ -1742,6 +1853,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
             for key, label in {
                 "cis": "CIS",
                 "cod_posicao": "código da posição",
+                "modelo": "modelo",
                 "local": "local",
                 "anomalia": "anomalia",
                 "lado": "lado",
@@ -1763,6 +1875,7 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "order": base_row["order"],
                 "cis": cis,
                 "cod_posicao": cod_posicao,
+                "modelo": modelo,
                 "local": local,
                 "anomalia": anomalia,
                 "lado": lado,
@@ -1772,6 +1885,12 @@ def _aspecto_parse(session: Session, context: dict[str, Any], setor_tipo: str, f
                 "value": anomalia,
                 "status_label": "Registrado",
                 "flag": False,
+                "modelo_options": base_row.get("modelo_options", []),
+                "cod_posicao_options": base_row.get("cod_posicao_options", []),
+                "local_options": base_row.get("local_options", []),
+                "anomalia_options": base_row.get("anomalia_options", []),
+                "lado_options": base_row.get("lado_options", []),
+                "geracao_options": base_row.get("geracao_options", []),
             }
         )
     if not any(row.get("cis") for row in rows) and any(row.get("is_applicable") for row in rows):
@@ -2010,15 +2129,15 @@ MODULE_CONFIGS: dict[str, ModuleConfig] = {
         context_fields=(
             ContextField("data_referencia", "Data", "date", True),
             ContextField("turno", "Turno", "select", True, "turnos"),
-            ContextField("modelo", "Modelo", "select", True, "modelos"),
         ),
         columns=(
             TableColumn("cis", "CIS", "input"),
-            TableColumn("cod_posicao", "Posição", "input"),
-            TableColumn("local", "Local", "input"),
-            TableColumn("anomalia", "Anomalia", "input"),
-            TableColumn("lado", "Lado", "input"),
-            TableColumn("geracao", "Geração", "input"),
+            TableColumn("cod_posicao", "Posição", "select"),
+            TableColumn("modelo", "Modelo", "select"),
+            TableColumn("local", "Local", "select"),
+            TableColumn("anomalia", "Anomalia", "select"),
+            TableColumn("lado", "Lado", "select"),
+            TableColumn("geracao", "Geração", "select"),
             TableColumn("quantidade", "Qtd.", "input"),
             TableColumn("row_observation", "Observação", "input"),
         ),

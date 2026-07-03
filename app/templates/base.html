@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="{{ request.url_for('static', path='favicon.svg') }}">
     <link rel="shortcut icon" href="{{ request.url_for('static', path='favicon.svg') }}">
     <link rel="stylesheet" href="{{ request.url_for('static', path='css/main.css') }}">
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <div class="app-shell">
@@ -102,5 +103,6 @@
     });
 })();
 </script>
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>

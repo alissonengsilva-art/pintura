@@ -1,5 +1,146 @@
 ﻿{% extends 'base.html' %}
 
+{% block extra_head %}
+<style>
+    [data-module-admin-page] .table-panel { padding: 14px; }
+    [data-module-admin-page] .module-toolbar-groups { display:grid; gap:12px; padding:10px; border:1px solid rgba(16,43,76,.12); border-radius:14px; background:linear-gradient(180deg,#f7fafe 0%,#fff 100%); }
+    [data-module-admin-page] .module-toolbar-group { display:grid; gap:8px; }
+    [data-module-admin-page] .module-toolbar-group--sub { border-top:1px solid rgba(16,43,76,.12); padding-top:10px; }
+    [data-module-admin-page] .module-toolbar-title { margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#4b6280; font-weight:700; }
+    [data-module-admin-page] .area-switch { display:flex; gap:10px; flex-wrap:wrap; }
+    [data-module-admin-page] .area-tab { min-height:40px; padding:0 16px; border-radius:12px; border:1px solid #b8c8dc; background:#edf3fa; color:#234261; font-weight:700; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; }
+    [data-module-admin-page] .area-tab--active { border-color:#173f6f; background:#17436f; color:#fff; box-shadow:0 6px 16px rgba(20,62,107,.24); }
+    [data-module-admin-page] .module-pill-switch { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-module-admin-page] .module-pill-switch--sub { margin-top:10px; padding-top:10px; border-top:1px dashed rgba(16,43,76,.12); }
+    [data-module-admin-page] .module-pill { min-height:30px; padding:0 12px; border-radius:999px; border:1px solid #c9d5e4; background:#fff; color:#35526f; font-size:12px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
+    [data-module-admin-page] .module-pill--active { border-color:#205489; background:#e9f2fc; color:#173f6d; }
+    [data-module-admin-page] .module-master-frequency { margin-top:12px; padding:10px; border:1px solid rgba(20,44,78,.12); border-radius:12px; background:#f8fbff; display:grid; gap:8px; }
+    [data-module-admin-page] .module-master-frequency__header { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    [data-module-admin-page] .module-master-frequency strong { font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); }
+    [data-module-admin-page] .module-master-frequency__controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    [data-module-admin-page] .module-master-frequency__controls select, [data-module-admin-page] .module-master-frequency__controls input { min-height:32px; min-width:140px; padding:5px 8px; border-radius:8px; }
+    [data-module-admin-page] .table-panel--aspecto { padding:18px; background:linear-gradient(180deg,#f9fbff 0%,#f4f8ff 100%); }
+    [data-module-admin-page] .aspecto-admin-shell { display:grid; gap:18px; }
+    [data-module-admin-page] .aspecto-admin-header { display:grid; gap:4px; padding:4px 2px 0; }
+    [data-module-admin-page] .aspecto-admin-header h3 { margin:0; font-size:24px; color:#163553; }
+    [data-module-admin-page] .aspecto-admin-header p { margin:0; color:#4d647f; line-height:1.4; }
+    [data-module-admin-page] .aspecto-admin-eyebrow { font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:#59789c !important; }
+    [data-module-admin-page] .aspecto-category-nav { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-module-admin-page] .aspecto-category-pill { min-height:38px; padding:0 14px; border-radius:999px; border:1px solid #d5e1ee; background:#fff; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; font-weight:700; color:#2b4d70; text-align:left; }
+    [data-module-admin-page] .aspecto-category-pill span { flex:1; }
+    [data-module-admin-page] .aspecto-category-pill strong { min-width:24px; padding:2px 7px; border-radius:999px; background:#edf4fb; color:#1e466f; font-size:11px; text-align:center; }
+    [data-module-admin-page] .aspecto-category-pill--active { border-color:#1d568d; background:#1e4f80; color:#fff; box-shadow:0 8px 18px rgba(23,63,109,.16); }
+    [data-module-admin-page] .aspecto-category-pill--active strong { background:rgba(255,255,255,.16); color:#fff; }
+    [data-module-admin-page] .aspecto-category-panel { padding:14px; border:1px solid rgba(20,48,82,.1); border-radius:16px; background:#fff; box-shadow:0 8px 22px rgba(23,63,109,.06); display:grid; gap:14px; }
+    [data-module-admin-page] .aspecto-category-panel__header { display:grid; gap:4px; }
+    [data-module-admin-page] .aspecto-category-panel__header h4 { margin:0; font-size:20px; color:#163553; }
+    [data-module-admin-page] .aspecto-category-panel__header p:last-child { margin:0; color:#607790; }
+    [data-module-admin-page] .aspecto-category-panel__toolbar { display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap; }
+    [data-module-admin-page] .table-wrapper--aspecto { border-color:#dfe8f2; border-radius:14px; }
+    [data-module-admin-page] .module-items-grid--aspecto { width:100%; table-layout:fixed; }
+    [data-module-admin-page] .table-row--aspecto { display:grid; grid-template-columns:78px minmax(0,1fr) 110px 124px; gap:8px; align-items:center; }
+    [data-module-admin-page] .module-items-grid--aspecto .table-head-row { background:#f6f9fd; }
+    [data-module-admin-page] .module-items-grid--aspecto .table-head-row th { font-size:10px; padding:8px 8px; }
+    [data-module-admin-page] .module-items-grid--aspecto th,
+    [data-module-admin-page] .module-items-grid--aspecto td { vertical-align:middle; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row] { min-height:56px; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row] td { padding:10px 12px; white-space:nowrap; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row]:nth-child(even) { background:#fbfdff; }
+    [data-module-admin-page] .aspecto-catalog-row[data-editing="true"] { background:#eef5ff !important; }
+    [data-module-admin-page] .aspecto-value-stack { display:block; min-width:0; line-height:1.2; }
+    [data-module-admin-page] .aspecto-value-meta { display:block; }
+    [data-module-admin-page] .aspecto-category-select { min-width:180px; }
+    [data-module-admin-page] .aspecto-catalog-row[data-editing="false"] .aspecto-category-select { display:none; }
+    [data-module-admin-page] .aspecto-status-toggle { display:inline-flex; align-items:center; gap:8px; }
+    [data-module-admin-page] .aspecto-status-pill { display:inline-flex; align-items:center; min-height:26px; padding:0 10px; border-radius:999px; background:#eef7f0; color:#2a6b3c; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+    [data-module-admin-page] .aspecto-status-pill--inactive { background:#f5f1f1; color:#8c3a3a; }
+    [data-module-admin-page] .module-items-grid--aspecto [data-col-valor] [data-inline-input] { font-weight:600; }
+    [data-module-admin-page] [data-master-frequency-panel][hidden] { display:none !important; }
+    [data-module-admin-page] .table-wrapper { overflow:hidden; padding-bottom:0; border:1px solid #d8e1ec; border-radius:12px; background:#fff; box-shadow:none; }
+    [data-module-admin-page] .module-items-grid { width:100%; min-width:0; border-collapse:collapse; border-spacing:0; table-layout:fixed; }
+    [data-module-admin-page] .table-row { display:grid; grid-template-columns:1.55fr .7fr .7fr .68fr .5fr .42fr 40px .62fr .82fr .45fr .68fr .56fr; gap:4px; align-items:center; }
+    [data-module-admin-page] .table-row--with-turno { grid-template-columns:1.4fr .62fr .72fr .68fr .6fr .44fr .4fr 40px .58fr .78fr .42fr .64fr .56fr; }
+    [data-module-admin-page] .table-head-row { margin-bottom:0; background:#f4f8fc; border-bottom:1px solid #dde6f1; }
+    [data-module-admin-page] .table-head-row th { padding:6px 6px; font-size:9px; letter-spacing:.04em; text-transform:uppercase; color:#4a617d; font-weight:700; white-space:nowrap; border:0; box-shadow:none; }
+    [data-module-admin-page] tbody tr[data-admin-row] { background:#fff; border-bottom:1px solid #e5edf5; padding:0; }
+    [data-module-admin-page] tbody tr[data-admin-row]:last-child { border-bottom:0; }
+    [data-module-admin-page] tbody tr[data-admin-row] td { padding:5px 6px; min-width:0; border:0 !important; box-shadow:none !important; background-image:none !important; outline:none !important; }
+    [data-module-admin-page] tbody tr[data-admin-row]:nth-child(even) { background:#f9fbfe; }
+    [data-module-admin-page] [data-col-ativo], [data-module-admin-page] [data-checkbox-cell] { text-align:center; }
+    [data-module-admin-page] [data-col-item] [data-inline-input] { font-weight:600; }
+    [data-module-admin-page] .aspecto-option-stack { display:grid; gap:4px; min-width:0; }
+    [data-module-admin-page] [data-inline-input], [data-module-admin-page] [data-inline-select] { width:100%; max-width:100%; min-height:30px; padding:4px 8px; font-size:11px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
+    [data-module-admin-page] [data-day-weekly] select, [data-module-admin-page] [data-day-monthly] input { width:100%; min-height:30px; padding:4px 8px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
+    [data-module-admin-page] [data-day-static] { color:var(--text-muted); font-size:13px; }
+    [data-module-admin-page] [data-day-static][hidden], [data-module-admin-page] [data-day-weekly][hidden], [data-module-admin-page] [data-day-monthly][hidden], [data-module-admin-page] [hidden] { display:none !important; }
+    [data-module-admin-page] [data-operacao-label] { display:block; margin-bottom:3px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; }
+    [data-module-admin-page] tr[data-editing="true"] { background:#edf4ff !important; }
+    [data-module-admin-page] .actions-cell { display:flex; gap:4px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; }
+    [data-module-admin-page] .actions-cell .button-secondary.small, [data-module-admin-page] .actions-cell .button-danger.small { min-width:42px; padding:3px 6px; font-size:10px; white-space:nowrap; border-radius:7px; box-shadow:none; }
+    [data-module-admin-page] .actions-cell .button-danger.small { background:#fef1f1; color:#a03535; border-color:#efcaca; }
+    [data-module-admin-page] .limits-inline { display:grid; grid-template-columns:1fr auto 1fr; gap:4px; align-items:center; border:0 !important; box-shadow:none !important; background-image:none !important; }
+    [data-module-admin-page] .limits-inline__sep { font-size:12px; color:var(--text-muted); }
+    [data-module-admin-page] [data-field="parametro_exibicao"] { text-overflow:ellipsis; white-space:nowrap; overflow:hidden; min-height:30px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none !important; }
+    [data-module-admin-page] [data-col-referencia] { border:0 !important; box-shadow:none !important; background-image:none !important; }
+    [data-module-admin-page] [data-col-referencia]::before,
+    [data-module-admin-page] [data-col-referencia]::after { content:none !important; display:none !important; }
+    [data-module-admin-page] [data-inline-input]:focus,
+    [data-module-admin-page] [data-inline-select]:focus,
+    [data-module-admin-page] [data-day-weekly] select:focus,
+    [data-module-admin-page] [data-day-monthly] input:focus {
+        border-color:#4f84b7 !important;
+        box-shadow:0 0 0 2px rgba(79, 132, 183, 0.16) !important;
+        outline:none !important;
+    }
+    [data-module-admin-page] .module-items-grid td::before,
+    [data-module-admin-page] .module-items-grid td::after,
+    [data-module-admin-page] .module-items-grid input::before,
+    [data-module-admin-page] .module-items-grid input::after,
+    [data-module-admin-page] .module-items-grid select::before,
+    [data-module-admin-page] .module-items-grid select::after {
+        content:none !important;
+        box-shadow:none !important;
+        border:0 !important;
+        background:none !important;
+    }
+    [data-module-admin-page] .module-items-grid td,
+    [data-module-admin-page] .module-items-grid tr,
+    [data-module-admin-page] .module-items-grid tbody,
+    [data-module-admin-page] .module-items-grid td *,
+    [data-module-admin-page] .module-items-grid td .form-control,
+    [data-module-admin-page] .module-items-grid td .table-input,
+    [data-module-admin-page] .module-items-grid td .config-field {
+        border-bottom:0 !important;
+        box-shadow:none !important;
+        background-image:none !important;
+        outline:none;
+    }
+    [data-module-admin-page] [data-field="prioridade"] { font-weight:700; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="baixo"] { border-color:#efd58a; background:#fff3cd; color:#8a5a00; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="medio"] { border-color:#f2bf75; background:#ffe4bf; color:#9a5200; }
+    [data-module-admin-page] [data-field="prioridade"][data-priority-tone="alto"] { border-color:#ebc1c1; background:#fdf0f0; color:#8c2e2e; }
+    [data-module-admin-page] [data-field="ativo"] { appearance:none; width:34px; height:18px; border-radius:999px; background:#d7e0eb; border:1px solid #becddd; position:relative; cursor:pointer; vertical-align:middle; }
+    [data-module-admin-page] [data-field="ativo"]::after { content:""; position:absolute; top:1px; left:1px; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.2); transition:transform .15s ease; }
+    [data-module-admin-page] [data-field="ativo"]:checked { background:#4d86bc; border-color:#3f76aa; }
+    [data-module-admin-page] [data-field="ativo"]:checked::after { transform:translateX(16px); }
+    [data-module-admin-page] [data-field="ativo"]:disabled { opacity:.8; cursor:not-allowed; }
+    @media (max-width: 1024px) {
+        [data-module-admin-page] .aspecto-category-panel { padding:14px; }
+        [data-module-admin-page] .aspecto-category-panel__toolbar { width:100%; justify-content:flex-start; }
+        [data-module-admin-page] .table-wrapper { border:0; background:transparent; }
+        [data-module-admin-page] .table-head-row { display:none; }
+        [data-module-admin-page] .module-items-grid { display:block; }
+        [data-module-admin-page] .module-items-grid tbody { display:grid; gap:10px; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] { display:block; border:1px solid #dbe3ee; border-radius:10px; padding:8px; background:#fff; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td { display:grid; grid-template-columns:108px 1fr; gap:8px; border-right:0; border-bottom:1px dashed #e6edf6; padding:6px 0; align-items:center; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td:last-child { border-bottom:0; }
+        [data-module-admin-page] .module-items-grid tr[data-admin-row] td::before { content:attr(data-label); font-size:10px; text-transform:uppercase; color:#5b6f88; font-weight:700; letter-spacing:.03em; }
+        [data-module-admin-page] .actions-cell { justify-content:flex-start; }
+        [data-module-admin-page] .module-toolbar-groups { padding:8px; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="section-header-inline">
     <div>
@@ -21,49 +162,59 @@
     data-area-groups='{{ module_area_groups|tojson }}'
 >
     <section class="panel-card table-panel">
-        <div class="section-header-inline compact">
+            <div class="section-header-inline compact">
             <div>
                 <h3>Módulos</h3>
-                <p>Selecione uma aba para ajustar os itens do Módulos.</p>
+                <p>Selecione uma aba para ajustar os itens dos módulos.</p>
             </div>
         </div>
         <div class="module-toolbar-groups">
             <div class="module-toolbar-group">
                 <p class="module-toolbar-title">Área de controle</p>
                 <div class="area-switch" data-area-switch>
-                    <button type="button" class="area-tab" data-area-tab data-area-code="pt">PT</button>
-                    <button type="button" class="area-tab" data-area-tab data-area-code="ed">ED</button>
-                    <button type="button" class="area-tab" data-area-tab data-area-code="sigilatura">Sigilatura</button>
-                    <button type="button" class="area-tab" data-area-tab data-area-code="central-tintas">Central de Tintas</button>
-                    <button type="button" class="area-tab" data-area-tab data-area-code="cabine-pintura">Cabine de Pintura</button>
+                    <a class="area-tab" data-area-tab data-area-code="pt" href="/configuracoes/modulos-itens?area=pt&modulo=pt">PT</a>
+                    <a class="area-tab" data-area-tab data-area-code="ed" href="/configuracoes/modulos-itens?area=ed&modulo=ed">ED</a>
+                    <a class="area-tab" data-area-tab data-area-code="sigilatura" href="/configuracoes/modulos-itens?area=sigilatura&modulo=sigilatura">Sigilatura</a>
+                    <a class="area-tab" data-area-tab data-area-code="central-tintas" href="/configuracoes/modulos-itens?area=central-tintas&modulo=central-tintas">Central de Tintas</a>
+                    <a class="area-tab" data-area-tab data-area-code="cabine-pintura" href="/configuracoes/modulos-itens?area=cabine-pintura&modulo=cabine-pintura">Cabine de Pintura</a>
                 </div>
             </div>
             <div class="module-toolbar-group module-toolbar-group--sub">
                 <p class="module-toolbar-title">Módulos da área selecionada</p>
                 <div data-module-tabs class="module-pill-switch" {% if selected_module == 'cabine-pintura' and available_abas %}hidden{% endif %}>
                     {% for module in modules %}
-                    <button
-                        type="button"
-                        class="module-pill"
+                    {% set module_ns = namespace(area='') %}
+                    {% for area, codes in module_area_groups.items() %}
+                    {% if module.code in codes %}
+                    {% set module_ns.area = area %}
+                    {% endif %}
+                    {% endfor %}
+                    <a
+                        class="module-pill {% if selected_module == module.code %}module-pill--active{% endif %}"
                         data-module-tab
                         data-module-code="{{ module.code }}"
-                        data-module-area="{% for area, codes in module_area_groups.items() %}{% if module.code in codes %}{{ area }}{% endif %}{% endfor %}"
+                        data-module-area="{{ module_ns.area or selected_area or 'ed' }}"
+                        {% if module_ns.area != selected_area %}hidden{% endif %}
+                        href="/configuracoes/modulos-itens?area={{ module_ns.area or selected_area or 'ed' }}&modulo={{ module.code }}"
                     >
                         {{ module.title }}
-                    </button>
+                    </a>
                     {% endfor %}
                 </div>
                 {% if selected_module == 'cabine-pintura' and available_abas %}
                 <div class="module-pill-switch module-pill-switch--sub" data-aba-tabs-as-modules>
                     {% for aba in available_abas %}
-                    <button type="button" class="module-pill {% if selected_aba == aba %}module-pill--active{% endif %}" data-aba-tab data-aba-code="{{ aba }}">{{ aba }}</button>
+                    <a class="module-pill {% if selected_aba == aba %}module-pill--active{% endif %}" data-aba-tab data-aba-code="{{ aba }}" href="/configuracoes/modulos-itens?area=cabine-pintura&modulo=cabine-pintura&aba={{ aba|urlencode }}">{{ aba }}</a>
                     {% endfor %}
                 </div>
                 {% endif %}
             </div>
         </div>
-        <div class="module-master-frequency">
-            <strong>frequência mestre da aba</strong>
+        <div class="module-master-frequency" data-master-frequency-panel>
+            <div class="module-master-frequency__header">
+                <strong>frequência mestre da aba</strong>
+                <button type="button" class="button-secondary small" data-edit-all>Editar todos</button>
+            </div>
             <div class="module-master-frequency__controls">
                 <select data-master-frequency>
                     {% for option in frequency_options %}
@@ -76,7 +227,7 @@
                     <option value="{{ option.value }}">{{ option.label }}</option>
                     {% endfor %}
                 </select>
-                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do mÃƒÂªs">
+                <input type="number" min="1" max="31" data-master-monthday hidden placeholder="Dia do mês">
                 <button type="button" class="button-primary small" data-apply-master-frequency>Aplicar na aba</button>
             </div>
         </div>
@@ -88,7 +239,7 @@
 </div>
 
 <div data-admin-toast hidden style="position: fixed; right: 24px; bottom: 24px; z-index: 50; padding: 10px 14px; border-radius: 12px; background: #1f7a45; color: #fff; font-size: 14px; box-shadow: var(--shadow-card);">
-    AlteraÃ§Ãµes salvas com sucesso
+    Alterações salvas com sucesso
 </div>
 
 <style>
@@ -98,19 +249,58 @@
     [data-module-admin-page] .module-toolbar-group--sub { border-top:1px solid rgba(16,43,76,.12); padding-top:10px; }
     [data-module-admin-page] .module-toolbar-title { margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#4b6280; font-weight:700; }
     [data-module-admin-page] .area-switch { display:flex; gap:10px; flex-wrap:wrap; }
-    [data-module-admin-page] .area-tab { min-height:40px; padding:0 16px; border-radius:12px; border:1px solid #b8c8dc; background:#edf3fa; color:#234261; font-weight:700; font-size:13px; }
+    [data-module-admin-page] .area-tab { min-height:40px; padding:0 16px; border-radius:12px; border:1px solid #b8c8dc; background:#edf3fa; color:#234261; font-weight:700; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; }
     [data-module-admin-page] .area-tab--active { border-color:#173f6f; background:#17436f; color:#fff; box-shadow:0 6px 16px rgba(20,62,107,.24); }
     [data-module-admin-page] .module-pill-switch { display:flex; gap:8px; flex-wrap:wrap; }
     [data-module-admin-page] .module-pill-switch--sub { margin-top:10px; padding-top:10px; border-top:1px dashed rgba(16,43,76,.12); }
-    [data-module-admin-page] .module-pill { min-height:30px; padding:0 12px; border-radius:999px; border:1px solid #c9d5e4; background:#fff; color:#35526f; font-size:12px; font-weight:600; }
+    [data-module-admin-page] .module-pill { min-height:30px; padding:0 12px; border-radius:999px; border:1px solid #c9d5e4; background:#fff; color:#35526f; font-size:12px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
     [data-module-admin-page] .module-pill--active { border-color:#205489; background:#e9f2fc; color:#173f6d; }
     [data-module-admin-page] .module-master-frequency { margin-top:12px; padding:10px; border:1px solid rgba(20,44,78,.12); border-radius:12px; background:#f8fbff; display:grid; gap:8px; }
+    [data-module-admin-page] .module-master-frequency__header { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
     [data-module-admin-page] .module-master-frequency strong { font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); }
     [data-module-admin-page] .module-master-frequency__controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     [data-module-admin-page] .module-master-frequency__controls select, [data-module-admin-page] .module-master-frequency__controls input { min-height:32px; min-width:140px; padding:5px 8px; border-radius:8px; }
+    [data-module-admin-page] .table-panel--aspecto { padding:18px; background:linear-gradient(180deg,#f9fbff 0%,#f4f8ff 100%); }
+    [data-module-admin-page] .aspecto-admin-shell { display:grid; gap:18px; }
+    [data-module-admin-page] .aspecto-admin-header { display:grid; gap:4px; padding:4px 2px 0; }
+    [data-module-admin-page] .aspecto-admin-header h3 { margin:0; font-size:24px; color:#163553; }
+    [data-module-admin-page] .aspecto-admin-header p { margin:0; color:#4d647f; line-height:1.4; }
+    [data-module-admin-page] .aspecto-admin-eyebrow { font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:#59789c !important; }
+    [data-module-admin-page] .aspecto-category-nav { display:flex; gap:8px; flex-wrap:wrap; }
+    [data-module-admin-page] .aspecto-category-pill { min-height:38px; padding:0 14px; border-radius:999px; border:1px solid #d5e1ee; background:#fff; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; font-weight:700; color:#2b4d70; text-align:left; }
+    [data-module-admin-page] .aspecto-category-pill span { flex:1; }
+    [data-module-admin-page] .aspecto-category-pill strong { min-width:24px; padding:2px 7px; border-radius:999px; background:#edf4fb; color:#1e466f; font-size:11px; text-align:center; }
+    [data-module-admin-page] .aspecto-category-pill--active { border-color:#1d568d; background:#1e4f80; color:#fff; box-shadow:0 8px 18px rgba(23,63,109,.16); }
+    [data-module-admin-page] .aspecto-category-pill--active strong { background:rgba(255,255,255,.16); color:#fff; }
+    [data-module-admin-page] .aspecto-category-panel { padding:14px; border:1px solid rgba(20,48,82,.1); border-radius:16px; background:#fff; box-shadow:0 8px 22px rgba(23,63,109,.06); display:grid; gap:14px; }
+    [data-module-admin-page] .aspecto-category-panel__header { display:grid; gap:4px; }
+    [data-module-admin-page] .aspecto-category-panel__header h4 { margin:0; font-size:20px; color:#163553; }
+    [data-module-admin-page] .aspecto-category-panel__header p:last-child { margin:0; color:#607790; }
+    [data-module-admin-page] .aspecto-category-panel__toolbar { display:flex; justify-content:flex-end; align-items:center; gap:10px; flex-wrap:wrap; }
+    [data-module-admin-page] .table-wrapper--aspecto { border-color:#dfe8f2; border-radius:14px; }
+    [data-module-admin-page] .module-items-grid--aspecto { width:100%; table-layout:fixed; }
+    [data-module-admin-page] .table-row--aspecto { display:grid; grid-template-columns:78px minmax(0,1fr) 110px 124px; gap:8px; align-items:center; }
+    [data-module-admin-page] .module-items-grid--aspecto .table-head-row { background:#f6f9fd; }
+    [data-module-admin-page] .module-items-grid--aspecto .table-head-row th { font-size:10px; padding:8px 8px; }
+    [data-module-admin-page] .module-items-grid--aspecto th,
+    [data-module-admin-page] .module-items-grid--aspecto td { vertical-align:middle; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row] { min-height:56px; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row] td { padding:10px 12px; white-space:nowrap; }
+    [data-module-admin-page] .module-items-grid--aspecto tbody tr[data-admin-row]:nth-child(even) { background:#fbfdff; }
+    [data-module-admin-page] .aspecto-catalog-row[data-editing="true"] { background:#eef5ff !important; }
+    [data-module-admin-page] .aspecto-value-stack { display:block; min-width:0; line-height:1.2; }
+    [data-module-admin-page] .aspecto-value-meta { display:block; }
+    [data-module-admin-page] .aspecto-category-select { min-width:180px; }
+    [data-module-admin-page] .aspecto-catalog-row[data-editing="false"] .aspecto-category-select { display:none; }
+    [data-module-admin-page] .aspecto-status-toggle { display:inline-flex; align-items:center; gap:8px; }
+    [data-module-admin-page] .aspecto-status-pill { display:inline-flex; align-items:center; min-height:26px; padding:0 10px; border-radius:999px; background:#eef7f0; color:#2a6b3c; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+    [data-module-admin-page] .aspecto-status-pill--inactive { background:#f5f1f1; color:#8c3a3a; }
+    [data-module-admin-page] .module-items-grid--aspecto [data-col-valor] [data-inline-input] { font-weight:600; }
+    [data-module-admin-page] [data-master-frequency-panel][hidden] { display:none !important; }
     [data-module-admin-page] .table-wrapper { overflow:hidden; padding-bottom:0; border:1px solid #d8e1ec; border-radius:12px; background:#fff; box-shadow:none; }
     [data-module-admin-page] .module-items-grid { width:100%; min-width:0; border-collapse:collapse; border-spacing:0; table-layout:fixed; }
     [data-module-admin-page] .table-row { display:grid; grid-template-columns:1.55fr .7fr .7fr .68fr .5fr .42fr 40px .62fr .82fr .45fr .68fr .56fr; gap:4px; align-items:center; }
+    [data-module-admin-page] .table-row--with-turno { grid-template-columns:1.4fr .62fr .72fr .68fr .6fr .44fr .4fr 40px .58fr .78fr .42fr .64fr .56fr; }
     [data-module-admin-page] .table-head-row { margin-bottom:0; background:#f4f8fc; border-bottom:1px solid #dde6f1; }
     [data-module-admin-page] .table-head-row th { padding:6px 6px; font-size:9px; letter-spacing:.04em; text-transform:uppercase; color:#4a617d; font-weight:700; white-space:nowrap; border:0; box-shadow:none; }
     [data-module-admin-page] tbody tr[data-admin-row] { background:#fff; border-bottom:1px solid #e5edf5; padding:0; }
@@ -119,6 +309,7 @@
     [data-module-admin-page] tbody tr[data-admin-row]:nth-child(even) { background:#f9fbfe; }
     [data-module-admin-page] [data-col-ativo], [data-module-admin-page] [data-checkbox-cell] { text-align:center; }
     [data-module-admin-page] [data-col-item] [data-inline-input] { font-weight:600; }
+    [data-module-admin-page] .aspecto-option-stack { display:grid; gap:4px; min-width:0; }
     [data-module-admin-page] [data-inline-input], [data-module-admin-page] [data-inline-select] { width:100%; max-width:100%; min-height:30px; padding:4px 8px; font-size:11px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
     [data-module-admin-page] [data-day-weekly] select, [data-module-admin-page] [data-day-monthly] input { width:100%; min-height:30px; padding:4px 8px; border-radius:8px; border:1px solid #d7e3f0 !important; background:#fbfdff; box-shadow:none !important; outline:none; appearance:none; -webkit-appearance:none; background-image:none !important; }
     [data-module-admin-page] [data-day-static] { color:var(--text-muted); font-size:13px; }
@@ -178,6 +369,8 @@
     [data-module-admin-page] [data-field="ativo"]:checked::after { transform:translateX(16px); }
     [data-module-admin-page] [data-field="ativo"]:disabled { opacity:.8; cursor:not-allowed; }
     @media (max-width: 1024px) {
+        [data-module-admin-page] .aspecto-category-panel { padding:14px; }
+        [data-module-admin-page] .aspecto-category-panel__toolbar { width:100%; justify-content:flex-start; }
         [data-module-admin-page] .table-wrapper { border:0; background:transparent; }
         [data-module-admin-page] .table-head-row { display:none; }
         [data-module-admin-page] .module-items-grid { display:block; }
@@ -203,18 +396,30 @@
     const masterFrequency = document.querySelector('[data-master-frequency]');
     const masterWeekday = document.querySelector('[data-master-weekday]');
     const masterMonthday = document.querySelector('[data-master-monthday]');
+    const masterFrequencyPanel = document.querySelector('[data-master-frequency-panel]');
     const applyMasterFrequencyButton = document.querySelector('[data-apply-master-frequency]');
-    const moduleTabsContainer = page.querySelector('[data-module-tabs]');
+    const editAllButton = document.querySelector('[data-edit-all]');
     const sectorOptions = {{ sector_options|tojson }};
     const defaultSectorValue = sectorOptions.length ? String(sectorOptions[0].value) : 'AMBOS';
     const validationTypeOptions = {{ validation_type_options|tojson }};
     const frequencyOptions = {{ frequency_options|tojson }};
     const priorityOptions = {{ priority_options|tojson }};
     const weekdayOptions = {{ weekday_options|tojson }};
+    const turnOptions = {{ turn_options|tojson }};
+    const aspectoOptionCategories = {{ aspecto_option_categories|tojson }};
+    const aspectoCategoryMeta = {
+        POSICAO: { title: 'Posicao', description: 'Opcoes usadas na coluna Posicao.' },
+        PECAS: { title: 'Pecas', description: 'Opcoes usadas na coluna Local da tabela de aspecto.' },
+        ANOMALIA: { title: 'Anomalia', description: 'Opcoes usadas na coluna Anomalia.' },
+        LADO: { title: 'Lado', description: 'Opcoes usadas na coluna Lado.' },
+        GERACAO: { title: 'Geracao', description: 'Opcoes usadas na coluna Geracao.' },
+    };
 
     let selectedModule = page.dataset.selectedModule;
     let selectedArea = page.dataset.selectedArea || 'ed';
     let selectedAba = {{ (selected_aba or '')|tojson }};
+    let aspectoSelectedCategory = String(aspectoOptionCategories[0]?.value || 'POSICAO');
+    let aspectoHasCategorySelection = false;
     const areaGroups = JSON.parse(page.dataset.areaGroups || '{}');
     let deletedIds = new Set();
     let hasUnsavedChanges = false;
@@ -232,33 +437,35 @@
         }, 1800);
     }
 
-    function setModuleButtons(activeCode) {
-        page.querySelectorAll('[data-module-tab]').forEach((button) => {
-            const isActive = button.getAttribute('data-module-code') === activeCode;
-            button.classList.toggle('module-pill--active', isActive);
-        });
-        page.dataset.selectedModule = activeCode;
-        selectedModule = activeCode;
-        syncUrlState();
-    }
-
-    function setAreaButtons(activeArea) {
+    function updateActiveTabs() {
         page.querySelectorAll('[data-area-tab]').forEach((button) => {
-            const isActive = button.getAttribute('data-area-code') === activeArea;
-            button.classList.toggle('area-tab--active', isActive);
+            button.classList.toggle(
+                'area-tab--active',
+                button.getAttribute('data-area-code') === selectedArea,
+            );
         });
-        selectedArea = activeArea;
-        page.dataset.selectedArea = activeArea;
-        syncUrlState();
+        page.querySelectorAll('[data-module-tab]').forEach((button) => {
+            button.classList.toggle(
+                'module-pill--active',
+                button.getAttribute('data-module-code') === selectedModule,
+            );
+        });
+        page.querySelectorAll('[data-aba-tab]').forEach((button) => {
+            button.classList.toggle(
+                'module-pill--active',
+                button.getAttribute('data-aba-code') === selectedAba,
+            );
+        });
     }
 
-    function setAbaButtons(activeAba) {
-        document.querySelectorAll('[data-aba-tab]').forEach((button) => {
-            const isActive = button.getAttribute('data-aba-code') === activeAba;
-            button.classList.toggle('module-pill--active', isActive);
-        });
-        selectedAba = activeAba || '';
+    function setCurrentSelection(moduleCode, areaCode, abaCode = '') {
+        selectedModule = moduleCode;
+        selectedArea = areaCode || _resolveModuleAreaFallback(moduleCode);
+        selectedAba = abaCode || '';
+        page.dataset.selectedModule = selectedModule;
+        page.dataset.selectedArea = selectedArea;
         syncUrlState();
+        updateActiveTabs();
     }
 
     function syncUrlState() {
@@ -276,17 +483,27 @@
         return new Set(allowed);
     }
 
-    function applyAreaFilter(areaCode) {
-        const allowed = allowedModulesForArea(areaCode);
-        page.querySelectorAll('[data-module-tab]').forEach((button) => {
-            const code = button.getAttribute('data-module-code');
-            button.hidden = !allowed.has(code);
-        });
+    function navigateToModulePage(moduleCode, areaCode = selectedArea, abaCode = '') {
+        const params = new URLSearchParams();
+        params.set('area', areaCode || _resolveModuleAreaFallback(moduleCode));
+        params.set('modulo', moduleCode);
+        if (abaCode) params.set('aba', abaCode);
+        window.location.assign(`/configuracoes/modulos-itens?${params.toString()}`);
     }
 
-    function firstVisibleModule() {
-        const button = Array.from(page.querySelectorAll('[data-module-tab]')).find((node) => !node.hidden);
-        return button ? button.getAttribute('data-module-code') : null;
+    function isCurrentSelection(moduleCode, areaCode, abaCode = '') {
+        const normalizedArea = areaCode || _resolveModuleAreaFallback(moduleCode);
+        const normalizedAba = abaCode || '';
+        return (
+            String(selectedModule) === String(moduleCode) &&
+            String(selectedArea) === String(normalizedArea) &&
+            String(selectedAba || '') === String(normalizedAba)
+        );
+    }
+
+    function _resolveModuleAreaFallback(moduleCode) {
+        const match = Object.entries(areaGroups).find(([, codes]) => Array.isArray(codes) && codes.includes(moduleCode));
+        return match ? match[0] : 'ed';
     }
 
     function applyResponsiveLabels() {
@@ -319,6 +536,7 @@
         deletedIds = new Set();
         hasUnsavedChanges = false;
         newRowSequence = 0;
+        aspectoHasCategorySelection = false;
     }
 
     function renderOptions(options, selectedValue) {
@@ -326,6 +544,106 @@
             const selected = String(option.value) === String(selectedValue ?? '') ? ' selected' : '';
             return `<option value="${option.value}"${selected}>${option.label}</option>`;
         }).join('');
+    }
+
+    function isAspectoModule(moduleCode = selectedModule) {
+        return moduleCode === 'aspecto';
+    }
+
+    function normalizeAspectoCategory(value) {
+        const normalized = String(value || '').trim().toUpperCase();
+        const available = new Set(aspectoOptionCategories.map((option) => String(option.value)));
+        if (available.has(normalized)) return normalized;
+        return String(aspectoOptionCategories[0]?.value || 'POSICAO');
+    }
+
+    function getAspectoRows() {
+        return Array.from(container.querySelectorAll('.aspecto-catalog-row[data-admin-row]'));
+    }
+
+    function currentAspectoCategory() {
+        return normalizeAspectoCategory(aspectoSelectedCategory);
+    }
+
+    function syncAspectoChrome() {
+        const active = isAspectoModule();
+        if (masterFrequencyPanel) masterFrequencyPanel.hidden = active;
+        if (editAllButton) editAllButton.hidden = active;
+    }
+
+    function updateAspectoBadges(scope = container) {
+        scope.querySelectorAll('.aspecto-catalog-row').forEach((row) => {
+            const category = normalizeAspectoCategory(row.querySelector('[data-field="operacao"]')?.value || row.dataset.category);
+            const statusPill = row.querySelector('[data-aspecto-status-pill]');
+            const ativoField = row.querySelector('[data-field="ativo"]');
+            row.dataset.category = category;
+            row.dataset.status = ativoField?.checked ? 'ativo' : 'inativo';
+            if (statusPill) {
+                const active = Boolean(ativoField?.checked);
+                statusPill.textContent = active ? 'Ativo' : 'Inativo';
+                statusPill.classList.toggle('aspecto-status-pill--inactive', !active);
+            }
+        });
+    }
+
+    function refreshAspectoCategoryCounts() {
+        if (!isAspectoModule()) return;
+        const counts = new Map(aspectoOptionCategories.map((option) => [String(option.value), 0]));
+        getAspectoRows().forEach((row) => {
+            const category = normalizeAspectoCategory(row.querySelector('[data-field="operacao"]')?.value || row.dataset.category);
+            counts.set(category, (counts.get(category) || 0) + 1);
+        });
+        container.querySelectorAll('[data-aspecto-category-button]').forEach((button) => {
+            const category = normalizeAspectoCategory(button.dataset.category);
+            const badge = button.querySelector('[data-aspecto-category-count-badge]');
+            if (badge) badge.textContent = String(counts.get(category) || 0);
+            button.classList.toggle('aspecto-category-pill--active', category === currentAspectoCategory());
+        });
+    }
+
+    function refreshAspectoCatalogView() {
+        if (!isAspectoModule()) return;
+        const rows = getAspectoRows();
+        if (rows.length && !aspectoHasCategorySelection) {
+            const availableCategory = aspectoOptionCategories
+                .map((option) => String(option.value))
+                .find((optionValue) => rows.some((row) => normalizeAspectoCategory(row.querySelector('[data-field="operacao"]')?.value || row.dataset.category) === optionValue));
+            const currentHasRows = rows.some((row) => normalizeAspectoCategory(row.querySelector('[data-field="operacao"]')?.value || row.dataset.category) === currentAspectoCategory());
+            if (!currentHasRows && availableCategory) {
+                aspectoSelectedCategory = availableCategory;
+            }
+        }
+        const category = currentAspectoCategory();
+        const meta = aspectoCategoryMeta[category] || { title: category, description: '' };
+        let visibleCount = 0;
+
+        updateAspectoBadges();
+
+        getAspectoRows().forEach((row) => {
+            const rowCategory = normalizeAspectoCategory(row.querySelector('[data-field="operacao"]')?.value || row.dataset.category);
+            const matchesCategory = rowCategory === category;
+            const visible = matchesCategory;
+            row.hidden = !visible;
+            if (visible) visibleCount += 1;
+        });
+
+        const titleNodes = container.querySelectorAll('[data-aspecto-category-title], [data-aspecto-category-heading]');
+        titleNodes.forEach((node) => {
+            node.textContent = meta.title;
+        });
+        const descriptionNode = container.querySelector('[data-aspecto-category-description]');
+        if (descriptionNode) descriptionNode.textContent = meta.description;
+        const countNode = container.querySelector('[data-aspecto-category-count]');
+        if (countNode) countNode.textContent = `${visibleCount} ${visibleCount === 1 ? 'item' : 'itens'}`;
+        const emptyState = container.querySelector('[data-aspecto-empty-state]');
+        if (emptyState) emptyState.hidden = visibleCount > 0;
+        refreshAspectoCategoryCounts();
+    }
+
+    function setAspectoCategory(category) {
+        aspectoSelectedCategory = normalizeAspectoCategory(category);
+        aspectoHasCategorySelection = true;
+        refreshAspectoCatalogView();
     }
 
     function toggleDayInputs(row) {
@@ -383,6 +701,21 @@
         if (masterMonthday) masterMonthday.hidden = frequency !== 'mensal';
     }
 
+    function updateEditAllButtonState() {
+        if (!editAllButton) return;
+        if (isAspectoModule()) {
+            editAllButton.hidden = true;
+            editAllButton.disabled = true;
+            return;
+        }
+        const rows = Array.from(container.querySelectorAll('[data-admin-row]'));
+        const hasRows = rows.length > 0;
+        const allEditing = hasRows && rows.every((row) => row.dataset.editing === 'true');
+        editAllButton.hidden = false;
+        editAllButton.disabled = !hasRows;
+        editAllButton.textContent = allEditing ? 'Fechar todos' : 'Editar todos';
+    }
+
     function setRowEditing(row, editing) {
         row.dataset.editing = editing ? 'true' : 'false';
         row.querySelectorAll('[data-editable]').forEach((field) => {
@@ -394,10 +727,54 @@
         }
         toggleDayInputs(row);
         toggleValidationInputs(row);
+        if (isAspectoModule()) refreshAspectoCatalogView();
+        updateEditAllButtonState();
     }
 
     function buildNewRowMarkup() {
         const rowKey = `new-${Date.now()}-${newRowSequence++}`;
+        const showTurnoResponsavel = selectedModule === 'pt';
+        if (selectedModule === 'aspecto') {
+            const category = currentAspectoCategory();
+            return `
+                <tr class="table-row table-row--aspecto aspecto-catalog-row" data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true" data-category="${category}" data-status="ativo">
+                    <td data-col-ordem>
+                        <input type="number" data-field="ordem" data-editable data-inline-input value="0" min="0">
+                    </td>
+                    <td data-col-valor>
+                        <div class="aspecto-value-stack">
+                            <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Valor da lista">
+                            <div class="aspecto-value-meta">
+                                <select data-field="operacao" data-editable data-inline-select class="aspecto-category-select">
+                                    ${renderOptions(aspectoOptionCategories, category)}
+                                </select>
+                            </div>
+                        </div>
+                    </td>
+                    <td data-col-ativo>
+                        <label class="aspecto-status-toggle">
+                            <input type="checkbox" data-field="ativo" data-editable checked>
+                            <span class="aspecto-status-pill" data-aspecto-status-pill>Ativo</span>
+                        </label>
+                    </td>
+                    <td data-col-acoes class="actions-cell">
+                        <button type="button" class="button-secondary small" data-row-edit>Fechar</button>
+                        <button type="button" class="button-danger small" data-row-delete>Excluir</button>
+                    </td>
+                    <input type="hidden" data-field="aba" value="${selectedAba || ''}">
+                    <select data-field="setor_tipo" hidden>${renderOptions(sectorOptions, defaultSectorValue)}</select>
+                    <select data-field="frequencia_tipo" hidden>${renderOptions(frequencyOptions, 'diario')}</select>
+                    <select data-field="prioridade" hidden>${renderOptions(priorityOptions, 'medio')}</select>
+                    <input type="hidden" data-field="dia_semana" value="">
+                    <input type="hidden" data-field="dia_mes" value="">
+                    <select data-field="tipo_validacao" hidden>${renderOptions(validationTypeOptions, 'nenhum')}</select>
+                    <input type="hidden" data-field="limite_minimo" value="">
+                    <input type="hidden" data-field="limite_maximo" value="">
+                    <input type="hidden" data-field="unidade" value="">
+                    <input type="hidden" data-field="parametro_exibicao" value="">
+                </tr>
+            `;
+        }
         const itemFieldMarkup = ['central-tintas', 'cabine-pintura'].includes(selectedModule)
             ? `
                 <input type="text" data-field="item_nome" data-editable data-inline-input value="" placeholder="operaÃ§Ã£o / Controle">
@@ -416,8 +793,17 @@
                 <input type="hidden" data-field="aba" value="${selectedAba || ''}">
                 <input type="text" data-field="controle" data-editable data-inline-input value="" placeholder="Nome do item">
             `;
+        const turnoCellMarkup = showTurnoResponsavel
+            ? `
+                <td data-col-turno>
+                    <select data-field="turno_padrao" data-editable data-inline-select>
+                        ${renderOptions(turnOptions, 'TODOS')}
+                    </select>
+                </td>
+            `
+            : '';
         return `
-            <tr class="table-row" data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true">
+            <tr class="table-row ${showTurnoResponsavel ? 'table-row--with-turno' : ''}" data-admin-row data-row-key="${rowKey}" data-editing="true" data-new-row="true">
                 <td data-col-item>
                     ${itemFieldMarkup}
                 </td>
@@ -426,6 +812,7 @@
                         ${renderOptions(sectorOptions, defaultSectorValue)}
                     </select>
                 </td>
+                ${turnoCellMarkup}
                 <td data-col-frequencia>
                     <select data-field="frequencia_tipo" data-editable data-inline-select="frequencia">
                         ${renderOptions(frequencyOptions, 'diario')}
@@ -507,6 +894,7 @@
             operacao,
             controle,
             setor_tipo: row.querySelector('[data-field="setor_tipo"]')?.value || defaultSectorValue,
+            turno_padrao: row.querySelector('[data-field="turno_padrao"]')?.value || '',
             frequencia_tipo: frequency,
             prioridade: row.querySelector('[data-field="prioridade"]')?.value || 'medio',
             dia_semana: frequency === 'semanal' && weekday !== '' ? Number(weekday) : null,
@@ -532,16 +920,16 @@
             return;
         }
         container.innerHTML = await response.text();
-        setModuleButtons(moduleCode);
-        if (moduleCode !== 'cabine-pintura') {
-            selectedAba = '';
-        }
+        setCurrentSelection(moduleCode, _resolveModuleAreaFallback(moduleCode), moduleCode === 'cabine-pintura' ? abaCode : '');
         resetModuleDraftState();
         container.querySelectorAll('[data-admin-row]').forEach((row) => {
             setRowEditing(row, false);
         });
+        syncAspectoChrome();
         applyResponsiveLabels();
         applyPriorityTone(container);
+        refreshAspectoCatalogView();
+        updateEditAllButtonState();
     }
 
     async function saveCurrentModule() {
@@ -577,28 +965,54 @@
         const moduleButton = event.target.closest('[data-module-tab]');
         if (moduleButton) {
             const moduleCode = moduleButton.getAttribute('data-module-code');
+            const moduleArea = moduleButton.getAttribute('data-module-area') || _resolveModuleAreaFallback(moduleCode);
+            if (isCurrentSelection(moduleCode, moduleArea)) {
+                event.preventDefault();
+                return;
+            }
+            if (!hasUnsavedChanges) return;
+            event.preventDefault();
             if (!confirmDiscardIfNeeded()) return;
-            loadModule(moduleCode);
+            navigateToModulePage(moduleCode, moduleArea);
             return;
         }
 
         const abaButton = event.target.closest('[data-aba-tab]');
         if (abaButton) {
             const abaCode = abaButton.getAttribute('data-aba-code') || '';
+            if (isCurrentSelection(selectedModule, selectedArea, abaCode)) {
+                event.preventDefault();
+                return;
+            }
+            if (!hasUnsavedChanges) return;
+            event.preventDefault();
             if (!confirmDiscardIfNeeded()) return;
-            setAbaButtons(abaCode);
-            loadModule(selectedModule, abaCode);
+            navigateToModulePage(selectedModule, selectedArea, abaCode);
             return;
         }
 
         const areaButton = event.target.closest('[data-area-tab]');
         if (areaButton) {
             const areaCode = areaButton.getAttribute('data-area-code') || 'ed';
-            if (!confirmDiscardIfNeeded()) return;
-            setAreaButtons(areaCode);
-            applyAreaFilter(areaCode);
-            const nextModule = allowedModulesForArea(areaCode).has(selectedModule) ? selectedModule : firstVisibleModule();
-            if (nextModule) loadModule(nextModule);
+            const nextModule = allowedModulesForArea(areaCode).has(selectedModule)
+                ? selectedModule
+                : (areaGroups[areaCode] && areaGroups[areaCode][0]) || '';
+            if (nextModule) {
+                if (isCurrentSelection(nextModule, areaCode)) {
+                    event.preventDefault();
+                    return;
+                }
+                if (!hasUnsavedChanges) return;
+                event.preventDefault();
+                if (!confirmDiscardIfNeeded()) return;
+                navigateToModulePage(nextModule, areaCode);
+            }
+            return;
+        }
+
+        const aspectoCategoryButton = event.target.closest('[data-aspecto-category-button]');
+        if (aspectoCategoryButton) {
+            setAspectoCategory(aspectoCategoryButton.dataset.category);
             return;
         }
 
@@ -607,6 +1021,15 @@
             const row = editButton.closest('[data-admin-row]');
             if (!row) return;
             setRowEditing(row, row.dataset.editing !== 'true');
+            return;
+        }
+
+        const editAllTrigger = event.target.closest('[data-edit-all]');
+        if (editAllTrigger) {
+            const rows = Array.from(container.querySelectorAll('[data-admin-row]'));
+            if (!rows.length) return;
+            const shouldEdit = rows.some((row) => row.dataset.editing !== 'true');
+            rows.forEach((row) => setRowEditing(row, shouldEdit));
             return;
         }
 
@@ -621,6 +1044,8 @@
             }
             row.remove();
             markUnsaved();
+            refreshAspectoCatalogView();
+            updateEditAllButtonState();
         }
     });
 
@@ -639,13 +1064,29 @@
         if (event.target.matches('[data-field="prioridade"]')) {
             applyPriorityTone(row);
         }
+        if (isAspectoModule() && event.target.matches('[data-field="operacao"], [data-field="controle"], [data-field="ativo"]')) {
+            refreshAspectoCatalogView();
+        }
     });
 
     addButton?.addEventListener('click', () => {
-        const tbody = container.querySelector('tbody');
-        if (!tbody) return;
-        tbody.insertAdjacentHTML('afterbegin', buildNewRowMarkup());
-        const row = tbody.querySelector('[data-new-row="true"]');
+        const target = isAspectoModule()
+            ? container.querySelector('[data-aspecto-table-body]')
+            : container.querySelector('tbody');
+        if (!target) return;
+        const markup = buildNewRowMarkup();
+        if (isAspectoModule()) {
+            const emptyState = target.querySelector('[data-aspecto-empty-state]');
+            if (emptyState) emptyState.hidden = true;
+            target.insertAdjacentHTML('afterbegin', markup);
+        } else {
+            target.querySelectorAll('.empty-state').forEach((cell) => {
+                const row = cell.closest('tr');
+                if (row && !row.hasAttribute('data-aspecto-empty-state')) row.remove();
+            });
+            target.insertAdjacentHTML('afterbegin', markup);
+        }
+        const row = target.querySelector('[data-new-row="true"]');
         if (row) {
             row.removeAttribute('data-new-row');
             toggleDayInputs(row);
@@ -653,10 +1094,19 @@
             applyPriorityTone(row);
         }
         markUnsaved();
+        refreshAspectoCatalogView();
+        updateEditAllButtonState();
+    });
+
+    container.addEventListener('click', (event) => {
+        const inlineAddButton = event.target.closest('[data-add-item-inline]');
+        if (!inlineAddButton) return;
+        addButton?.click();
     });
 
     masterFrequency?.addEventListener('change', toggleMasterDayInputs);
     toggleMasterDayInputs();
+    updateEditAllButtonState();
 
     applyMasterFrequencyButton?.addEventListener('click', async () => {
         const rows = Array.from(container.querySelectorAll('[data-admin-row]'));
@@ -700,19 +1150,18 @@
         setRowEditing(row, false);
         toggleValidationInputs(row);
     });
-    setAreaButtons(selectedArea);
-    applyAreaFilter(selectedArea);
     if (!allowedModulesForArea(selectedArea).has(selectedModule)) {
-        const nextModule = firstVisibleModule();
+        const nextModule = (areaGroups[selectedArea] && areaGroups[selectedArea][0]) || '';
         if (nextModule) {
-            loadModule(nextModule);
+            navigateToModulePage(nextModule, selectedArea);
+            return;
         }
     }
-    if (selectedAba) {
-        setAbaButtons(selectedAba);
-    }
+    syncAspectoChrome();
+    updateActiveTabs();
     applyResponsiveLabels();
     applyPriorityTone(container);
+    refreshAspectoCatalogView();
 })();
 </script>
 {% endblock %}

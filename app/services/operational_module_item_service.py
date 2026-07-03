@@ -108,10 +108,20 @@ def get_items_by_module(session: Session, module_code: str) -> list[OperationalM
 
 
 def get_items_by_module_and_setor(session: Session, module_code: str, setor: str) -> list[OperationalModuleItem]:
+    return get_items_by_module_and_setor_and_turno(session, module_code, setor, turno=None)
+
+
+def get_items_by_module_and_setor_and_turno(
+    session: Session,
+    module_code: str,
+    setor: str,
+    *,
+    turno: str | None = None,
+) -> list[OperationalModuleItem]:
     scope = _scope_for_module(module_code)
     modulo = module_code
     aba = _aba_from_setor(setor)
-    return list(
+    items = list(
         session.scalars(
             select(OperationalModuleItem)
             .where(
@@ -135,6 +145,18 @@ def get_items_by_module_and_setor(session: Session, module_code: str, setor: str
             .order_by(OperationalModuleItem.ordem, OperationalModuleItem.id)
         ).all()
     )
+    if not turno:
+        return items
+    selected_turno = str(turno or "").strip()
+    return [item for item in items if _matches_turno(item, selected_turno)]
+
+
+def _matches_turno(item: OperationalModuleItem, turno: str) -> bool:
+    item_turno = str(item.turno_padrao or "").strip().upper()
+    selected_turno = str(turno or "").strip()
+    if item_turno in {"1", "2", "3"}:
+        return item_turno == selected_turno
+    return True
 
 
 def get_items_by_scope_module(

@@ -28,7 +28,7 @@
                 <span class="turnos-toolbar__count">{{ relatorios_em_andamento|length }}</span>
             </button>
             <button type="button" class="turnos-toolbar__tab {% if active_tab == 'concluidos' %}turnos-toolbar__tab--active{% endif %}" data-turnos-tab="concluidos">
-                Concluidos
+                Concluídos
                 <span class="turnos-toolbar__count">{{ relatorios_concluidos|length }}</span>
             </button>
         </div>
@@ -86,8 +86,8 @@
             <div class="turno-table-header turno-table-header--concluded panel-card">
                 <span>Data</span>
                 <span>Turno</span>
-                <span>Responsavel</span>
-                <span>Atualizacao</span>
+                <span>Responsável</span>
+                <span>Atualização</span>
                 <span>Acoes</span>
             </div>
             {% for relatorio in relatorios_concluidos %}
@@ -119,7 +119,7 @@
         </div>
         {% else %}
         <div class="op-empty-state panel-card">
-            <p>Nenhum turno concluido.</p>
+            <p>Nenhum turno concluído.</p>
         </div>
         {% endif %}
     </div>
@@ -133,7 +133,7 @@
                 <span class="turnos-page__kicker">Novo turno</span>
                 <h2 class="turnos-modal__title">Iniciar turno</h2>
             </div>
-            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">Ã—</button>
+            <button type="button" class="turnos-modal__close" data-close-start-modal aria-label="Fechar">X</button>
         </div>
 
         {% if error_message %}
