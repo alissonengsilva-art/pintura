@@ -40,6 +40,8 @@ from app.services.operational_module_service import (
     SETOR_PTED,
     SETOR_LAB,
     SETOR_STATUS_NAO_INICIADO,
+    SETOR_STATUS_EM_ANDAMENTO,
+    SETOR_STATUS_CONCLUIDO,
     FREQUENCY_LABELS,
     build_sector_view,
     operational_schema_available,
