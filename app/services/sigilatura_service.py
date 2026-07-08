@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 from pathlib import Path
 import re
@@ -28,6 +29,10 @@ from app.models import (
     Turno,
 )
 from app.services import module_parameter_validation, operational_module_item_service
+
+logger = logging.getLogger(__name__)
+
+_NUMERIC_TOKEN_RE = re.compile(r"-?\d+(?:[.,]\d+)?")
 
 
 MODULE_META = {
@@ -416,6 +421,155 @@ def _evaluate_param_rule(parametro: str | None, valor: str | None) -> tuple[str,
         low = float(center)
         dev = float(delta)
         return ("DENTRO", "NAO") if (low - dev) <= number <= (low + dev) else ("FORA", "SIM")
+    return ("DENTRO", "NAO")
+
+
+def _extract_numbers(raw: str | None) -> list[float]:
+    if raw is None:
+        return []
+    text = str(raw).replace("\xa0", " ").strip()
+    numbers: list[float] = []
+    for match in _NUMERIC_TOKEN_RE.finditer(text):
+        try:
+            numbers.append(float(match.group(0).replace(",", ".")))
+        except ValueError:
+            continue
+    return numbers
+
+
+def _extract_first_number(raw: str | None) -> float | None:
+    numbers = _extract_numbers(raw)
+    return numbers[0] if numbers else None
+
+
+def _log_unparsed_param_rule(parametro: str | None, valor: str | None) -> None:
+    logger.warning(
+        "Sigilatura: regra de parametro nao interpretada; mantendo status seguro. parametro=%r valor=%r",
+        parametro,
+        valor,
+    )
+
+
+def _normalize_tolerance_rule(raw: str) -> str:
+    return (
+        raw.replace(" ", "")
+        .replace("Â±", "+-")
+        .replace("Ã‚Â±", "+-")
+        .replace("±", "+-")
+        .replace("ą", "+-")
+        .replace("+/-", "+-")
+    )
+
+
+def _evaluate_param_rule(parametro: str | None, valor: str | None) -> tuple[str, str]:
+    value = str(valor or "").strip()
+    rule = str(parametro or "").strip().upper()
+    if not value:
+        return ("NAO_AVALIADO", "NAO")
+
+    number = _extract_first_number(value)
+    if rule == "OK":
+        ok = value.upper() == "OK"
+        return ("DENTRO", "NAO") if ok else ("FORA", "SIM")
+
+    if rule.startswith(">") and number is not None:
+        limit = _extract_first_number(rule.replace(">", "", 1))
+        if limit is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if number > limit else ("FORA", "SIM")
+
+    if rule.startswith("<") and number is not None:
+        limit = _extract_first_number(rule.replace("<", "", 1))
+        if limit is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if number < limit else ("FORA", "SIM")
+
+    if number is not None:
+        tolerance_rule = rule.replace(" ", "").replace("Â±", "+-").replace("+/-", "+-")
+        if "+-" in tolerance_rule:
+            center_text, delta_text = tolerance_rule.split("+-", 1)
+            center = _extract_first_number(center_text)
+            dev = _extract_first_number(delta_text)
+            if center is None or dev is None:
+                _log_unparsed_param_rule(parametro, valor)
+                return ("DENTRO", "NAO")
+            return ("DENTRO", "NAO") if (center - dev) <= number <= (center + dev) else ("FORA", "SIM")
+
+    if "-" in rule and number is not None:
+        bounds = _extract_numbers(rule)
+        if len(bounds) >= 2:
+            low, high = bounds[0], bounds[1]
+            if low > high:
+                low, high = high, low
+            return ("DENTRO", "NAO") if low <= number <= high else ("FORA", "SIM")
+        _log_unparsed_param_rule(parametro, valor)
+        return ("DENTRO", "NAO")
+
+    if "+-" in rule and number is not None:
+        center, delta = [p.strip() for p in rule.replace(" ", "").split("+-", 1)]
+        low = _extract_first_number(center)
+        dev = _extract_first_number(delta)
+        if low is None or dev is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if (low - dev) <= number <= (low + dev) else ("FORA", "SIM")
+
+    if number is None and _extract_numbers(rule):
+        _log_unparsed_param_rule(parametro, valor)
+
+    return ("DENTRO", "NAO")
+
+
+def _evaluate_param_rule(parametro: str | None, valor: str | None) -> tuple[str, str]:
+    value = str(valor or "").strip()
+    rule = str(parametro or "").strip().upper()
+    if not value:
+        return ("NAO_AVALIADO", "NAO")
+
+    number = _extract_first_number(value)
+    if rule == "OK":
+        ok = value.upper() == "OK"
+        return ("DENTRO", "NAO") if ok else ("FORA", "SIM")
+
+    if rule.startswith(">") and number is not None:
+        limit = _extract_first_number(rule.replace(">", "", 1))
+        if limit is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if number > limit else ("FORA", "SIM")
+
+    if rule.startswith("<") and number is not None:
+        limit = _extract_first_number(rule.replace("<", "", 1))
+        if limit is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if number < limit else ("FORA", "SIM")
+
+    tolerance_rule = _normalize_tolerance_rule(rule)
+    if number is not None and "+-" in tolerance_rule:
+        center_text, delta_text = tolerance_rule.split("+-", 1)
+        center = _extract_first_number(center_text)
+        dev = _extract_first_number(delta_text)
+        if center is None or dev is None:
+            _log_unparsed_param_rule(parametro, valor)
+            return ("DENTRO", "NAO")
+        return ("DENTRO", "NAO") if (center - dev) <= number <= (center + dev) else ("FORA", "SIM")
+
+    if "-" in rule and number is not None:
+        bounds = _extract_numbers(rule)
+        if len(bounds) >= 2:
+            low, high = bounds[0], bounds[1]
+            if low > high:
+                low, high = high, low
+            return ("DENTRO", "NAO") if low <= number <= high else ("FORA", "SIM")
+        _log_unparsed_param_rule(parametro, valor)
+        return ("DENTRO", "NAO")
+
+    if number is None and _extract_numbers(rule):
+        _log_unparsed_param_rule(parametro, valor)
+
     return ("DENTRO", "NAO")
 
 

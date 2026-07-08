@@ -185,6 +185,14 @@ def test_sigilatura_temperature_rule_accepts_plus_minus_tolerance() -> None:
     assert _evaluate_param_rule("150 ± 10 °C", "161") == ("FORA", "SIM")
 
 
+def test_sigilatura_temperature_rule_accepts_range_with_units_and_decimal_comma() -> None:
+    assert _evaluate_param_rule("26 - 32", "30") == ("DENTRO", "NAO")
+    assert _evaluate_param_rule("26 - 32 °C", "32") == ("DENTRO", "NAO")
+    assert _evaluate_param_rule("26 - 32ºC", "25") == ("FORA", "SIM")
+    assert _evaluate_param_rule("10 - 32 РC", "32") == ("DENTRO", "NAO")
+    assert _evaluate_param_rule("10,5 - 32,5 °C", "32,5 °C") == ("DENTRO", "NAO")
+
+
 def test_sigilatura_escorrimento_catalog_uses_real_model_fields() -> None:
     item = SimpleNamespace(operacao="ESCORRIMENTO", controle="REAL ESTUFA MANUAL", ordem=6)
 
